@@ -234,18 +234,17 @@
             ];
             walls.push(...createCurvedWall(leftCurve, 18, wallOpts));
 
-            // Right wall - extends high to contain ball, with entry channel from deflector
+            // Right wall - starts LOWER to leave gap for ball entry from plunger lane
             const rightCurve = [
-                { x: W - 50, y: 70 },     // Start high to contain ball after deflector
-                { x: W - 50, y: 150 }, { x: W - 50, y: 300 }, { x: W - 50, y: 420 },
+                { x: W - 50, y: 180 },    // Start below entry gap
+                { x: W - 50, y: 300 }, { x: W - 50, y: 420 },
                 { x: W - 42, y: 500 }, { x: W - 30, y: 560 }
             ];
             walls.push(...createCurvedWall(rightCurve, 18, wallOpts));
 
-            // Top wall - extends to meet right wall, creating entry channel
+            // Top wall - stops before plunger lane area
             const topCurve = [
-                { x: 25, y: 25 }, { x: 100, y: 15 }, { x: 180, y: 12 }, { x: 260, y: 20 },
-                { x: W - 80, y: 35 }, { x: W - 55, y: 55 }
+                { x: 25, y: 25 }, { x: 100, y: 15 }, { x: 180, y: 12 }, { x: 260, y: 20 }, { x: W - 100, y: 35 }
             ];
             walls.push(...createCurvedWall(topCurve, 16, wallOpts));
 
