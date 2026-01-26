@@ -6,13 +6,7 @@
     <title>Pinball Alley</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            touch-action: manipulation;
-        }
-
+        * { margin: 0; padding: 0; box-sizing: border-box; touch-action: manipulation; }
         body {
             background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
             min-height: 100vh;
@@ -24,14 +18,7 @@
             overflow: hidden;
             user-select: none;
         }
-
-        #game-container {
-            position: relative;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-        }
-
+        #game-container { position: relative; display: flex; flex-direction: column; align-items: center; }
         #score-display {
             background: linear-gradient(180deg, #2d2d44 0%, #1a1a2e 100%);
             border: 3px solid #4a4a6a;
@@ -42,181 +29,65 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.5);
         }
-
         .score-item { text-align: center; }
-        .score-label {
-            color: #8888aa;
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-        .score-value {
-            color: #00ff88;
-            font-size: 24px;
-            font-weight: bold;
-            text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
-            font-family: 'Courier New', monospace;
-        }
-        #high-score .score-value { color: #ffcc00; text-shadow: 0 0 10px rgba(255, 204, 0, 0.5); }
-        #balls-left .score-value { color: #ff6688; text-shadow: 0 0 10px rgba(255, 102, 136, 0.5); }
-
-        #game-canvas {
-            border: 3px solid #4a4a6a;
-            border-top: none;
-            border-radius: 0 0 10px 10px;
-            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-        }
+        .score-label { color: #8888aa; font-size: 12px; text-transform: uppercase; letter-spacing: 1px; }
+        .score-value { color: #00ff88; font-size: 24px; font-weight: bold; font-family: 'Courier New', monospace; }
+        #high-score .score-value { color: #ffcc00; }
+        #balls-left .score-value { color: #ff6688; }
+        #game-canvas { border: 3px solid #4a4a6a; border-top: none; border-radius: 0 0 10px 10px; }
 
         .score-popup {
-            position: absolute;
-            color: #ffcc00;
-            font-size: 20px;
-            font-weight: bold;
-            text-shadow: 0 0 10px rgba(255, 204, 0, 0.8);
-            pointer-events: none;
-            animation: scoreFloat 1s ease-out forwards;
-            z-index: 100;
+            position: absolute; color: #ffcc00; font-size: 20px; font-weight: bold;
+            pointer-events: none; animation: scoreFloat 1s ease-out forwards; z-index: 100;
         }
-
         @keyframes scoreFloat {
             0% { opacity: 1; transform: translateY(0) scale(1); }
             100% { opacity: 0; transform: translateY(-50px) scale(1.5); }
         }
 
         #game-over, #level-select {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.95);
-            padding: 30px;
-            border-radius: 20px;
-            text-align: center;
-            z-index: 200;
-            border: 3px solid #4a4a6a;
-            box-shadow: 0 0 30px rgba(0, 0, 0, 0.8);
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95); padding: 25px; border-radius: 20px;
+            text-align: center; z-index: 200; border: 3px solid #4a4a6a;
         }
-
         #game-over { display: none; border-color: #ff6688; }
-        #game-over h2 { color: #ff6688; font-size: 36px; margin-bottom: 20px; }
-        #game-over p { color: #ffffff; font-size: 18px; margin-bottom: 10px; }
-        #final-score { color: #00ff88; font-size: 32px; font-weight: bold; margin-bottom: 20px; }
+        #game-over h2 { color: #ff6688; font-size: 32px; margin-bottom: 15px; }
+        #final-score { color: #00ff88; font-size: 28px; font-weight: bold; margin: 15px 0; }
+        #level-select h2 { color: #00ff88; font-size: 24px; margin-bottom: 15px; }
 
-        #level-select h2 {
-            color: #00ff88;
-            font-size: 28px;
-            margin-bottom: 20px;
-            text-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
-        }
-
-        .level-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-
+        .level-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px; }
         .level-btn {
             background: linear-gradient(180deg, #2a2a4a 0%, #1a1a2e 100%);
-            border: 2px solid #4a4a6a;
-            padding: 15px;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            min-width: 140px;
+            border: 2px solid #4a4a6a; padding: 12px 8px; border-radius: 10px;
+            cursor: pointer; transition: all 0.3s ease; min-width: 130px;
         }
-
-        .level-btn:hover, .level-btn.selected {
-            border-color: #00ff88;
-            box-shadow: 0 0 15px rgba(0, 255, 136, 0.3);
-            transform: scale(1.05);
-        }
-
-        .level-btn .level-name {
-            color: #ffffff;
-            font-size: 16px;
-            font-weight: bold;
-            display: block;
-            margin-bottom: 5px;
-        }
-
-        .level-btn .level-desc {
-            color: #8888aa;
-            font-size: 11px;
-        }
-
-        .level-btn .level-icon {
-            font-size: 24px;
-            margin-bottom: 5px;
-        }
+        .level-btn:hover, .level-btn.selected { border-color: #00ff88; transform: scale(1.05); }
+        .level-btn .level-name { color: #fff; font-size: 14px; font-weight: bold; display: block; margin-bottom: 3px; }
+        .level-btn .level-desc { color: #8888aa; font-size: 10px; }
+        .level-btn .level-icon { font-size: 20px; margin-bottom: 3px; }
 
         #restart-btn, #play-btn {
             background: linear-gradient(180deg, #00ff88 0%, #00cc66 100%);
-            border: none;
-            padding: 15px 40px;
-            font-size: 20px;
-            font-weight: bold;
-            color: #1a1a2e;
-            border-radius: 10px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 5px 20px rgba(0, 255, 136, 0.3);
+            border: none; padding: 12px 35px; font-size: 18px; font-weight: bold;
+            color: #1a1a2e; border-radius: 10px; cursor: pointer; transition: all 0.3s ease;
         }
+        #restart-btn:hover, #play-btn:hover { transform: scale(1.1); }
 
-        #restart-btn:hover, #play-btn:hover {
-            transform: scale(1.1);
-            box-shadow: 0 5px 30px rgba(0, 255, 136, 0.5);
-        }
-
-        #instructions {
-            color: #8888aa;
-            font-size: 12px;
-            margin-top: 15px;
-            text-align: center;
-        }
+        #instructions { color: #8888aa; font-size: 11px; margin-top: 10px; text-align: center; }
         #instructions span { color: #ffcc00; }
-
-        .touch-zone {
-            position: absolute;
-            bottom: 0;
-            width: 50%;
-            height: 100%;
-            z-index: 50;
-            pointer-events: none;
-        }
+        .touch-zone { position: absolute; bottom: 0; width: 50%; height: 100%; z-index: 50; pointer-events: none; }
         #touch-left { left: 0; }
         #touch-right { right: 0; }
-        .touch-active {
-            background: radial-gradient(ellipse at bottom, rgba(255, 102, 136, 0.3) 0%, transparent 70%);
-        }
-
+        .touch-active { background: radial-gradient(ellipse at bottom, rgba(255, 102, 136, 0.3) 0%, transparent 70%); }
         #launch-indicator {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            color: #00ff88;
-            font-size: 14px;
-            animation: pulse 1s infinite;
-            display: none;
+            position: absolute; bottom: 15px; right: 15px; color: #00ff88;
+            font-size: 12px; animation: pulse 1s infinite; display: none;
         }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
         #level-name-display {
-            position: absolute;
-            top: 10px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: #ffcc00;
-            font-size: 14px;
-            font-weight: bold;
-            text-shadow: 0 0 10px rgba(255, 204, 0, 0.5);
-            opacity: 0.8;
+            position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
+            color: #ffcc00; font-size: 12px; font-weight: bold; opacity: 0.8;
         }
     </style>
 </head>
@@ -236,9 +107,7 @@
                 <div class="score-value">3</div>
             </div>
         </div>
-
         <canvas id="game-canvas"></canvas>
-
         <div id="touch-left" class="touch-zone"></div>
         <div id="touch-right" class="touch-zone"></div>
         <div id="launch-indicator">Tap to Launch!</div>
@@ -250,27 +119,27 @@
                 <button class="level-btn selected" data-level="0">
                     <div class="level-icon">🎯</div>
                     <span class="level-name">Classic</span>
-                    <span class="level-desc">Traditional pinball</span>
+                    <span class="level-desc">Traditional layout</span>
                 </button>
                 <button class="level-btn" data-level="1">
-                    <div class="level-icon">🚀</div>
-                    <span class="level-name">Space Station</span>
-                    <span class="level-desc">Zero-G chaos</span>
+                    <div class="level-icon">🌀</div>
+                    <span class="level-name">Vortex</span>
+                    <span class="level-desc">Spiral madness</span>
                 </button>
                 <button class="level-btn" data-level="2">
-                    <div class="level-icon">🌴</div>
-                    <span class="level-name">Jungle</span>
-                    <span class="level-desc">Wild bounces</span>
+                    <div class="level-icon">💎</div>
+                    <span class="level-name">Diamond</span>
+                    <span class="level-desc">Gem patterns</span>
                 </button>
                 <button class="level-btn" data-level="3">
-                    <div class="level-icon">🌃</div>
-                    <span class="level-name">Neon City</span>
-                    <span class="level-desc">Cyberpunk vibes</span>
+                    <div class="level-icon">🏰</div>
+                    <span class="level-name">Castle</span>
+                    <span class="level-desc">Tower defense</span>
                 </button>
                 <button class="level-btn" data-level="4">
-                    <div class="level-icon">🏛️</div>
-                    <span class="level-name">Temple</span>
-                    <span class="level-desc">Ancient mystery</span>
+                    <div class="level-icon">🌊</div>
+                    <span class="level-name">Wave</span>
+                    <span class="level-desc">Curved chaos</span>
                 </button>
             </div>
             <button id="play-btn">PLAY</button>
@@ -278,123 +147,41 @@
 
         <div id="game-over">
             <h2>GAME OVER</h2>
-            <p>Final Score:</p>
+            <p style="color:#fff">Final Score:</p>
             <div id="final-score">0</div>
             <button id="restart-btn">PLAY AGAIN</button>
         </div>
     </div>
-
     <div id="instructions">
-        <span>Desktop:</span> A/D or Left/Right arrows for flippers | Space to launch<br>
-        <span>Mobile:</span> Tap left/right sides for flippers | Tap to launch
+        <span>Desktop:</span> A/D for flippers | Space to launch |
+        <span>Mobile:</span> Tap sides for flippers
     </div>
 
     <script>
-        const { Engine, Bodies, Body, Composite, Constraint, Events, Vertices } = Matter;
+        const { Engine, Bodies, Body, Composite, Constraint, Events } = Matter;
 
-        // ============================================
-        // CONFIGURATION
-        // ============================================
         const CONFIG = {
-            width: 400,
-            height: 700,
-            gravity: { x: 0, y: 1 },
-            ball: { radius: 12, restitution: 0.6, friction: 0.01, frictionAir: 0.001, density: 0.002 },
-            flipper: { length: 70, width: 15, restAngle: 0.5, activeAngle: -0.5 },
-            bumper: { radius: 25, restitution: 1.5, score: 100 },
-            slingshot: { restitution: 1.2, score: 50 },
+            width: 400, height: 700,
+            ball: { radius: 10, restitution: 0.5, friction: 0.001, frictionAir: 0.0005, density: 0.0015 },
+            flipper: { restAngle: 0.5, activeAngle: -0.5 },
             totalBalls: 3
         };
 
-        // ============================================
-        // LEVEL DEFINITIONS
-        // ============================================
         const LEVELS = [
-            {
-                name: "Classic",
-                theme: { bg: '#1a1a2e', wall: '#4a5568', bumper: '#00ccff', accent: '#ff6688' },
-                bumpers: [
-                    { x: 120, y: 180, r: 25 },
-                    { x: 200, y: 120, r: 30 },
-                    { x: 280, y: 180, r: 25 },
-                    { x: 160, y: 280, r: 22 },
-                    { x: 240, y: 280, r: 22 }
-                ],
-                obstacles: []
-            },
-            {
-                name: "Space Station",
-                theme: { bg: '#0a0a1a', wall: '#334155', bumper: '#a855f7', accent: '#22d3ee' },
-                bumpers: [
-                    { x: 100, y: 150, r: 20 },
-                    { x: 200, y: 100, r: 35 },
-                    { x: 300, y: 150, r: 20 },
-                    { x: 150, y: 250, r: 25 },
-                    { x: 250, y: 250, r: 25 },
-                    { x: 200, y: 350, r: 20 }
-                ],
-                obstacles: [
-                    { type: 'spinner', x: 200, y: 200 }
-                ]
-            },
-            {
-                name: "Jungle",
-                theme: { bg: '#1a2e1a', wall: '#4a6a4a', bumper: '#22c55e', accent: '#eab308' },
-                bumpers: [
-                    { x: 80, y: 200, r: 28 },
-                    { x: 200, y: 150, r: 32 },
-                    { x: 320, y: 200, r: 28 },
-                    { x: 140, y: 320, r: 24 },
-                    { x: 260, y: 320, r: 24 }
-                ],
-                obstacles: [
-                    { type: 'mushroom', x: 200, y: 400 }
-                ]
-            },
-            {
-                name: "Neon City",
-                theme: { bg: '#0f0326', wall: '#581c87', bumper: '#f0abfc', accent: '#67e8f9' },
-                bumpers: [
-                    { x: 100, y: 120, r: 22 },
-                    { x: 200, y: 180, r: 28 },
-                    { x: 300, y: 120, r: 22 },
-                    { x: 100, y: 280, r: 22 },
-                    { x: 200, y: 340, r: 22 },
-                    { x: 300, y: 280, r: 22 }
-                ],
-                obstacles: []
-            },
-            {
-                name: "Temple",
-                theme: { bg: '#2e1a0a', wall: '#92400e', bumper: '#fbbf24', accent: '#dc2626' },
-                bumpers: [
-                    { x: 200, y: 100, r: 30 },
-                    { x: 120, y: 200, r: 26 },
-                    { x: 280, y: 200, r: 26 },
-                    { x: 200, y: 300, r: 35 },
-                    { x: 150, y: 380, r: 20 },
-                    { x: 250, y: 380, r: 20 }
-                ],
-                obstacles: [
-                    { type: 'pyramid', x: 200, y: 200 }
-                ]
-            }
+            { name: "Classic", theme: { bg: '#1a1a2e', wall: '#4a5568', bumper: '#00ccff', accent: '#ff6688' } },
+            { name: "Vortex", theme: { bg: '#0a0a1a', wall: '#6366f1', bumper: '#a855f7', accent: '#22d3ee' } },
+            { name: "Diamond", theme: { bg: '#1a2e2a', wall: '#2dd4bf', bumper: '#34d399', accent: '#fbbf24' } },
+            { name: "Castle", theme: { bg: '#2e1a0a', wall: '#b45309', bumper: '#fbbf24', accent: '#ef4444' } },
+            { name: "Wave", theme: { bg: '#1e1b4b', wall: '#7c3aed', bumper: '#c084fc', accent: '#fb7185' } }
         ];
 
-        // ============================================
-        // GAME STATE
-        // ============================================
         let currentLevel = 0;
         let gameState = {
-            score: 0,
-            highScore: parseInt(localStorage.getItem('pinballHighScore')) || 0,
-            ballsRemaining: CONFIG.totalBalls,
-            isPlaying: false,
-            ballInPlay: false,
-            ballLaunched: false
+            score: 0, highScore: parseInt(localStorage.getItem('pinballHighScore')) || 0,
+            ballsRemaining: CONFIG.totalBalls, isPlaying: false, ballInPlay: false, ballLaunched: false
         };
 
-        const engine = Engine.create({ gravity: CONFIG.gravity });
+        const engine = Engine.create({ gravity: { x: 0, y: 0.8 } });
         const world = engine.world;
         const canvas = document.getElementById('game-canvas');
         canvas.width = CONFIG.width;
@@ -404,454 +191,364 @@
         const CATEGORY = { WALL: 0x0001, BALL: 0x0002, FLIPPER: 0x0004, BUMPER: 0x0008, SENSOR: 0x0020 };
 
         let ball = null, leftFlipper = null, rightFlipper = null;
-        let bumpers = [], particles = [];
+        let bumpers = [], obstacles = [], particles = [];
         let plunger = { power: 0, charging: false };
-        const keys = { left: false, right: false, space: false };
+        const keys = { left: false, right: false };
 
-        // ============================================
-        // SMOOTH WALL CREATION
-        // ============================================
-        function createSmoothWalls() {
+        // Create smooth curved wall using multiple circles
+        function createCurvedWall(points, thickness, options) {
+            const bodies = [];
+            for (let i = 0; i < points.length - 1; i++) {
+                const p1 = points[i], p2 = points[i + 1];
+                const dx = p2.x - p1.x, dy = p2.y - p1.y;
+                const len = Math.sqrt(dx * dx + dy * dy);
+                const angle = Math.atan2(dy, dx);
+
+                // Create rectangle segment
+                const seg = Bodies.rectangle(
+                    (p1.x + p2.x) / 2, (p1.y + p2.y) / 2,
+                    len + thickness, thickness,
+                    { ...options, angle: angle }
+                );
+                bodies.push(seg);
+
+                // Add circle at joint for smoothness
+                if (i > 0) {
+                    bodies.push(Bodies.circle(p1.x, p1.y, thickness / 2, options));
+                }
+            }
+            return bodies;
+        }
+
+        function createLevel() {
             const level = LEVELS[currentLevel];
-            const wallColor = level.theme.wall;
             const W = CONFIG.width, H = CONFIG.height;
-
-            const wallOptions = {
-                isStatic: true,
-                restitution: 0.4,
-                friction: 0.05,
-                render: { fillStyle: wallColor },
+            const wallOpts = {
+                isStatic: true, restitution: 0.3, friction: 0.0,
+                render: { fillStyle: level.theme.wall },
                 collisionFilter: { category: CATEGORY.WALL }
             };
-
-            // Create smooth outer boundary using vertices
-            // Left wall - smooth curve from top to flipper area
-            const leftWallVerts = [
-                { x: 0, y: 0 },
-                { x: 35, y: 0 },
-                { x: 35, y: 30 },
-                { x: 45, y: 60 },
-                { x: 50, y: 120 },
-                { x: 50, y: H - 280 },
-                { x: 45, y: H - 220 },
-                { x: 35, y: H - 170 },
-                { x: 25, y: H - 130 },
-                { x: 15, y: H - 100 },
-                { x: 0, y: H - 100 }
-            ];
-
-            // Right wall - smooth curve (leaving gap for plunger)
-            const rightWallVerts = [
-                { x: W - 50, y: 0 },
-                { x: W - 50, y: 30 },
-                { x: W - 55, y: 60 },
-                { x: W - 60, y: 120 },
-                { x: W - 60, y: H - 280 },
-                { x: W - 55, y: H - 220 },
-                { x: W - 50, y: H - 170 },
-                { x: W - 45, y: H - 140 },
-                { x: W - 50, y: H - 140 },
-                { x: W - 50, y: 0 }
-            ];
-
             const walls = [];
 
-            // Top wall
-            walls.push(Bodies.rectangle(W/2 - 30, 15, W - 100, 30, wallOptions));
-
-            // Left smooth wall
-            walls.push(Bodies.fromVertices(25, H/2 - 50, [leftWallVerts], {
-                ...wallOptions,
-                isStatic: true
-            }));
-
-            // Right play area wall
-            walls.push(Bodies.fromVertices(W - 55, H/2 - 50, [rightWallVerts], {
-                ...wallOptions,
-                isStatic: true
-            }));
-
-            // Plunger lane walls
-            walls.push(Bodies.rectangle(W - 15, H/2, 10, H, wallOptions)); // Outer
-            walls.push(Bodies.rectangle(W - 45, H - 100, 8, 160, wallOptions)); // Separator
-
-            // Ball entry guide (angled at top)
-            walls.push(Bodies.rectangle(W - 50, 50, 50, 12, {
-                ...wallOptions,
-                angle: 0.35
-            }));
-
-            // Bottom guides to flippers (smooth angled walls)
-            const leftGuideVerts = [
-                { x: 0, y: 0 },
-                { x: 60, y: 0 },
-                { x: 80, y: 60 },
-                { x: 20, y: 80 },
-                { x: 0, y: 60 }
+            // Outer boundary - smooth continuous walls
+            // Left wall curve
+            const leftCurve = [
+                { x: 30, y: 0 }, { x: 25, y: 50 }, { x: 22, y: 100 }, { x: 20, y: 150 },
+                { x: 20, y: 250 }, { x: 20, y: 350 }, { x: 22, y: 420 },
+                { x: 30, y: 480 }, { x: 45, y: 530 }, { x: 60, y: 570 }
             ];
-            walls.push(Bodies.fromVertices(65, H - 130, [leftGuideVerts], {
-                ...wallOptions,
-                angle: -0.15
-            }));
+            walls.push(...createCurvedWall(leftCurve, 18, wallOpts));
 
-            const rightGuideVerts = [
-                { x: 60, y: 0 },
-                { x: 0, y: 0 },
-                { x: -20, y: 60 },
-                { x: 40, y: 80 },
-                { x: 60, y: 60 }
+            // Right wall curve (leaving plunger gap)
+            const rightCurve = [
+                { x: W - 70, y: 0 }, { x: W - 65, y: 50 }, { x: W - 62, y: 100 },
+                { x: W - 60, y: 150 }, { x: W - 60, y: 250 }, { x: W - 60, y: 350 },
+                { x: W - 58, y: 420 }, { x: W - 50, y: 480 }, { x: W - 40, y: 530 }
             ];
-            walls.push(Bodies.fromVertices(W - 105, H - 130, [rightGuideVerts], {
-                ...wallOptions,
-                angle: 0.15
-            }));
+            walls.push(...createCurvedWall(rightCurve, 18, wallOpts));
 
-            // Slingshot triangles
-            const leftSlingVerts = [
-                { x: 0, y: 0 },
-                { x: 40, y: 70 },
-                { x: 0, y: 70 }
+            // Top curve
+            const topCurve = [
+                { x: 30, y: 20 }, { x: 80, y: 12 }, { x: 140, y: 8 },
+                { x: 200, y: 6 }, { x: 260, y: 8 }, { x: W - 70, y: 15 }
             ];
-            walls.push(Bodies.fromVertices(75, H - 195, [leftSlingVerts], {
-                ...wallOptions,
-                restitution: 1.2,
-                label: 'slingshot',
-                render: { fillStyle: level.theme.accent }
-            }));
+            walls.push(...createCurvedWall(topCurve, 16, wallOpts));
 
-            const rightSlingVerts = [
-                { x: 40, y: 0 },
-                { x: 40, y: 70 },
-                { x: 0, y: 70 }
+            // Plunger lane
+            walls.push(Bodies.rectangle(W - 15, H / 2, 12, H, wallOpts));
+            walls.push(Bodies.rectangle(W - 48, H - 120, 10, 200, wallOpts));
+
+            // Entry guide
+            walls.push(Bodies.rectangle(W - 60, 45, 40, 12, { ...wallOpts, angle: 0.4 }));
+
+            // Bottom guides (angled to flippers)
+            const leftGuide = [
+                { x: 60, y: 570 }, { x: 75, y: 600 }, { x: 90, y: 620 }
             ];
-            walls.push(Bodies.fromVertices(W - 115, H - 195, [rightSlingVerts], {
-                ...wallOptions,
-                restitution: 1.2,
-                label: 'slingshot',
-                render: { fillStyle: level.theme.accent }
-            }));
+            walls.push(...createCurvedWall(leftGuide, 14, wallOpts));
+
+            const rightGuide = [
+                { x: W - 100, y: 570 }, { x: W - 115, y: 600 }, { x: W - 130, y: 620 }
+            ];
+            walls.push(...createCurvedWall(rightGuide, 14, wallOpts));
+
+            // Level-specific elements
+            if (currentLevel === 0) {
+                // Classic - standard bumper triangle
+                createBumper(120, 180, 24);
+                createBumper(200, 130, 28);
+                createBumper(280, 180, 24);
+                createBumper(160, 280, 22);
+                createBumper(240, 280, 22);
+
+                // Slingshots
+                walls.push(Bodies.polygon(80, H - 180, 3, 35, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
+                walls.push(Bodies.polygon(W - 120, H - 180, 3, 35, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
+            }
+            else if (currentLevel === 1) {
+                // Vortex - spiral pattern of bumpers
+                const centerX = 180, centerY = 250;
+                for (let i = 0; i < 7; i++) {
+                    const angle = (i / 7) * Math.PI * 2;
+                    const radius = 60 + i * 15;
+                    createBumper(centerX + Math.cos(angle) * radius, centerY + Math.sin(angle) * radius, 18 + (i % 3) * 4);
+                }
+                // Center spinner obstacle
+                const spinner = Bodies.rectangle(180, 250, 80, 12, { ...wallOpts, restitution: 0.8, render: { fillStyle: level.theme.accent } });
+                walls.push(spinner);
+                obstacles.push({ type: 'spinner', body: spinner });
+            }
+            else if (currentLevel === 2) {
+                // Diamond - geometric pattern
+                createBumper(200, 100, 25);
+                createBumper(120, 180, 22);
+                createBumper(280, 180, 22);
+                createBumper(200, 260, 25);
+                createBumper(120, 340, 22);
+                createBumper(280, 340, 22);
+                createBumper(200, 420, 25);
+
+                // Diamond walls
+                walls.push(Bodies.rectangle(160, 180, 50, 10, { ...wallOpts, angle: 0.5, render: { fillStyle: level.theme.accent } }));
+                walls.push(Bodies.rectangle(240, 180, 50, 10, { ...wallOpts, angle: -0.5, render: { fillStyle: level.theme.accent } }));
+                walls.push(Bodies.rectangle(160, 340, 50, 10, { ...wallOpts, angle: -0.5, render: { fillStyle: level.theme.accent } }));
+                walls.push(Bodies.rectangle(240, 340, 50, 10, { ...wallOpts, angle: 0.5, render: { fillStyle: level.theme.accent } }));
+            }
+            else if (currentLevel === 3) {
+                // Castle - tower bumpers with ramparts
+                createBumper(100, 150, 30);
+                createBumper(200, 120, 35);
+                createBumper(300, 150, 30);
+                createBumper(150, 280, 25);
+                createBumper(250, 280, 25);
+                createBumper(200, 380, 28);
+
+                // Castle walls (ramparts)
+                for (let i = 0; i < 4; i++) {
+                    walls.push(Bodies.rectangle(80 + i * 35, 220, 25, 12, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
+                    walls.push(Bodies.rectangle(230 + i * 35, 220, 25, 12, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
+                }
+                // Gate
+                walls.push(Bodies.rectangle(200, 200, 15, 50, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
+            }
+            else if (currentLevel === 4) {
+                // Wave - curved rails and scattered bumpers
+                createBumper(100, 160, 22);
+                createBumper(300, 200, 22);
+                createBumper(140, 300, 24);
+                createBumper(260, 350, 24);
+                createBumper(180, 420, 20);
+
+                // Wave rails
+                const wave1 = [
+                    { x: 80, y: 250 }, { x: 120, y: 230 }, { x: 160, y: 250 }, { x: 200, y: 230 }, { x: 240, y: 250 }
+                ];
+                walls.push(...createCurvedWall(wave1, 10, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
+
+                const wave2 = [
+                    { x: 160, y: 380 }, { x: 200, y: 360 }, { x: 240, y: 380 }, { x: 280, y: 360 }, { x: 320, y: 380 }
+                ];
+                walls.push(...createCurvedWall(wave2, 10, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
+            }
 
             Composite.add(world, walls);
-            return walls;
         }
 
         function createFlipper(side) {
             const isLeft = side === 'left';
             const x = isLeft ? 115 : CONFIG.width - 155;
-            const y = CONFIG.height - 75;
+            const y = CONFIG.height - 70;
             const pivotX = isLeft ? x - 25 : x + 25;
             const level = LEVELS[currentLevel];
 
-            const flipper = Bodies.trapezoid(x, y, CONFIG.flipper.length, CONFIG.flipper.width, 0.15, {
-                label: `flipper-${side}`,
-                density: 0.02,
-                friction: 0.8,
-                restitution: 0.3,
+            const flipper = Bodies.rectangle(x, y, 65, 14, {
+                label: `flipper-${side}`, density: 0.03, friction: 0.9, restitution: 0.1,
+                chamfer: { radius: 7 },
                 collisionFilter: { category: CATEGORY.FLIPPER },
                 render: { fillStyle: level.theme.accent }
             });
 
-            if (!isLeft) Body.scale(flipper, -1, 1);
-
-            const pivot = Bodies.circle(pivotX, y, 5, {
-                isStatic: true,
-                render: { fillStyle: level.theme.accent }
+            const pivot = Bodies.circle(pivotX, y, 6, {
+                isStatic: true, render: { fillStyle: level.theme.accent }
             });
 
             const constraint = Constraint.create({
-                bodyA: flipper,
-                pointA: { x: isLeft ? -30 : 30, y: 0 },
-                bodyB: pivot,
-                pointB: { x: 0, y: 0 },
-                stiffness: 1,
-                length: 0
+                bodyA: flipper, pointA: { x: isLeft ? -28 : 28, y: 0 },
+                bodyB: pivot, pointB: { x: 0, y: 0 }, stiffness: 1, length: 0
             });
 
             Composite.add(world, [flipper, pivot, constraint]);
             Body.setAngle(flipper, isLeft ? CONFIG.flipper.restAngle : -CONFIG.flipper.restAngle);
-
             return { flipper, pivot, constraint };
         }
 
         function createBumper(x, y, radius) {
             const level = LEVELS[currentLevel];
             const bumper = Bodies.circle(x, y, radius, {
-                isStatic: true,
-                label: 'bumper',
-                restitution: CONFIG.bumper.restitution,
+                isStatic: true, label: 'bumper', restitution: 1.5,
                 render: { fillStyle: level.theme.bumper },
                 collisionFilter: { category: CATEGORY.BUMPER },
-                plugin: { score: CONFIG.bumper.score, isFlashing: false }
+                plugin: { score: 100, isFlashing: false }
             });
             Composite.add(world, bumper);
             bumpers.push(bumper);
-            return bumper;
         }
 
         function createDrainSensor() {
-            const drain = Bodies.rectangle(CONFIG.width / 2 - 20, CONFIG.height + 20, CONFIG.width - 80, 40, {
-                isStatic: true,
-                isSensor: true,
-                label: 'drain',
+            Composite.add(world, Bodies.rectangle(CONFIG.width / 2 - 20, CONFIG.height + 20, CONFIG.width - 80, 40, {
+                isStatic: true, isSensor: true, label: 'drain',
                 render: { fillStyle: 'transparent' },
                 collisionFilter: { category: CATEGORY.SENSOR }
-            });
-            Composite.add(world, drain);
+            }));
         }
 
         function createBall() {
             if (ball) Composite.remove(world, ball);
-
-            ball = Bodies.circle(CONFIG.width - 30, CONFIG.height - 80, CONFIG.ball.radius, {
-                label: 'ball',
-                restitution: CONFIG.ball.restitution,
-                friction: CONFIG.ball.friction,
-                frictionAir: CONFIG.ball.frictionAir,
-                density: CONFIG.ball.density,
-                render: { fillStyle: '#cccccc' },
-                collisionFilter: {
-                    category: CATEGORY.BALL,
-                    mask: CATEGORY.WALL | CATEGORY.FLIPPER | CATEGORY.BUMPER | CATEGORY.SENSOR
-                }
+            ball = Bodies.circle(CONFIG.width - 32, CONFIG.height - 100, CONFIG.ball.radius, {
+                label: 'ball', restitution: CONFIG.ball.restitution,
+                friction: CONFIG.ball.friction, frictionAir: CONFIG.ball.frictionAir,
+                density: CONFIG.ball.density, render: { fillStyle: '#ddd' },
+                collisionFilter: { category: CATEGORY.BALL, mask: CATEGORY.WALL | CATEGORY.FLIPPER | CATEGORY.BUMPER | CATEGORY.SENSOR }
             });
-
             Composite.add(world, ball);
             gameState.ballLaunched = false;
             gameState.ballInPlay = true;
             document.getElementById('launch-indicator').style.display = 'block';
-            return ball;
         }
 
-        // ============================================
-        // INPUT HANDLING
-        // ============================================
+        // Input
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') { keys.left = true; e.preventDefault(); }
-            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') { keys.right = true; e.preventDefault(); }
-            if (e.key === ' ') {
-                keys.space = true;
-                if (!gameState.ballLaunched && gameState.ballInPlay) plunger.charging = true;
-                e.preventDefault();
-            }
+            if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') { keys.left = true; e.preventDefault(); }
+            if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') { keys.right = true; e.preventDefault(); }
+            if (e.key === ' ') { if (!gameState.ballLaunched && gameState.ballInPlay) plunger.charging = true; e.preventDefault(); }
         });
-
         document.addEventListener('keyup', (e) => {
-            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
-            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
-            if (e.key === ' ') {
-                keys.space = false;
-                if (plunger.charging && !gameState.ballLaunched) launchBall();
-                plunger.charging = false;
-            }
+            if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') keys.left = false;
+            if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') keys.right = false;
+            if (e.key === ' ') { if (plunger.charging && !gameState.ballLaunched) launchBall(); plunger.charging = false; }
         });
 
-        // Touch controls
         const activeTouches = new Map();
-        const touchLeftZone = document.getElementById('touch-left');
-        const touchRightZone = document.getElementById('touch-right');
         const gameContainer = document.getElementById('game-container');
-
-        function getTouchSide(touch) {
-            return touch.clientX < window.innerWidth / 2 ? 'left' : 'right';
-        }
-
-        function isTouchInGameArea(touch) {
-            const rect = gameContainer.getBoundingClientRect();
-            return touch.clientX >= rect.left && touch.clientX <= rect.right &&
-                   touch.clientY >= rect.top && touch.clientY <= rect.bottom;
-        }
+        let launchTouchId = null, touchStartY = 0;
 
         function updateFlipperStates() {
-            let leftActive = false, rightActive = false;
-            activeTouches.forEach((side) => {
-                if (side === 'left') leftActive = true;
-                if (side === 'right') rightActive = true;
-            });
-            keys.left = leftActive;
-            keys.right = rightActive;
-            touchLeftZone.classList.toggle('touch-active', leftActive);
-            touchRightZone.classList.toggle('touch-active', rightActive);
+            let l = false, r = false;
+            activeTouches.forEach(s => { if (s === 'left') l = true; if (s === 'right') r = true; });
+            keys.left = l; keys.right = r;
+            document.getElementById('touch-left').classList.toggle('touch-active', l);
+            document.getElementById('touch-right').classList.toggle('touch-active', r);
         }
-
-        let launchTouchId = null, touchStartY = 0;
 
         document.addEventListener('touchstart', (e) => {
             if (e.target.tagName === 'BUTTON') return;
-            for (const touch of e.changedTouches) {
-                activeTouches.set(touch.identifier, getTouchSide(touch));
-                if (launchTouchId === null && !gameState.ballLaunched && gameState.ballInPlay && isTouchInGameArea(touch)) {
-                    launchTouchId = touch.identifier;
-                    touchStartY = touch.clientY;
-                    plunger.charging = true;
+            for (const t of e.changedTouches) {
+                activeTouches.set(t.identifier, t.clientX < window.innerWidth / 2 ? 'left' : 'right');
+                const rect = gameContainer.getBoundingClientRect();
+                if (launchTouchId === null && !gameState.ballLaunched && gameState.ballInPlay &&
+                    t.clientX >= rect.left && t.clientX <= rect.right && t.clientY >= rect.top && t.clientY <= rect.bottom) {
+                    launchTouchId = t.identifier; touchStartY = t.clientY; plunger.charging = true;
                 }
             }
             updateFlipperStates();
-            if (e.touches[0] && isTouchInGameArea(e.touches[0])) e.preventDefault();
+            e.preventDefault();
         }, { passive: false });
 
         document.addEventListener('touchmove', (e) => {
-            for (const touch of e.changedTouches) {
-                if (activeTouches.has(touch.identifier)) {
-                    activeTouches.set(touch.identifier, getTouchSide(touch));
-                }
-            }
+            for (const t of e.changedTouches) if (activeTouches.has(t.identifier)) activeTouches.set(t.identifier, t.clientX < window.innerWidth / 2 ? 'left' : 'right');
             updateFlipperStates();
-            if (e.touches[0] && isTouchInGameArea(e.touches[0])) e.preventDefault();
+            e.preventDefault();
         }, { passive: false });
 
         document.addEventListener('touchend', (e) => {
-            for (const touch of e.changedTouches) {
-                if (touch.identifier === launchTouchId && plunger.charging) {
-                    const swipeDistance = touchStartY - touch.clientY;
-                    plunger.power = swipeDistance > 30 ? Math.min(swipeDistance / 100, 1) : 0.5;
-                    launchBall();
-                    plunger.charging = false;
-                    launchTouchId = null;
+            for (const t of e.changedTouches) {
+                if (t.identifier === launchTouchId && plunger.charging) {
+                    plunger.power = Math.max(0.5, Math.min((touchStartY - t.clientY) / 100, 1));
+                    launchBall(); plunger.charging = false; launchTouchId = null;
                 }
-                activeTouches.delete(touch.identifier);
+                activeTouches.delete(t.identifier);
             }
             updateFlipperStates();
         }, { passive: false });
 
         document.addEventListener('touchcancel', (e) => {
-            for (const touch of e.changedTouches) {
-                activeTouches.delete(touch.identifier);
-                if (touch.identifier === launchTouchId) {
-                    plunger.charging = false;
-                    launchTouchId = null;
-                }
-            }
+            for (const t of e.changedTouches) { activeTouches.delete(t.identifier); if (t.identifier === launchTouchId) { plunger.charging = false; launchTouchId = null; } }
             updateFlipperStates();
         }, { passive: false });
 
         function launchBall() {
             if (!ball || gameState.ballLaunched) return;
-            const power = Math.max(plunger.power, 0.7);
-            Body.applyForce(ball, ball.position, { x: -0.008, y: -0.08 * power });
-            gameState.ballLaunched = true;
-            plunger.power = 0;
+            Body.applyForce(ball, ball.position, { x: -0.006, y: -0.065 * Math.max(plunger.power, 0.6) });
+            gameState.ballLaunched = true; plunger.power = 0;
             document.getElementById('launch-indicator').style.display = 'none';
         }
 
         function updateFlippers() {
             if (!leftFlipper || !rightFlipper) return;
-            const leftTarget = keys.left ? CONFIG.flipper.activeAngle : CONFIG.flipper.restAngle;
-            Body.setAngularVelocity(leftFlipper.flipper, (leftTarget - leftFlipper.flipper.angle) * 0.3);
-            const rightTarget = keys.right ? -CONFIG.flipper.activeAngle : -CONFIG.flipper.restAngle;
-            Body.setAngularVelocity(rightFlipper.flipper, (rightTarget - rightFlipper.flipper.angle) * 0.3);
+            const lTarget = keys.left ? CONFIG.flipper.activeAngle : CONFIG.flipper.restAngle;
+            const rTarget = keys.right ? -CONFIG.flipper.activeAngle : -CONFIG.flipper.restAngle;
+            Body.setAngularVelocity(leftFlipper.flipper, (lTarget - leftFlipper.flipper.angle) * 0.35);
+            Body.setAngularVelocity(rightFlipper.flipper, (rTarget - rightFlipper.flipper.angle) * 0.35);
         }
 
-        // ============================================
-        // COLLISIONS
-        // ============================================
+        // Collisions
         Events.on(engine, 'collisionStart', (event) => {
             event.pairs.forEach(({ bodyA, bodyB }) => {
-                if (bodyA.label === 'bumper' || bodyB.label === 'bumper') {
-                    const bumper = bodyA.label === 'bumper' ? bodyA : bodyB;
-                    if (bumper.plugin) {
-                        gameState.score += bumper.plugin.score;
-                        updateScoreDisplay();
-                        createScorePopup(bumper.position.x, bumper.position.y, bumper.plugin.score);
-                        bumper.plugin.isFlashing = true;
-                        setTimeout(() => { bumper.plugin.isFlashing = false; }, 100);
-                        createParticles(bumper.position.x, bumper.position.y, LEVELS[currentLevel].theme.bumper);
-                    }
+                const bumper = bodyA.label === 'bumper' ? bodyA : bodyB.label === 'bumper' ? bodyB : null;
+                if (bumper && bumper.plugin) {
+                    gameState.score += bumper.plugin.score;
+                    updateScoreDisplay();
+                    createScorePopup(bumper.position.x, bumper.position.y, bumper.plugin.score);
+                    bumper.plugin.isFlashing = true;
+                    setTimeout(() => bumper.plugin.isFlashing = false, 80);
+                    createParticles(bumper.position.x, bumper.position.y, LEVELS[currentLevel].theme.bumper);
                 }
                 if (bodyA.label === 'slingshot' || bodyB.label === 'slingshot') {
-                    gameState.score += CONFIG.slingshot.score;
-                    updateScoreDisplay();
+                    gameState.score += 50; updateScoreDisplay();
                 }
                 if ((bodyA.label === 'drain' || bodyB.label === 'drain') && (bodyA.label === 'ball' || bodyB.label === 'ball')) {
-                    handleBallDrain();
+                    gameState.ballInPlay = false; gameState.ballsRemaining--;
+                    updateBallsDisplay();
+                    if (gameState.ballsRemaining <= 0) endGame(); else setTimeout(createBall, 800);
                 }
             });
         });
 
-        function handleBallDrain() {
-            gameState.ballInPlay = false;
-            gameState.ballsRemaining--;
-            updateBallsDisplay();
-            if (gameState.ballsRemaining <= 0) {
-                endGame();
-            } else {
-                setTimeout(createBall, 1000);
-            }
-        }
-
-        // ============================================
-        // SCORING & UI
-        // ============================================
-        function updateScoreDisplay() {
-            document.querySelector('#current-score .score-value').textContent = gameState.score.toLocaleString();
-        }
-
-        function updateBallsDisplay() {
-            document.querySelector('#balls-left .score-value').textContent = gameState.ballsRemaining;
-        }
-
+        function updateScoreDisplay() { document.querySelector('#current-score .score-value').textContent = gameState.score.toLocaleString(); }
+        function updateBallsDisplay() { document.querySelector('#balls-left .score-value').textContent = gameState.ballsRemaining; }
         function updateHighScore() {
-            if (gameState.score > gameState.highScore) {
-                gameState.highScore = gameState.score;
-                localStorage.setItem('pinballHighScore', gameState.highScore);
-            }
+            if (gameState.score > gameState.highScore) { gameState.highScore = gameState.score; localStorage.setItem('pinballHighScore', gameState.highScore); }
             document.querySelector('#high-score .score-value').textContent = gameState.highScore.toLocaleString();
         }
 
-        function createScorePopup(x, y, points) {
-            const popup = document.createElement('div');
-            popup.className = 'score-popup';
-            popup.textContent = `+${points}`;
-            const rect = canvas.getBoundingClientRect();
-            popup.style.left = (rect.left + x) + 'px';
-            popup.style.top = (rect.top + y) + 'px';
-            document.body.appendChild(popup);
-            setTimeout(() => popup.remove(), 1000);
+        function createScorePopup(x, y, pts) {
+            const p = document.createElement('div'); p.className = 'score-popup'; p.textContent = '+' + pts;
+            const r = canvas.getBoundingClientRect();
+            p.style.left = (r.left + x) + 'px'; p.style.top = (r.top + y) + 'px';
+            document.body.appendChild(p); setTimeout(() => p.remove(), 1000);
         }
 
         function createParticles(x, y, color) {
-            for (let i = 0; i < 10; i++) {
-                particles.push({
-                    x, y,
-                    vx: (Math.random() - 0.5) * 10,
-                    vy: (Math.random() - 0.5) * 10,
-                    life: 1,
-                    color,
-                    size: Math.random() * 5 + 2
-                });
-            }
+            for (let i = 0; i < 8; i++) particles.push({ x, y, vx: (Math.random() - 0.5) * 8, vy: (Math.random() - 0.5) * 8, life: 1, color, size: Math.random() * 4 + 2 });
         }
 
         function updateParticles() {
-            particles = particles.filter(p => {
-                p.x += p.vx;
-                p.y += p.vy;
-                p.vy += 0.2;
-                p.life -= 0.02;
-                return p.life > 0;
-            });
+            particles = particles.filter(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life -= 0.025; return p.life > 0; });
         }
 
-        // ============================================
-        // RENDERING
-        // ============================================
+        // Render
         function render() {
             const level = LEVELS[currentLevel];
-
-            // Background
             ctx.fillStyle = level.theme.bg;
             ctx.fillRect(0, 0, CONFIG.width, CONFIG.height);
 
-            // Draw decorative elements
-            drawPlayfieldDecor();
-
-            // Draw all bodies
+            // All bodies
             Composite.allBodies(world).forEach(body => {
                 if (body.render.fillStyle === 'transparent') return;
-
                 ctx.beginPath();
-                let fillColor = body.render.fillStyle;
-                if (body.plugin && body.plugin.isFlashing) fillColor = '#ffffff';
-                ctx.fillStyle = fillColor;
+                let fill = body.render.fillStyle;
+                if (body.plugin?.isFlashing) fill = '#fff';
+                ctx.fillStyle = fill;
 
                 if (body.circleRadius) {
                     ctx.arc(body.position.x, body.position.y, body.circleRadius, 0, Math.PI * 2);
@@ -863,213 +560,104 @@
                 }
                 ctx.fill();
 
-                // Glow for bumpers
+                // Bumper glow & text
                 if (body.label === 'bumper') {
-                    ctx.shadowColor = level.theme.bumper;
-                    ctx.shadowBlur = 15;
-                    ctx.fill();
-                    ctx.shadowBlur = 0;
-
-                    // Inner circle
+                    ctx.shadowColor = level.theme.bumper; ctx.shadowBlur = 12; ctx.fill(); ctx.shadowBlur = 0;
                     ctx.beginPath();
-                    ctx.arc(body.position.x, body.position.y, body.circleRadius * 0.5, 0, Math.PI * 2);
-                    ctx.fillStyle = body.plugin?.isFlashing ? '#ffffff' : level.theme.bg;
-                    ctx.fill();
-
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = 'bold 11px Arial';
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
+                    ctx.arc(body.position.x, body.position.y, body.circleRadius * 0.45, 0, Math.PI * 2);
+                    ctx.fillStyle = body.plugin?.isFlashing ? '#fff' : level.theme.bg; ctx.fill();
+                    ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                     ctx.fillText('100', body.position.x, body.position.y);
                 }
 
-                // Ball gradient
+                // Ball
                 if (body.label === 'ball') {
-                    const grad = ctx.createRadialGradient(
-                        body.position.x - 4, body.position.y - 4, 0,
-                        body.position.x, body.position.y, body.circleRadius
-                    );
-                    grad.addColorStop(0, '#ffffff');
-                    grad.addColorStop(0.3, '#dddddd');
-                    grad.addColorStop(1, '#888888');
-                    ctx.fillStyle = grad;
-                    ctx.fill();
-                    ctx.strokeStyle = '#666666';
-                    ctx.lineWidth = 2;
-                    ctx.stroke();
+                    const g = ctx.createRadialGradient(body.position.x - 3, body.position.y - 3, 0, body.position.x, body.position.y, body.circleRadius);
+                    g.addColorStop(0, '#fff'); g.addColorStop(0.4, '#ccc'); g.addColorStop(1, '#666');
+                    ctx.fillStyle = g; ctx.fill();
+                    ctx.strokeStyle = '#444'; ctx.lineWidth = 1.5; ctx.stroke();
                 }
             });
 
             // Flipper pivots
             if (leftFlipper && rightFlipper) {
-                [leftFlipper.pivot, rightFlipper.pivot].forEach(pivot => {
-                    ctx.beginPath();
-                    ctx.arc(pivot.position.x, pivot.position.y, 8, 0, Math.PI * 2);
-                    ctx.fillStyle = level.theme.accent;
-                    ctx.shadowColor = level.theme.accent;
-                    ctx.shadowBlur = 15;
-                    ctx.fill();
-                    ctx.shadowBlur = 0;
+                [leftFlipper.pivot, rightFlipper.pivot].forEach(p => {
+                    ctx.beginPath(); ctx.arc(p.position.x, p.position.y, 7, 0, Math.PI * 2);
+                    ctx.fillStyle = level.theme.accent; ctx.shadowColor = level.theme.accent; ctx.shadowBlur = 10;
+                    ctx.fill(); ctx.shadowBlur = 0;
                 });
             }
 
             // Particles
             particles.forEach(p => {
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
-                ctx.fillStyle = p.color;
-                ctx.globalAlpha = p.life;
-                ctx.fill();
-                ctx.globalAlpha = 1;
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+                ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.fill(); ctx.globalAlpha = 1;
             });
 
-            // Plunger
-            drawPlunger();
-        }
-
-        function drawPlayfieldDecor() {
-            const level = LEVELS[currentLevel];
-            ctx.strokeStyle = `${level.theme.wall}66`;
-            ctx.lineWidth = 2;
-
-            // Decorative arcs
-            ctx.beginPath();
-            ctx.arc(CONFIG.width / 2 - 20, 140, 70, 0, Math.PI, true);
-            ctx.stroke();
-
-            // Side rails
-            ctx.beginPath();
-            ctx.moveTo(55, 150);
-            ctx.lineTo(55, CONFIG.height - 280);
-            ctx.stroke();
-
-            ctx.beginPath();
-            ctx.moveTo(CONFIG.width - 95, 150);
-            ctx.lineTo(CONFIG.width - 95, CONFIG.height - 280);
-            ctx.stroke();
-        }
-
-        function drawPlunger() {
-            const level = LEVELS[currentLevel];
-            const px = CONFIG.width - 30;
-            const py = CONFIG.height - 20;
-
+            // Plunger area
             ctx.fillStyle = level.theme.wall;
-            ctx.fillRect(CONFIG.width - 45, CONFIG.height - 180, 30, 160);
+            ctx.fillRect(CONFIG.width - 47, CONFIG.height - 200, 32, 180);
 
-            const offset = plunger.charging ? plunger.power * 30 : 0;
-
+            const offset = plunger.charging ? plunger.power * 25 : 0;
             ctx.fillStyle = level.theme.accent;
-            ctx.beginPath();
-            ctx.arc(px, py + offset, 15, 0, Math.PI * 2);
-            ctx.fill();
-
-            ctx.fillStyle = level.theme.wall;
-            ctx.fillRect(px - 5, py - 30 + offset, 10, 30);
+            ctx.beginPath(); ctx.arc(CONFIG.width - 31, CONFIG.height - 25 + offset, 12, 0, Math.PI * 2); ctx.fill();
 
             if (plunger.charging) {
-                plunger.power = Math.min(plunger.power + 0.02, 1);
-                ctx.fillStyle = `rgba(0, 255, 136, ${plunger.power})`;
-                ctx.fillRect(CONFIG.width - 43, CONFIG.height - 175, 26 * plunger.power, 8);
+                plunger.power = Math.min(plunger.power + 0.025, 1);
+                ctx.fillStyle = `rgba(0,255,136,${plunger.power})`;
+                ctx.fillRect(CONFIG.width - 45, CONFIG.height - 195, 28 * plunger.power, 6);
             }
 
-            // Launch zone indicator
             if (!gameState.ballLaunched && gameState.ballInPlay) {
-                ctx.fillStyle = 'rgba(0, 255, 136, 0.2)';
-                ctx.fillRect(CONFIG.width - 45, CONFIG.height - 180, 30, 140);
+                ctx.fillStyle = 'rgba(0,255,136,0.15)';
+                ctx.fillRect(CONFIG.width - 47, CONFIG.height - 200, 32, 160);
             }
         }
 
-        // ============================================
-        // GAME LOOP
-        // ============================================
         function gameLoop() {
-            if (gameState.isPlaying) {
-                updateFlippers();
-                Engine.update(engine, 1000 / 60);
-                updateParticles();
-            }
+            if (gameState.isPlaying) { updateFlippers(); Engine.update(engine, 1000 / 60); updateParticles(); }
             render();
             requestAnimationFrame(gameLoop);
         }
 
-        // ============================================
-        // GAME MANAGEMENT
-        // ============================================
         function startGame() {
-            gameState.score = 0;
-            gameState.ballsRemaining = CONFIG.totalBalls;
-            gameState.isPlaying = true;
-            gameState.ballInPlay = false;
-
-            Composite.clear(world, false);
-            bumpers = [];
-            particles = [];
-
-            createSmoothWalls();
-
-            // Create level-specific bumpers
-            const level = LEVELS[currentLevel];
-            level.bumpers.forEach(b => createBumper(b.x, b.y, b.r));
-
-            leftFlipper = createFlipper('left');
-            rightFlipper = createFlipper('right');
-            createDrainSensor();
-            createBall();
-
-            updateScoreDisplay();
-            updateBallsDisplay();
-            updateHighScore();
-
+            gameState.score = 0; gameState.ballsRemaining = CONFIG.totalBalls;
+            gameState.isPlaying = true; gameState.ballInPlay = false;
+            Composite.clear(world, false); bumpers = []; obstacles = []; particles = [];
+            createLevel();
+            leftFlipper = createFlipper('left'); rightFlipper = createFlipper('right');
+            createDrainSensor(); createBall();
+            updateScoreDisplay(); updateBallsDisplay(); updateHighScore();
             document.getElementById('game-over').style.display = 'none';
             document.getElementById('level-select').style.display = 'none';
-            document.getElementById('level-name-display').textContent = level.name;
+            document.getElementById('level-name-display').textContent = LEVELS[currentLevel].name;
         }
 
         function endGame() {
-            gameState.isPlaying = false;
-            updateHighScore();
+            gameState.isPlaying = false; updateHighScore();
             document.getElementById('final-score').textContent = gameState.score.toLocaleString();
             document.getElementById('game-over').style.display = 'block';
         }
 
-        function showLevelSelect() {
-            document.getElementById('level-select').style.display = 'block';
-            document.getElementById('game-over').style.display = 'none';
-        }
-
-        // ============================================
-        // EVENT LISTENERS
-        // ============================================
         document.querySelectorAll('.level-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 document.querySelectorAll('.level-btn').forEach(b => b.classList.remove('selected'));
-                btn.classList.add('selected');
-                currentLevel = parseInt(btn.dataset.level);
+                btn.classList.add('selected'); currentLevel = parseInt(btn.dataset.level);
             });
         });
-
         document.getElementById('play-btn').addEventListener('click', startGame);
-        document.getElementById('restart-btn').addEventListener('click', showLevelSelect);
+        document.getElementById('restart-btn').addEventListener('click', () => {
+            document.getElementById('level-select').style.display = 'block';
+            document.getElementById('game-over').style.display = 'none';
+        });
 
-        // Resize handling
         function handleResize() {
-            const maxW = window.innerWidth - 40;
-            const maxH = window.innerHeight - 150;
-            const scale = Math.min(maxW / CONFIG.width, maxH / CONFIG.height, 1);
-            canvas.style.transform = `scale(${scale})`;
-            canvas.style.transformOrigin = 'top center';
+            const scale = Math.min((window.innerWidth - 20) / CONFIG.width, (window.innerHeight - 120) / CONFIG.height, 1);
+            canvas.style.transform = `scale(${scale})`; canvas.style.transformOrigin = 'top center';
         }
+        window.addEventListener('resize', handleResize); handleResize();
 
-        window.addEventListener('resize', handleResize);
-        handleResize();
-
-        // Initialize
-        window.onload = () => {
-            updateHighScore();
-            showLevelSelect();
-            gameLoop();
-        };
+        window.onload = () => { updateHighScore(); document.getElementById('level-select').style.display = 'block'; gameLoop(); };
     </script>
 </body>
 </html>
