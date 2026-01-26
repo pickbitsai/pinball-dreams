@@ -692,21 +692,25 @@
 
         const touchLeftZone = document.getElementById('touch-left');
         const touchRightZone = document.getElementById('touch-right');
+        const gameContainer = document.getElementById('game-container');
 
         /**
          * Determines which flipper(s) should be active based on touch position
          * Left half of screen = left flipper, Right half = right flipper
          */
         function getTouchSide(touch) {
-            const canvasRect = canvas.getBoundingClientRect();
-            const touchX = touch.clientX;
-            const canvasCenterX = canvasRect.left + canvasRect.width / 2;
+            // Use screen center for left/right detection
+            const screenCenterX = window.innerWidth / 2;
+            return touch.clientX < screenCenterX ? 'left' : 'right';
+        }
 
-            if (touchX < canvasCenterX) {
-                return 'left';
-            } else {
-                return 'right';
-            }
+        /**
+         * Check if touch is within the game area (for launching)
+         */
+        function isTouchInGameArea(touch) {
+            const rect = gameContainer.getBoundingClientRect();
+            return touch.clientX >= rect.left && touch.clientX <= rect.right &&
+                   touch.clientY >= rect.top && touch.clientY <= rect.bottom;
         }
 
         /**
@@ -729,16 +733,18 @@
             touchRightZone.classList.toggle('touch-active', rightActive);
         }
 
-        // Handle touch start - register new touches
-        canvas.addEventListener('touchstart', (e) => {
-            e.preventDefault();
+        // Handle touch start on DOCUMENT - for flippers anywhere on screen
+        document.addEventListener('touchstart', (e) => {
+            // Don't prevent default for UI elements like buttons
+            const target = e.target;
+            if (target.tagName === 'BUTTON') return;
 
             for (const touch of e.changedTouches) {
                 const side = getTouchSide(touch);
                 activeTouches.set(touch.identifier, side);
 
-                // Track for swipe detection (use the first touch for launch)
-                if (launchTouchId === null && !gameState.ballLaunched && gameState.ballInPlay) {
+                // Track for launch detection (only if touching game area and ball not launched)
+                if (launchTouchId === null && !gameState.ballLaunched && gameState.ballInPlay && isTouchInGameArea(touch)) {
                     launchTouchId = touch.identifier;
                     touchStartY = touch.clientY;
                     plunger.charging = true;
@@ -746,12 +752,15 @@
             }
 
             updateFlipperStates();
+
+            // Prevent scrolling when touching game area
+            if (isTouchInGameArea(e.touches[0])) {
+                e.preventDefault();
+            }
         }, { passive: false });
 
-        // Handle touch move - update touch positions and check for swipe
-        canvas.addEventListener('touchmove', (e) => {
-            e.preventDefault();
-
+        // Handle touch move on DOCUMENT
+        document.addEventListener('touchmove', (e) => {
             for (const touch of e.changedTouches) {
                 // Update flipper side if touch moved across center
                 if (activeTouches.has(touch.identifier)) {
@@ -761,12 +770,15 @@
             }
 
             updateFlipperStates();
+
+            // Prevent scrolling
+            if (e.touches.length > 0 && isTouchInGameArea(e.touches[0])) {
+                e.preventDefault();
+            }
         }, { passive: false });
 
-        // Handle touch end - release flippers and launch ball
-        canvas.addEventListener('touchend', (e) => {
-            e.preventDefault();
-
+        // Handle touch end on DOCUMENT - release flippers and launch ball
+        document.addEventListener('touchend', (e) => {
             for (const touch of e.changedTouches) {
                 // Check for launch (tap or swipe both work)
                 if (touch.identifier === launchTouchId && plunger.charging) {
@@ -791,7 +803,7 @@
         }, { passive: false });
 
         // Handle touch cancel (e.g., incoming call)
-        canvas.addEventListener('touchcancel', (e) => {
+        document.addEventListener('touchcancel', (e) => {
             for (const touch of e.changedTouches) {
                 activeTouches.delete(touch.identifier);
                 if (touch.identifier === launchTouchId) {
