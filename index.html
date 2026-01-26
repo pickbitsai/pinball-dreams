@@ -1,0 +1,1259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Pinball Alley</title>
+    <!-- Matter.js Physics Engine -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <style>
+        /* ============================================
+           CSS STYLES - Arcade-style visual design
+           ============================================ */
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            touch-action: manipulation;
+        }
+
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            overflow: hidden;
+            user-select: none;
+        }
+
+        #game-container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Score Display Header */
+        #score-display {
+            background: linear-gradient(180deg, #2d2d44 0%, #1a1a2e 100%);
+            border: 3px solid #4a4a6a;
+            border-radius: 10px 10px 0 0;
+            padding: 10px 20px;
+            width: 100%;
+            max-width: 400px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.5);
+        }
+
+        .score-item {
+            text-align: center;
+        }
+
+        .score-label {
+            color: #8888aa;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .score-value {
+            color: #00ff88;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+            font-family: 'Courier New', monospace;
+        }
+
+        #high-score .score-value {
+            color: #ffcc00;
+            text-shadow: 0 0 10px rgba(255, 204, 0, 0.5);
+        }
+
+        #balls-left .score-value {
+            color: #ff6688;
+            text-shadow: 0 0 10px rgba(255, 102, 136, 0.5);
+        }
+
+        /* Game Canvas */
+        #game-canvas {
+            border: 3px solid #4a4a6a;
+            border-top: none;
+            border-radius: 0 0 10px 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Score Popup Animation */
+        .score-popup {
+            position: absolute;
+            color: #ffcc00;
+            font-size: 20px;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(255, 204, 0, 0.8);
+            pointer-events: none;
+            animation: scoreFloat 1s ease-out forwards;
+            z-index: 100;
+        }
+
+        @keyframes scoreFloat {
+            0% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(-50px) scale(1.5);
+            }
+        }
+
+        /* Game Over Overlay */
+        #game-over {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            display: none;
+            z-index: 200;
+            border: 3px solid #ff6688;
+            box-shadow: 0 0 30px rgba(255, 102, 136, 0.5);
+        }
+
+        #game-over h2 {
+            color: #ff6688;
+            font-size: 36px;
+            margin-bottom: 20px;
+            text-shadow: 0 0 20px rgba(255, 102, 136, 0.8);
+        }
+
+        #game-over p {
+            color: #ffffff;
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+
+        #final-score {
+            color: #00ff88;
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 20px;
+        }
+
+        #restart-btn {
+            background: linear-gradient(180deg, #00ff88 0%, #00cc66 100%);
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
+            font-weight: bold;
+            color: #1a1a2e;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 5px 20px rgba(0, 255, 136, 0.3);
+        }
+
+        #restart-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 5px 30px rgba(0, 255, 136, 0.5);
+        }
+
+        /* Instructions */
+        #instructions {
+            color: #8888aa;
+            font-size: 12px;
+            margin-top: 15px;
+            text-align: center;
+        }
+
+        #instructions span {
+            color: #ffcc00;
+        }
+
+        /* Mobile Touch Zones (invisible but functional) */
+        .touch-zone {
+            position: absolute;
+            bottom: 0;
+            width: 40%;
+            height: 30%;
+            z-index: 50;
+            opacity: 0;
+        }
+
+        #touch-left {
+            left: 0;
+        }
+
+        #touch-right {
+            right: 0;
+        }
+
+        /* New Ball / Launch indicator */
+        #launch-indicator {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            color: #00ff88;
+            font-size: 14px;
+            animation: pulse 1s infinite;
+            display: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <!-- Score Display Header -->
+        <div id="score-display">
+            <div class="score-item" id="high-score">
+                <div class="score-label">High Score</div>
+                <div class="score-value">0</div>
+            </div>
+            <div class="score-item" id="current-score">
+                <div class="score-label">Score</div>
+                <div class="score-value">0</div>
+            </div>
+            <div class="score-item" id="balls-left">
+                <div class="score-label">Balls</div>
+                <div class="score-value">3</div>
+            </div>
+        </div>
+
+        <!-- Game Canvas (Matter.js renders here) -->
+        <canvas id="game-canvas"></canvas>
+
+        <!-- Mobile Touch Zones -->
+        <div id="touch-left" class="touch-zone"></div>
+        <div id="touch-right" class="touch-zone"></div>
+
+        <!-- Launch Indicator -->
+        <div id="launch-indicator">Press SPACE or Swipe Up to Launch!</div>
+
+        <!-- Game Over Overlay -->
+        <div id="game-over">
+            <h2>GAME OVER</h2>
+            <p>Final Score:</p>
+            <div id="final-score">0</div>
+            <button id="restart-btn">PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <!-- Instructions -->
+    <div id="instructions">
+        <span>Desktop:</span> A/D or Left/Right arrows for flippers | Space to launch<br>
+        <span>Mobile:</span> Touch left/right sides for flippers | Swipe up to launch
+    </div>
+
+    <script>
+        /* ============================================
+           PINBALL GAME - Matter.js Implementation
+           ============================================
+
+           This game uses Matter.js physics engine for:
+           - Rigid body physics simulation
+           - Collision detection and response
+           - Constraint-based flipper mechanics
+           - Realistic ball physics with bounce and friction
+
+           Game Architecture:
+           1. Physics World Setup - Gravity, boundaries, collision groups
+           2. Game Objects - Ball, flippers, bumpers, walls, etc.
+           3. Input Handling - Keyboard and touch controls
+           4. Game Loop - Score tracking, ball management, visual effects
+           5. Rendering - Custom renderer for arcade-style graphics
+        */
+
+        // ============================================
+        // MATTER.JS MODULE ALIASES
+        // ============================================
+        const { Engine, Render, Runner, Bodies, Body, Composite, Constraint, Events, Vector, Mouse, MouseConstraint } = Matter;
+
+        // ============================================
+        // GAME CONFIGURATION
+        // ============================================
+        const CONFIG = {
+            // Canvas dimensions (portrait orientation for pinball)
+            width: 400,
+            height: 700,
+
+            // Physics settings
+            gravity: { x: 0, y: 1 },  // Standard gravity pointing down
+
+            // Ball properties
+            ball: {
+                radius: 12,
+                restitution: 0.6,      // Bounciness (0-1)
+                friction: 0.01,        // Surface friction
+                frictionAir: 0.001,    // Air resistance
+                density: 0.002         // Mass density
+            },
+
+            // Flipper properties
+            flipper: {
+                length: 70,
+                width: 15,
+                angularVelocity: 0.4,  // Rotation speed
+                restAngle: 0.5,        // Resting angle (radians)
+                activeAngle: -0.5      // Active angle when pressed
+            },
+
+            // Bumper properties
+            bumper: {
+                radius: 25,
+                restitution: 1.5,      // Extra bouncy!
+                score: 100
+            },
+
+            // Slingshot properties
+            slingshot: {
+                restitution: 1.2,
+                score: 50
+            },
+
+            // Game settings
+            totalBalls: 3,
+            aliveBonus: 10,           // Points per second for staying alive
+            aliveBonusInterval: 1000  // Milliseconds between bonus awards
+        };
+
+        // ============================================
+        // GAME STATE
+        // ============================================
+        let gameState = {
+            score: 0,
+            highScore: parseInt(localStorage.getItem('pinballHighScore')) || 0,
+            ballsRemaining: CONFIG.totalBalls,
+            isPlaying: false,
+            ballInPlay: false,
+            ballLaunched: false,
+            lastAliveBonus: 0
+        };
+
+        // ============================================
+        // PHYSICS ENGINE SETUP
+        // ============================================
+
+        // Create the physics engine with custom gravity
+        const engine = Engine.create({
+            gravity: CONFIG.gravity
+        });
+        const world = engine.world;
+
+        // Get canvas and create renderer
+        const canvas = document.getElementById('game-canvas');
+        canvas.width = CONFIG.width;
+        canvas.height = CONFIG.height;
+        const ctx = canvas.getContext('2d');
+
+        // ============================================
+        // COLLISION CATEGORIES
+        // ============================================
+        // Using bit masks for collision filtering
+        const CATEGORY = {
+            WALL: 0x0001,
+            BALL: 0x0002,
+            FLIPPER: 0x0004,
+            BUMPER: 0x0008,
+            SLINGSHOT: 0x0010,
+            SENSOR: 0x0020
+        };
+
+        // ============================================
+        // GAME OBJECTS STORAGE
+        // ============================================
+        let ball = null;
+        let leftFlipper = null;
+        let rightFlipper = null;
+        let leftFlipperConstraint = null;
+        let rightFlipperConstraint = null;
+        let bumpers = [];
+        let slingshots = [];
+        let particles = [];
+        let plunger = { power: 0, charging: false };
+
+        // ============================================
+        // CREATE GAME ELEMENTS
+        // ============================================
+
+        /**
+         * Creates all static walls and boundaries of the pinball table
+         * Walls are positioned to create the classic pinball shape
+         */
+        function createWalls() {
+            const wallOptions = {
+                isStatic: true,
+                restitution: 0.5,
+                friction: 0.1,
+                render: { fillStyle: '#3a3a5a' },
+                collisionFilter: { category: CATEGORY.WALL }
+            };
+
+            // Main boundary walls
+            const walls = [
+                // Top wall
+                Bodies.rectangle(CONFIG.width / 2, 10, CONFIG.width - 40, 20, wallOptions),
+
+                // Left wall (upper section)
+                Bodies.rectangle(20, CONFIG.height / 3, 20, CONFIG.height / 2, wallOptions),
+
+                // Right wall (upper section, leaving gap for plunger lane)
+                Bodies.rectangle(CONFIG.width - 60, CONFIG.height / 3, 20, CONFIG.height / 2, wallOptions),
+
+                // Plunger lane right wall
+                Bodies.rectangle(CONFIG.width - 10, CONFIG.height / 2, 20, CONFIG.height, wallOptions),
+
+                // Plunger lane separator
+                Bodies.rectangle(CONFIG.width - 40, CONFIG.height - 150, 10, 200, wallOptions),
+
+                // Bottom drain walls (angled to guide ball to flippers)
+                Bodies.trapezoid(70, CONFIG.height - 120, 100, 60, 0.3, {
+                    ...wallOptions,
+                    angle: -0.2
+                }),
+                Bodies.trapezoid(CONFIG.width - 110, CONFIG.height - 120, 100, 60, 0.3, {
+                    ...wallOptions,
+                    angle: 0.2
+                }),
+
+                // Outer angled walls near flippers
+                Bodies.rectangle(35, CONFIG.height - 200, 20, 150, {
+                    ...wallOptions,
+                    angle: 0.3
+                }),
+                Bodies.rectangle(CONFIG.width - 75, CONFIG.height - 200, 20, 150, {
+                    ...wallOptions,
+                    angle: -0.3
+                })
+            ];
+
+            // Add curved top corners using multiple small rectangles
+            for (let i = 0; i < 8; i++) {
+                const angle = (Math.PI / 2) * (i / 8);
+                walls.push(
+                    Bodies.rectangle(
+                        40 + 20 * Math.cos(Math.PI - angle),
+                        40 + 20 * Math.sin(Math.PI - angle),
+                        25, 10,
+                        { ...wallOptions, angle: angle - Math.PI / 2 }
+                    )
+                );
+                walls.push(
+                    Bodies.rectangle(
+                        CONFIG.width - 80 + 20 * Math.cos(-angle),
+                        40 + 20 * Math.sin(-angle),
+                        25, 10,
+                        { ...wallOptions, angle: -angle + Math.PI / 2 }
+                    )
+                );
+            }
+
+            Composite.add(world, walls);
+            return walls;
+        }
+
+        /**
+         * Creates a flipper with constraint for rotation
+         * @param {string} side - 'left' or 'right'
+         */
+        function createFlipper(side) {
+            const isLeft = side === 'left';
+            const x = isLeft ? 120 : CONFIG.width - 160;
+            const y = CONFIG.height - 80;
+            const pivotX = isLeft ? x - 25 : x + 25;
+
+            // Create flipper body
+            const flipper = Bodies.trapezoid(x, y, CONFIG.flipper.length, CONFIG.flipper.width, 0.15, {
+                label: `flipper-${side}`,
+                density: 0.02,
+                friction: 0.8,
+                restitution: 0.3,
+                collisionFilter: { category: CATEGORY.FLIPPER },
+                render: { fillStyle: '#ff6688' }
+            });
+
+            // Mirror the right flipper
+            if (!isLeft) {
+                Body.scale(flipper, -1, 1);
+            }
+
+            // Create pivot point (static body for constraint)
+            const pivot = Bodies.circle(pivotX, y, 5, {
+                isStatic: true,
+                render: { fillStyle: '#ff4466' }
+            });
+
+            // Create constraint to act as a hinge
+            const constraint = Constraint.create({
+                bodyA: flipper,
+                pointA: { x: isLeft ? -30 : 30, y: 0 },
+                bodyB: pivot,
+                pointB: { x: 0, y: 0 },
+                stiffness: 1,
+                length: 0
+            });
+
+            Composite.add(world, [flipper, pivot, constraint]);
+
+            // Set initial angle
+            Body.setAngle(flipper, isLeft ? CONFIG.flipper.restAngle : -CONFIG.flipper.restAngle);
+
+            return { flipper, pivot, constraint };
+        }
+
+        /**
+         * Creates a bumper at specified position
+         * Bumpers are highly elastic and award points on collision
+         */
+        function createBumper(x, y, radius = CONFIG.bumper.radius) {
+            const bumper = Bodies.circle(x, y, radius, {
+                isStatic: true,
+                label: 'bumper',
+                restitution: CONFIG.bumper.restitution,
+                render: { fillStyle: '#00ccff' },
+                collisionFilter: { category: CATEGORY.BUMPER },
+                plugin: {
+                    score: CONFIG.bumper.score,
+                    baseColor: '#00ccff',
+                    flashColor: '#ffffff',
+                    isFlashing: false
+                }
+            });
+
+            Composite.add(world, bumper);
+            bumpers.push(bumper);
+            return bumper;
+        }
+
+        /**
+         * Creates a slingshot (triangular bouncy surface near flippers)
+         * @param {string} side - 'left' or 'right'
+         */
+        function createSlingshot(side) {
+            const isLeft = side === 'left';
+            const x = isLeft ? 80 : CONFIG.width - 120;
+            const y = CONFIG.height - 180;
+
+            const vertices = isLeft ? [
+                { x: 0, y: 0 },
+                { x: 50, y: 80 },
+                { x: 0, y: 80 }
+            ] : [
+                { x: 50, y: 0 },
+                { x: 50, y: 80 },
+                { x: 0, y: 80 }
+            ];
+
+            const slingshot = Bodies.fromVertices(x, y, vertices, {
+                isStatic: true,
+                label: 'slingshot',
+                restitution: CONFIG.slingshot.restitution,
+                render: { fillStyle: '#ff9900' },
+                collisionFilter: { category: CATEGORY.SLINGSHOT },
+                plugin: {
+                    score: CONFIG.slingshot.score,
+                    baseColor: '#ff9900',
+                    flashColor: '#ffff00',
+                    isFlashing: false
+                }
+            });
+
+            Composite.add(world, slingshot);
+            slingshots.push(slingshot);
+            return slingshot;
+        }
+
+        /**
+         * Creates the ball drain sensor at the bottom
+         * When ball enters this zone, it's considered lost
+         */
+        function createDrainSensor() {
+            const drain = Bodies.rectangle(
+                CONFIG.width / 2 - 20,
+                CONFIG.height + 20,
+                CONFIG.width - 80,
+                40,
+                {
+                    isStatic: true,
+                    isSensor: true,  // Sensors detect collision but don't affect physics
+                    label: 'drain',
+                    render: { fillStyle: 'transparent' },
+                    collisionFilter: { category: CATEGORY.SENSOR }
+                }
+            );
+
+            Composite.add(world, drain);
+            return drain;
+        }
+
+        /**
+         * Creates or resets the ball
+         * Ball starts in the plunger lane
+         */
+        function createBall() {
+            // Remove existing ball if any
+            if (ball) {
+                Composite.remove(world, ball);
+            }
+
+            ball = Bodies.circle(
+                CONFIG.width - 25,  // In plunger lane
+                CONFIG.height - 80,
+                CONFIG.ball.radius,
+                {
+                    label: 'ball',
+                    restitution: CONFIG.ball.restitution,
+                    friction: CONFIG.ball.friction,
+                    frictionAir: CONFIG.ball.frictionAir,
+                    density: CONFIG.ball.density,
+                    render: { fillStyle: '#cccccc' },
+                    collisionFilter: {
+                        category: CATEGORY.BALL,
+                        mask: CATEGORY.WALL | CATEGORY.FLIPPER | CATEGORY.BUMPER | CATEGORY.SLINGSHOT | CATEGORY.SENSOR
+                    }
+                }
+            );
+
+            Composite.add(world, ball);
+            gameState.ballLaunched = false;
+            gameState.ballInPlay = true;
+
+            // Show launch indicator
+            document.getElementById('launch-indicator').style.display = 'block';
+
+            return ball;
+        }
+
+        // ============================================
+        // INPUT HANDLING
+        // ============================================
+
+        const keys = {
+            left: false,
+            right: false,
+            space: false
+        };
+
+        // Keyboard controls
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+                keys.left = true;
+                e.preventDefault();
+            }
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+                keys.right = true;
+                e.preventDefault();
+            }
+            if (e.key === ' ') {
+                keys.space = true;
+                if (!gameState.ballLaunched && gameState.ballInPlay) {
+                    plunger.charging = true;
+                }
+                e.preventDefault();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+                keys.left = false;
+            }
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+                keys.right = false;
+            }
+            if (e.key === ' ') {
+                keys.space = false;
+                if (plunger.charging && !gameState.ballLaunched) {
+                    launchBall();
+                }
+                plunger.charging = false;
+            }
+        });
+
+        // Touch controls for mobile
+        let touchStartY = 0;
+
+        document.getElementById('touch-left').addEventListener('touchstart', (e) => {
+            keys.left = true;
+            e.preventDefault();
+        });
+        document.getElementById('touch-left').addEventListener('touchend', () => {
+            keys.left = false;
+        });
+
+        document.getElementById('touch-right').addEventListener('touchstart', (e) => {
+            keys.right = true;
+            e.preventDefault();
+        });
+        document.getElementById('touch-right').addEventListener('touchend', () => {
+            keys.right = false;
+        });
+
+        // Swipe up to launch
+        canvas.addEventListener('touchstart', (e) => {
+            touchStartY = e.touches[0].clientY;
+            if (!gameState.ballLaunched && gameState.ballInPlay) {
+                plunger.charging = true;
+            }
+        });
+
+        canvas.addEventListener('touchend', (e) => {
+            const touchEndY = e.changedTouches[0].clientY;
+            if (touchStartY - touchEndY > 30 && plunger.charging) {
+                // Swipe up detected
+                plunger.power = Math.min((touchStartY - touchEndY) / 100, 1);
+                launchBall();
+            }
+            plunger.charging = false;
+        });
+
+        /**
+         * Launches the ball from the plunger lane
+         */
+        function launchBall() {
+            if (!ball || gameState.ballLaunched) return;
+
+            // Calculate launch force based on charge time or swipe distance
+            const power = Math.max(plunger.power, 0.5);
+            const force = { x: 0, y: -0.05 * power };
+
+            Body.applyForce(ball, ball.position, force);
+            gameState.ballLaunched = true;
+            plunger.power = 0;
+
+            // Hide launch indicator
+            document.getElementById('launch-indicator').style.display = 'none';
+        }
+
+        // ============================================
+        // FLIPPER CONTROL
+        // ============================================
+
+        /**
+         * Updates flipper positions based on input
+         * Called every physics frame
+         */
+        function updateFlippers() {
+            if (!leftFlipper || !rightFlipper) return;
+
+            // Left flipper
+            const leftTargetAngle = keys.left ?
+                -CONFIG.flipper.activeAngle : CONFIG.flipper.restAngle;
+            const leftAngleDiff = leftTargetAngle - leftFlipper.flipper.angle;
+            Body.setAngularVelocity(leftFlipper.flipper, leftAngleDiff * 0.3);
+
+            // Right flipper
+            const rightTargetAngle = keys.right ?
+                CONFIG.flipper.activeAngle : -CONFIG.flipper.restAngle;
+            const rightAngleDiff = rightTargetAngle - rightFlipper.flipper.angle;
+            Body.setAngularVelocity(rightFlipper.flipper, rightAngleDiff * 0.3);
+        }
+
+        // ============================================
+        // COLLISION HANDLING
+        // ============================================
+
+        Events.on(engine, 'collisionStart', (event) => {
+            event.pairs.forEach((pair) => {
+                const { bodyA, bodyB } = pair;
+
+                // Check for bumper collision
+                if (bodyA.label === 'bumper' || bodyB.label === 'bumper') {
+                    const bumper = bodyA.label === 'bumper' ? bodyA : bodyB;
+                    handleBumperHit(bumper);
+                }
+
+                // Check for slingshot collision
+                if (bodyA.label === 'slingshot' || bodyB.label === 'slingshot') {
+                    const slingshot = bodyA.label === 'slingshot' ? bodyA : bodyB;
+                    handleSlingshotHit(slingshot);
+                }
+
+                // Check for drain (ball lost)
+                if (bodyA.label === 'drain' || bodyB.label === 'drain') {
+                    if (bodyA.label === 'ball' || bodyB.label === 'ball') {
+                        handleBallDrain();
+                    }
+                }
+            });
+        });
+
+        /**
+         * Handles bumper collision - awards points and creates visual feedback
+         */
+        function handleBumperHit(bumper) {
+            if (!bumper.plugin) return;
+
+            addScore(bumper.plugin.score);
+            createScorePopup(bumper.position.x, bumper.position.y, bumper.plugin.score);
+
+            // Visual flash effect
+            bumper.plugin.isFlashing = true;
+            setTimeout(() => {
+                bumper.plugin.isFlashing = false;
+            }, 100);
+
+            // Create particles
+            createParticles(bumper.position.x, bumper.position.y, '#00ccff');
+        }
+
+        /**
+         * Handles slingshot collision
+         */
+        function handleSlingshotHit(slingshot) {
+            if (!slingshot.plugin) return;
+
+            addScore(slingshot.plugin.score);
+            createScorePopup(slingshot.position.x, slingshot.position.y, slingshot.plugin.score);
+
+            // Visual flash effect
+            slingshot.plugin.isFlashing = true;
+            setTimeout(() => {
+                slingshot.plugin.isFlashing = false;
+            }, 100);
+
+            // Create particles
+            createParticles(slingshot.position.x, slingshot.position.y, '#ff9900');
+        }
+
+        /**
+         * Handles ball drain (ball fell through bottom)
+         */
+        function handleBallDrain() {
+            gameState.ballInPlay = false;
+            gameState.ballsRemaining--;
+
+            updateBallsDisplay();
+
+            if (gameState.ballsRemaining <= 0) {
+                endGame();
+            } else {
+                // Spawn new ball after short delay
+                setTimeout(() => {
+                    createBall();
+                }, 1000);
+            }
+        }
+
+        // ============================================
+        // SCORING SYSTEM
+        // ============================================
+
+        /**
+         * Adds points to the current score
+         */
+        function addScore(points) {
+            gameState.score += points;
+            updateScoreDisplay();
+        }
+
+        /**
+         * Updates the score display in the UI
+         */
+        function updateScoreDisplay() {
+            document.querySelector('#current-score .score-value').textContent =
+                gameState.score.toLocaleString();
+        }
+
+        /**
+         * Updates the balls remaining display
+         */
+        function updateBallsDisplay() {
+            document.querySelector('#balls-left .score-value').textContent =
+                gameState.ballsRemaining;
+        }
+
+        /**
+         * Updates high score display and saves to localStorage
+         */
+        function updateHighScore() {
+            if (gameState.score > gameState.highScore) {
+                gameState.highScore = gameState.score;
+                localStorage.setItem('pinballHighScore', gameState.highScore);
+            }
+            document.querySelector('#high-score .score-value').textContent =
+                gameState.highScore.toLocaleString();
+        }
+
+        /**
+         * Creates a floating score popup at the specified position
+         */
+        function createScorePopup(x, y, points) {
+            const popup = document.createElement('div');
+            popup.className = 'score-popup';
+            popup.textContent = `+${points}`;
+
+            // Convert physics coordinates to screen coordinates
+            const canvasRect = canvas.getBoundingClientRect();
+            popup.style.left = (canvasRect.left + x) + 'px';
+            popup.style.top = (canvasRect.top + y) + 'px';
+
+            document.body.appendChild(popup);
+
+            // Remove after animation
+            setTimeout(() => {
+                popup.remove();
+            }, 1000);
+        }
+
+        // ============================================
+        // PARTICLE EFFECTS
+        // ============================================
+
+        /**
+         * Creates particle burst effect at specified position
+         */
+        function createParticles(x, y, color) {
+            for (let i = 0; i < 10; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 10,
+                    vy: (Math.random() - 0.5) * 10,
+                    life: 1,
+                    color: color,
+                    size: Math.random() * 5 + 2
+                });
+            }
+        }
+
+        /**
+         * Updates and removes dead particles
+         */
+        function updateParticles() {
+            particles = particles.filter(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.2; // Gravity
+                p.life -= 0.02;
+                return p.life > 0;
+            });
+        }
+
+        // ============================================
+        // RENDERING
+        // ============================================
+
+        /**
+         * Main render function - draws all game elements
+         */
+        function render() {
+            // Clear canvas with background
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, CONFIG.width, CONFIG.height);
+
+            // Draw playfield pattern
+            drawPlayfieldPattern();
+
+            // Draw all physics bodies
+            const bodies = Composite.allBodies(world);
+
+            bodies.forEach(body => {
+                if (body.render.fillStyle === 'transparent') return;
+
+                ctx.beginPath();
+
+                // Get the fill color (handle flashing)
+                let fillColor = body.render.fillStyle;
+                if (body.plugin && body.plugin.isFlashing) {
+                    fillColor = body.plugin.flashColor;
+                }
+
+                ctx.fillStyle = fillColor;
+
+                // Draw based on shape
+                if (body.circleRadius) {
+                    // Circle
+                    ctx.arc(body.position.x, body.position.y, body.circleRadius, 0, Math.PI * 2);
+                } else {
+                    // Polygon
+                    const vertices = body.vertices;
+                    ctx.moveTo(vertices[0].x, vertices[0].y);
+                    for (let i = 1; i < vertices.length; i++) {
+                        ctx.lineTo(vertices[i].x, vertices[i].y);
+                    }
+                    ctx.closePath();
+                }
+
+                ctx.fill();
+
+                // Add glow effect for special objects
+                if (body.label === 'bumper') {
+                    ctx.shadowColor = '#00ccff';
+                    ctx.shadowBlur = 20;
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                }
+
+                if (body.label === 'ball') {
+                    // Ball gradient
+                    const gradient = ctx.createRadialGradient(
+                        body.position.x - 4, body.position.y - 4, 0,
+                        body.position.x, body.position.y, body.circleRadius
+                    );
+                    gradient.addColorStop(0, '#ffffff');
+                    gradient.addColorStop(0.3, '#dddddd');
+                    gradient.addColorStop(1, '#888888');
+                    ctx.fillStyle = gradient;
+                    ctx.fill();
+
+                    // Ball outline
+                    ctx.strokeStyle = '#666666';
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+                }
+            });
+
+            // Draw flipper pivots with glow
+            if (leftFlipper && rightFlipper) {
+                [leftFlipper.pivot, rightFlipper.pivot].forEach(pivot => {
+                    ctx.beginPath();
+                    ctx.arc(pivot.position.x, pivot.position.y, 8, 0, Math.PI * 2);
+                    ctx.fillStyle = '#ff4466';
+                    ctx.shadowColor = '#ff4466';
+                    ctx.shadowBlur = 15;
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                });
+            }
+
+            // Draw bumper decorations
+            bumpers.forEach(bumper => {
+                ctx.beginPath();
+                ctx.arc(bumper.position.x, bumper.position.y, bumper.circleRadius * 0.6, 0, Math.PI * 2);
+                ctx.fillStyle = bumper.plugin.isFlashing ? '#ffffff' : '#004466';
+                ctx.fill();
+
+                // Score text on bumper
+                ctx.fillStyle = '#ffffff';
+                ctx.font = 'bold 12px Arial';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText('100', bumper.position.x, bumper.position.y);
+            });
+
+            // Draw particles
+            particles.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life;
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            });
+
+            // Draw plunger
+            drawPlunger();
+
+            // Draw launch zone indicator
+            if (!gameState.ballLaunched && gameState.ballInPlay) {
+                ctx.fillStyle = 'rgba(0, 255, 136, 0.3)';
+                ctx.fillRect(CONFIG.width - 45, CONFIG.height - 200, 30, 150);
+            }
+        }
+
+        /**
+         * Draws decorative playfield pattern
+         */
+        function drawPlayfieldPattern() {
+            // Draw lane guides
+            ctx.strokeStyle = 'rgba(100, 100, 150, 0.3)';
+            ctx.lineWidth = 2;
+
+            // Top arc decoration
+            ctx.beginPath();
+            ctx.arc(CONFIG.width / 2 - 20, 120, 80, 0, Math.PI, true);
+            ctx.stroke();
+
+            // Side rails
+            ctx.beginPath();
+            ctx.moveTo(50, 150);
+            ctx.lineTo(50, CONFIG.height - 250);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.moveTo(CONFIG.width - 90, 150);
+            ctx.lineTo(CONFIG.width - 90, CONFIG.height - 250);
+            ctx.stroke();
+        }
+
+        /**
+         * Draws the plunger/ball launcher
+         */
+        function drawPlunger() {
+            const plungerX = CONFIG.width - 25;
+            const plungerBaseY = CONFIG.height - 20;
+            const plungerHeight = 40;
+
+            // Plunger track
+            ctx.fillStyle = '#2a2a4a';
+            ctx.fillRect(CONFIG.width - 40, CONFIG.height - 200, 30, 180);
+
+            // Plunger handle
+            const chargeOffset = plunger.charging ? plunger.power * 30 : 0;
+
+            ctx.fillStyle = '#ff6688';
+            ctx.beginPath();
+            ctx.arc(plungerX, plungerBaseY + chargeOffset, 15, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Plunger rod
+            ctx.fillStyle = '#cc4466';
+            ctx.fillRect(plungerX - 5, plungerBaseY - 30 + chargeOffset, 10, 30);
+
+            // Charge indicator
+            if (plunger.charging) {
+                plunger.power = Math.min(plunger.power + 0.02, 1);
+
+                ctx.fillStyle = `rgba(0, 255, 136, ${plunger.power})`;
+                ctx.fillRect(CONFIG.width - 38, CONFIG.height - 195, 26 * plunger.power, 10);
+            }
+        }
+
+        // ============================================
+        // GAME LOOP
+        // ============================================
+
+        /**
+         * Main game loop - updates physics and renders
+         */
+        function gameLoop() {
+            if (!gameState.isPlaying) {
+                render();
+                requestAnimationFrame(gameLoop);
+                return;
+            }
+
+            // Update flipper positions
+            updateFlippers();
+
+            // Update physics
+            Engine.update(engine, 1000 / 60);
+
+            // Award alive bonus
+            if (gameState.ballLaunched && gameState.ballInPlay) {
+                const now = Date.now();
+                if (now - gameState.lastAliveBonus > CONFIG.aliveBonusInterval) {
+                    addScore(CONFIG.aliveBonus);
+                    gameState.lastAliveBonus = now;
+                }
+            }
+
+            // Update particles
+            updateParticles();
+
+            // Render
+            render();
+
+            requestAnimationFrame(gameLoop);
+        }
+
+        // ============================================
+        // GAME STATE MANAGEMENT
+        // ============================================
+
+        /**
+         * Initializes and starts the game
+         */
+        function startGame() {
+            // Reset state
+            gameState.score = 0;
+            gameState.ballsRemaining = CONFIG.totalBalls;
+            gameState.isPlaying = true;
+            gameState.ballInPlay = false;
+            gameState.lastAliveBonus = Date.now();
+
+            // Clear world
+            Composite.clear(world, false);
+            bumpers = [];
+            slingshots = [];
+            particles = [];
+
+            // Create game elements
+            createWalls();
+
+            // Create bumpers in upper playfield
+            createBumper(100, 150);
+            createBumper(CONFIG.width / 2 - 20, 100);
+            createBumper(CONFIG.width - 140, 150);
+            createBumper(150, 250);
+            createBumper(CONFIG.width - 190, 250);
+
+            // Create slingshots
+            createSlingshot('left');
+            createSlingshot('right');
+
+            // Create flippers
+            leftFlipper = createFlipper('left');
+            rightFlipper = createFlipper('right');
+
+            // Create drain sensor
+            createDrainSensor();
+
+            // Create first ball
+            createBall();
+
+            // Update displays
+            updateScoreDisplay();
+            updateBallsDisplay();
+            updateHighScore();
+
+            // Hide game over
+            document.getElementById('game-over').style.display = 'none';
+        }
+
+        /**
+         * Ends the game and shows game over screen
+         */
+        function endGame() {
+            gameState.isPlaying = false;
+            updateHighScore();
+
+            document.getElementById('final-score').textContent =
+                gameState.score.toLocaleString();
+            document.getElementById('game-over').style.display = 'block';
+        }
+
+        // ============================================
+        // EVENT LISTENERS
+        // ============================================
+
+        document.getElementById('restart-btn').addEventListener('click', startGame);
+
+        // Handle window resize
+        function handleResize() {
+            const container = document.getElementById('game-container');
+            const maxWidth = window.innerWidth - 40;
+            const maxHeight = window.innerHeight - 150;
+
+            const scale = Math.min(maxWidth / CONFIG.width, maxHeight / CONFIG.height, 1);
+
+            canvas.style.transform = `scale(${scale})`;
+            canvas.style.transformOrigin = 'top center';
+        }
+
+        window.addEventListener('resize', handleResize);
+        handleResize();
+
+        // ============================================
+        // INITIALIZE GAME
+        // ============================================
+
+        // Start the game when the page loads
+        window.onload = () => {
+            updateHighScore();
+            startGame();
+            gameLoop();
+        };
+    </script>
+</body>
+</html>
