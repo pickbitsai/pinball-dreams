@@ -234,17 +234,19 @@
             ];
             walls.push(...createCurvedWall(leftCurve, 18, wallOpts));
 
-            // Right wall - starts LOWER to leave gap for ball entry from plunger lane
+            // Right wall - starts higher to close the gap, with entry channel from top
             const rightCurve = [
-                { x: W - 50, y: 180 },    // Start below entry gap
-                { x: W - 50, y: 300 }, { x: W - 50, y: 420 },
+                { x: W - 55, y: 70 },     // Start high - closes gap but leaves entry channel
+                { x: W - 50, y: 130 },
+                { x: W - 50, y: 250 }, { x: W - 50, y: 400 },
                 { x: W - 42, y: 500 }, { x: W - 30, y: 560 }
             ];
             walls.push(...createCurvedWall(rightCurve, 18, wallOpts));
 
-            // Top wall - stops before plunger lane area
+            // Top wall - extends toward deflector to close gap
             const topCurve = [
-                { x: 25, y: 25 }, { x: 100, y: 15 }, { x: 180, y: 12 }, { x: 260, y: 20 }, { x: W - 100, y: 35 }
+                { x: 25, y: 25 }, { x: 100, y: 15 }, { x: 180, y: 12 },
+                { x: 260, y: 20 }, { x: W - 70, y: 40 }
             ];
             walls.push(...createCurvedWall(topCurve, 16, wallOpts));
 
@@ -257,12 +259,12 @@
             // Plunger lane - bottom wall to hold ball until launch
             walls.push(Bodies.rectangle(W - 25, H - 10, 40, 10, wallOpts));
 
-            // Top deflector - small angled piece that redirects ball LEFT into play area
-            // This does NOT create an enclosed pocket - ball exits through the gap
+            // Top deflector - connects plunger lane to top wall, redirects ball into play area
             const topDeflector = [
-                { x: W - 8, y: 60 },      // Start at top of plunger outer wall
-                { x: W - 20, y: 35 },     // Curve up and left
-                { x: W - 45, y: 20 }      // End pointing into play area (open exit)
+                { x: W - 8, y: 60 },       // Start at top of plunger outer wall
+                { x: W - 20, y: 30 },      // Curve up and left
+                { x: W - 45, y: 18 },      // Continue curving
+                { x: W - 70, y: 40 }       // Connect near top wall end
             ];
             walls.push(...createCurvedWall(topDeflector, 14, wallOpts));
 
