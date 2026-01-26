@@ -248,11 +248,14 @@
             ];
             walls.push(...createCurvedWall(topCurve, 16, wallOpts));
 
-            // Plunger lane - right edge wall (stops before top to allow exit)
-            walls.push(Bodies.rectangle(W - 8, H / 2 + 80, 10, H - 200, wallOpts));
+            // Plunger lane - right edge wall (full height from y=60 to bottom)
+            walls.push(Bodies.rectangle(W - 8, H / 2 + 50, 10, H - 80, wallOpts));
 
-            // Plunger lane - left edge wall (SHORT - only bottom 120px to keep ball in lane)
-            walls.push(Bodies.rectangle(W - 42, H - 70, 8, 120, wallOpts));
+            // Plunger lane - left edge wall (from y=500 to bottom to contain ball)
+            walls.push(Bodies.rectangle(W - 42, H - 100, 8, 200, wallOpts));
+
+            // Plunger lane - bottom wall to hold ball until launch
+            walls.push(Bodies.rectangle(W - 25, H - 10, 40, 10, wallOpts));
 
             // Top deflector - small angled piece that redirects ball LEFT into play area
             // This does NOT create an enclosed pocket - ball exits through the gap
