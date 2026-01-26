@@ -234,37 +234,34 @@
             ];
             walls.push(...createCurvedWall(leftCurve, 18, wallOpts));
 
-            // Right wall - starts from where top redirect ends
+            // Right wall - starts LOWER to leave gap for ball entry from plunger lane
             const rightCurve = [
-                { x: W - 70, y: 85 }, { x: W - 55, y: 120 },
-                { x: W - 50, y: 200 }, { x: W - 50, y: 350 },
-                { x: W - 50, y: 450 }, { x: W - 42, y: 510 }, { x: W - 30, y: 560 }
+                { x: W - 50, y: 180 },    // Start below entry gap
+                { x: W - 50, y: 300 }, { x: W - 50, y: 420 },
+                { x: W - 42, y: 500 }, { x: W - 30, y: 560 }
             ];
             walls.push(...createCurvedWall(rightCurve, 18, wallOpts));
 
-            // Top wall - connects to the top redirect curve
+            // Top wall - stops before plunger lane area
             const topCurve = [
-                { x: 25, y: 25 }, { x: 100, y: 15 }, { x: 180, y: 12 }, { x: 260, y: 15 }, { x: W - 70, y: 25 }
+                { x: 25, y: 25 }, { x: 100, y: 15 }, { x: 180, y: 12 }, { x: 260, y: 20 }, { x: W - 100, y: 35 }
             ];
             walls.push(...createCurvedWall(topCurve, 16, wallOpts));
 
-            // Plunger lane - right edge wall (full height)
-            walls.push(Bodies.rectangle(W - 8, H / 2, 10, H - 20, wallOpts));
+            // Plunger lane - right edge wall (stops before top to allow exit)
+            walls.push(Bodies.rectangle(W - 8, H / 2 + 80, 10, H - 200, wallOpts));
 
             // Plunger lane - left edge wall (SHORT - only bottom 120px to keep ball in lane)
             walls.push(Bodies.rectangle(W - 42, H - 70, 8, 120, wallOpts));
 
-            // Top curve to redirect ball from plunger lane into play area
-            // This creates a smooth arc at top-right that guides ball left
-            const topRedirect = [
-                { x: W - 8, y: 50 },      // Start at top of plunger lane outer wall
-                { x: W - 15, y: 25 },     // Curve up
-                { x: W - 40, y: 15 },     // Across the top
-                { x: W - 70, y: 25 },     // Continue left
-                { x: W - 90, y: 50 },     // Curve down into play area
-                { x: W - 70, y: 85 }      // End pointing into play area
+            // Top deflector - small angled piece that redirects ball LEFT into play area
+            // This does NOT create an enclosed pocket - ball exits through the gap
+            const topDeflector = [
+                { x: W - 8, y: 60 },      // Start at top of plunger outer wall
+                { x: W - 20, y: 35 },     // Curve up and left
+                { x: W - 45, y: 20 }      // End pointing into play area (open exit)
             ];
-            walls.push(...createCurvedWall(topRedirect, 14, wallOpts));
+            walls.push(...createCurvedWall(topDeflector, 14, wallOpts));
 
             // Bottom left guide to flipper
             const leftGuide = [{ x: 50, y: 560 }, { x: 70, y: 595 }, { x: 85, y: 625 }];
