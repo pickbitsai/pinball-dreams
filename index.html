@@ -67,12 +67,18 @@
         .level-btn .level-desc { color: #8888aa; font-size: 10px; }
         .level-btn .level-icon { font-size: 20px; margin-bottom: 3px; }
 
-        #restart-btn, #play-btn {
+        #restart-btn, #play-btn, #menu-btn {
             background: linear-gradient(180deg, #00ff88 0%, #00cc66 100%);
             border: none; padding: 12px 35px; font-size: 18px; font-weight: bold;
             color: #1a1a2e; border-radius: 10px; cursor: pointer; transition: all 0.3s ease;
         }
-        #restart-btn:hover, #play-btn:hover { transform: scale(1.1); }
+        #restart-btn:hover, #play-btn:hover, #menu-btn:hover { transform: scale(1.1); }
+
+        #menu-btn {
+            position: absolute; top: 55px; left: 10px; padding: 8px 15px; font-size: 14px;
+            background: linear-gradient(180deg, #ff6688 0%, #cc4466 100%); z-index: 100;
+            display: none;
+        }
 
         #instructions { color: #8888aa; font-size: 11px; margin-top: 10px; text-align: center; }
         #instructions span { color: #ffcc00; }
@@ -108,6 +114,7 @@
             </div>
         </div>
         <canvas id="game-canvas"></canvas>
+        <button id="menu-btn">MENU</button>
         <div id="touch-left" class="touch-zone"></div>
         <div id="touch-right" class="touch-zone"></div>
         <div id="launch-indicator">Tap to Launch!</div>
@@ -195,7 +202,7 @@
         let plunger = { power: 0, charging: false };
         const keys = { left: false, right: false };
 
-        // Create smooth curved wall using multiple circles
+        // Create smooth curved wall using connected segments
         function createCurvedWall(points, thickness, options) {
             const bodies = [];
             for (let i = 0; i < points.length - 1; i++) {
@@ -203,19 +210,8 @@
                 const dx = p2.x - p1.x, dy = p2.y - p1.y;
                 const len = Math.sqrt(dx * dx + dy * dy);
                 const angle = Math.atan2(dy, dx);
-
-                // Create rectangle segment
-                const seg = Bodies.rectangle(
-                    (p1.x + p2.x) / 2, (p1.y + p2.y) / 2,
-                    len + thickness, thickness,
-                    { ...options, angle: angle }
-                );
-                bodies.push(seg);
-
-                // Add circle at joint for smoothness
-                if (i > 0) {
-                    bodies.push(Bodies.circle(p1.x, p1.y, thickness / 2, options));
-                }
+                bodies.push(Bodies.rectangle((p1.x + p2.x) / 2, (p1.y + p2.y) / 2, len + thickness, thickness, { ...options, angle }));
+                if (i > 0) bodies.push(Bodies.circle(p1.x, p1.y, thickness / 2, options));
             }
             return bodies;
         }
@@ -230,47 +226,53 @@
             };
             const walls = [];
 
-            // Outer boundary - smooth continuous walls
-            // Left wall curve
+            // Left wall - smooth curve from top to flipper area
             const leftCurve = [
-                { x: 30, y: 0 }, { x: 25, y: 50 }, { x: 22, y: 100 }, { x: 20, y: 150 },
-                { x: 20, y: 250 }, { x: 20, y: 350 }, { x: 22, y: 420 },
-                { x: 30, y: 480 }, { x: 45, y: 530 }, { x: 60, y: 570 }
+                { x: 25, y: 25 }, { x: 22, y: 80 }, { x: 20, y: 150 },
+                { x: 20, y: 300 }, { x: 20, y: 420 },
+                { x: 28, y: 500 }, { x: 50, y: 560 }
             ];
             walls.push(...createCurvedWall(leftCurve, 18, wallOpts));
 
-            // Right wall curve (leaving plunger gap)
+            // Right wall - starts from where top redirect ends
             const rightCurve = [
-                { x: W - 70, y: 0 }, { x: W - 65, y: 50 }, { x: W - 62, y: 100 },
-                { x: W - 60, y: 150 }, { x: W - 60, y: 250 }, { x: W - 60, y: 350 },
-                { x: W - 58, y: 420 }, { x: W - 50, y: 480 }, { x: W - 40, y: 530 }
+                { x: W - 70, y: 85 }, { x: W - 55, y: 120 },
+                { x: W - 50, y: 200 }, { x: W - 50, y: 350 },
+                { x: W - 50, y: 450 }, { x: W - 42, y: 510 }, { x: W - 30, y: 560 }
             ];
             walls.push(...createCurvedWall(rightCurve, 18, wallOpts));
 
-            // Top curve
+            // Top wall - connects to the top redirect curve
             const topCurve = [
-                { x: 30, y: 20 }, { x: 80, y: 12 }, { x: 140, y: 8 },
-                { x: 200, y: 6 }, { x: 260, y: 8 }, { x: W - 70, y: 15 }
+                { x: 25, y: 25 }, { x: 100, y: 15 }, { x: 180, y: 12 }, { x: 260, y: 15 }, { x: W - 70, y: 25 }
             ];
             walls.push(...createCurvedWall(topCurve, 16, wallOpts));
 
-            // Plunger lane
-            walls.push(Bodies.rectangle(W - 15, H / 2, 12, H, wallOpts));
-            walls.push(Bodies.rectangle(W - 48, H - 120, 10, 200, wallOpts));
+            // Plunger lane - right edge wall (full height)
+            walls.push(Bodies.rectangle(W - 8, H / 2, 10, H - 20, wallOpts));
 
-            // Entry guide
-            walls.push(Bodies.rectangle(W - 60, 45, 40, 12, { ...wallOpts, angle: 0.4 }));
+            // Plunger lane - left edge wall (SHORT - only bottom 120px to keep ball in lane)
+            walls.push(Bodies.rectangle(W - 42, H - 70, 8, 120, wallOpts));
 
-            // Bottom guides (angled to flippers)
-            const leftGuide = [
-                { x: 60, y: 570 }, { x: 75, y: 600 }, { x: 90, y: 620 }
+            // Top curve to redirect ball from plunger lane into play area
+            // This creates a smooth arc at top-right that guides ball left
+            const topRedirect = [
+                { x: W - 8, y: 50 },      // Start at top of plunger lane outer wall
+                { x: W - 15, y: 25 },     // Curve up
+                { x: W - 40, y: 15 },     // Across the top
+                { x: W - 70, y: 25 },     // Continue left
+                { x: W - 90, y: 50 },     // Curve down into play area
+                { x: W - 70, y: 85 }      // End pointing into play area
             ];
-            walls.push(...createCurvedWall(leftGuide, 14, wallOpts));
+            walls.push(...createCurvedWall(topRedirect, 14, wallOpts));
 
-            const rightGuide = [
-                { x: W - 100, y: 570 }, { x: W - 115, y: 600 }, { x: W - 130, y: 620 }
-            ];
-            walls.push(...createCurvedWall(rightGuide, 14, wallOpts));
+            // Bottom left guide to flipper
+            const leftGuide = [{ x: 50, y: 560 }, { x: 70, y: 595 }, { x: 85, y: 625 }];
+            walls.push(...createCurvedWall(leftGuide, 12, wallOpts));
+
+            // Bottom right guide to flipper
+            const rightGuide = [{ x: W - 70, y: 560 }, { x: W - 90, y: 595 }, { x: W - 105, y: 625 }];
+            walls.push(...createCurvedWall(rightGuide, 12, wallOpts));
 
             // Level-specific elements
             if (currentLevel === 0) {
@@ -278,77 +280,64 @@
                 createBumper(120, 180, 24);
                 createBumper(200, 130, 28);
                 createBumper(280, 180, 24);
-                createBumper(160, 280, 22);
-                createBumper(240, 280, 22);
-
+                createBumper(160, 300, 22);
+                createBumper(240, 300, 22);
                 // Slingshots
-                walls.push(Bodies.polygon(80, H - 180, 3, 35, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
-                walls.push(Bodies.polygon(W - 120, H - 180, 3, 35, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
+                walls.push(Bodies.polygon(75, H - 180, 3, 30, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
+                walls.push(Bodies.polygon(W - 95, H - 180, 3, 30, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
             }
             else if (currentLevel === 1) {
-                // Vortex - spiral pattern of bumpers
-                const centerX = 180, centerY = 250;
-                for (let i = 0; i < 7; i++) {
-                    const angle = (i / 7) * Math.PI * 2;
-                    const radius = 60 + i * 15;
-                    createBumper(centerX + Math.cos(angle) * radius, centerY + Math.sin(angle) * radius, 18 + (i % 3) * 4);
+                // Vortex - spiral pattern
+                const cx = 170, cy = 280;
+                for (let i = 0; i < 6; i++) {
+                    const a = (i / 6) * Math.PI * 2 - Math.PI/2;
+                    const r = 50 + i * 18;
+                    createBumper(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 18 + (i % 2) * 6);
                 }
-                // Center spinner obstacle
-                const spinner = Bodies.rectangle(180, 250, 80, 12, { ...wallOpts, restitution: 0.8, render: { fillStyle: level.theme.accent } });
-                walls.push(spinner);
-                obstacles.push({ type: 'spinner', body: spinner });
+                walls.push(Bodies.rectangle(170, 280, 70, 10, { ...wallOpts, restitution: 0.8, render: { fillStyle: level.theme.accent } }));
             }
             else if (currentLevel === 2) {
-                // Diamond - geometric pattern
-                createBumper(200, 100, 25);
-                createBumper(120, 180, 22);
-                createBumper(280, 180, 22);
-                createBumper(200, 260, 25);
-                createBumper(120, 340, 22);
-                createBumper(280, 340, 22);
-                createBumper(200, 420, 25);
-
-                // Diamond walls
-                walls.push(Bodies.rectangle(160, 180, 50, 10, { ...wallOpts, angle: 0.5, render: { fillStyle: level.theme.accent } }));
-                walls.push(Bodies.rectangle(240, 180, 50, 10, { ...wallOpts, angle: -0.5, render: { fillStyle: level.theme.accent } }));
-                walls.push(Bodies.rectangle(160, 340, 50, 10, { ...wallOpts, angle: -0.5, render: { fillStyle: level.theme.accent } }));
-                walls.push(Bodies.rectangle(240, 340, 50, 10, { ...wallOpts, angle: 0.5, render: { fillStyle: level.theme.accent } }));
+                // Diamond pattern
+                createBumper(180, 120, 24);
+                createBumper(100, 200, 20);
+                createBumper(260, 200, 20);
+                createBumper(180, 280, 24);
+                createBumper(100, 360, 20);
+                createBumper(260, 360, 20);
+                createBumper(180, 440, 24);
+                // Angled deflectors
+                walls.push(Bodies.rectangle(140, 200, 40, 8, { ...wallOpts, angle: 0.5, render: { fillStyle: level.theme.accent } }));
+                walls.push(Bodies.rectangle(220, 200, 40, 8, { ...wallOpts, angle: -0.5, render: { fillStyle: level.theme.accent } }));
+                walls.push(Bodies.rectangle(140, 360, 40, 8, { ...wallOpts, angle: -0.5, render: { fillStyle: level.theme.accent } }));
+                walls.push(Bodies.rectangle(220, 360, 40, 8, { ...wallOpts, angle: 0.5, render: { fillStyle: level.theme.accent } }));
             }
             else if (currentLevel === 3) {
-                // Castle - tower bumpers with ramparts
-                createBumper(100, 150, 30);
-                createBumper(200, 120, 35);
-                createBumper(300, 150, 30);
-                createBumper(150, 280, 25);
-                createBumper(250, 280, 25);
-                createBumper(200, 380, 28);
-
-                // Castle walls (ramparts)
-                for (let i = 0; i < 4; i++) {
-                    walls.push(Bodies.rectangle(80 + i * 35, 220, 25, 12, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
-                    walls.push(Bodies.rectangle(230 + i * 35, 220, 25, 12, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
+                // Castle towers
+                createBumper(90, 160, 28);
+                createBumper(180, 120, 32);
+                createBumper(270, 160, 28);
+                createBumper(135, 300, 24);
+                createBumper(225, 300, 24);
+                createBumper(180, 420, 26);
+                // Ramparts
+                for (let i = 0; i < 3; i++) {
+                    walls.push(Bodies.rectangle(70 + i * 40, 230, 25, 10, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
+                    walls.push(Bodies.rectangle(210 + i * 40, 230, 25, 10, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
                 }
-                // Gate
-                walls.push(Bodies.rectangle(200, 200, 15, 50, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
+                walls.push(Bodies.rectangle(180, 200, 12, 45, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
             }
             else if (currentLevel === 4) {
-                // Wave - curved rails and scattered bumpers
-                createBumper(100, 160, 22);
-                createBumper(300, 200, 22);
-                createBumper(140, 300, 24);
-                createBumper(260, 350, 24);
-                createBumper(180, 420, 20);
-
+                // Wave
+                createBumper(90, 180, 22);
+                createBumper(270, 220, 22);
+                createBumper(130, 340, 24);
+                createBumper(230, 400, 24);
+                createBumper(170, 480, 20);
                 // Wave rails
-                const wave1 = [
-                    { x: 80, y: 250 }, { x: 120, y: 230 }, { x: 160, y: 250 }, { x: 200, y: 230 }, { x: 240, y: 250 }
-                ];
-                walls.push(...createCurvedWall(wave1, 10, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
-
-                const wave2 = [
-                    { x: 160, y: 380 }, { x: 200, y: 360 }, { x: 240, y: 380 }, { x: 280, y: 360 }, { x: 320, y: 380 }
-                ];
-                walls.push(...createCurvedWall(wave2, 10, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
+                const w1 = [{ x: 70, y: 270 }, { x: 110, y: 250 }, { x: 150, y: 270 }, { x: 190, y: 250 }, { x: 230, y: 270 }];
+                walls.push(...createCurvedWall(w1, 8, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
+                const w2 = [{ x: 140, y: 430 }, { x: 180, y: 410 }, { x: 220, y: 430 }, { x: 260, y: 410 }, { x: 300, y: 430 }];
+                walls.push(...createCurvedWall(w2, 8, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
             }
 
             Composite.add(world, walls);
@@ -356,24 +345,21 @@
 
         function createFlipper(side) {
             const isLeft = side === 'left';
-            const x = isLeft ? 115 : CONFIG.width - 155;
-            const y = CONFIG.height - 70;
+            const x = isLeft ? 110 : CONFIG.width - 130;
+            const y = CONFIG.height - 65;
             const pivotX = isLeft ? x - 25 : x + 25;
             const level = LEVELS[currentLevel];
 
-            const flipper = Bodies.rectangle(x, y, 65, 14, {
+            const flipper = Bodies.rectangle(x, y, 60, 12, {
                 label: `flipper-${side}`, density: 0.03, friction: 0.9, restitution: 0.1,
-                chamfer: { radius: 7 },
+                chamfer: { radius: 6 },
                 collisionFilter: { category: CATEGORY.FLIPPER },
                 render: { fillStyle: level.theme.accent }
             });
 
-            const pivot = Bodies.circle(pivotX, y, 6, {
-                isStatic: true, render: { fillStyle: level.theme.accent }
-            });
-
+            const pivot = Bodies.circle(pivotX, y, 5, { isStatic: true, render: { fillStyle: level.theme.accent } });
             const constraint = Constraint.create({
-                bodyA: flipper, pointA: { x: isLeft ? -28 : 28, y: 0 },
+                bodyA: flipper, pointA: { x: isLeft ? -25 : 25, y: 0 },
                 bodyB: pivot, pointB: { x: 0, y: 0 }, stiffness: 1, length: 0
             });
 
@@ -395,7 +381,7 @@
         }
 
         function createDrainSensor() {
-            Composite.add(world, Bodies.rectangle(CONFIG.width / 2 - 20, CONFIG.height + 20, CONFIG.width - 80, 40, {
+            Composite.add(world, Bodies.rectangle(CONFIG.width / 2, CONFIG.height + 30, CONFIG.width, 60, {
                 isStatic: true, isSensor: true, label: 'drain',
                 render: { fillStyle: 'transparent' },
                 collisionFilter: { category: CATEGORY.SENSOR }
@@ -404,7 +390,7 @@
 
         function createBall() {
             if (ball) Composite.remove(world, ball);
-            ball = Bodies.circle(CONFIG.width - 32, CONFIG.height - 100, CONFIG.ball.radius, {
+            ball = Bodies.circle(CONFIG.width - 25, CONFIG.height - 50, CONFIG.ball.radius, {
                 label: 'ball', restitution: CONFIG.ball.restitution,
                 friction: CONFIG.ball.friction, frictionAir: CONFIG.ball.frictionAir,
                 density: CONFIG.ball.density, render: { fillStyle: '#ddd' },
@@ -416,7 +402,7 @@
             document.getElementById('launch-indicator').style.display = 'block';
         }
 
-        // Input
+        // Input handling
         document.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') { keys.left = true; e.preventDefault(); }
             if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') { keys.right = true; e.preventDefault(); }
@@ -463,7 +449,7 @@
         document.addEventListener('touchend', (e) => {
             for (const t of e.changedTouches) {
                 if (t.identifier === launchTouchId && plunger.charging) {
-                    plunger.power = Math.max(0.5, Math.min((touchStartY - t.clientY) / 100, 1));
+                    plunger.power = Math.max(0.6, Math.min((touchStartY - t.clientY) / 80, 1));
                     launchBall(); plunger.charging = false; launchTouchId = null;
                 }
                 activeTouches.delete(t.identifier);
@@ -478,7 +464,8 @@
 
         function launchBall() {
             if (!ball || gameState.ballLaunched) return;
-            Body.applyForce(ball, ball.position, { x: -0.006, y: -0.065 * Math.max(plunger.power, 0.6) });
+            const power = Math.max(plunger.power, 0.7);
+            Body.applyForce(ball, ball.position, { x: 0, y: -0.055 * power });
             gameState.ballLaunched = true; plunger.power = 0;
             document.getElementById('launch-indicator').style.display = 'none';
         }
@@ -542,7 +529,6 @@
             ctx.fillStyle = level.theme.bg;
             ctx.fillRect(0, 0, CONFIG.width, CONFIG.height);
 
-            // All bodies
             Composite.allBodies(world).forEach(body => {
                 if (body.render.fillStyle === 'transparent') return;
                 ctx.beginPath();
@@ -560,7 +546,6 @@
                 }
                 ctx.fill();
 
-                // Bumper glow & text
                 if (body.label === 'bumper') {
                     ctx.shadowColor = level.theme.bumper; ctx.shadowBlur = 12; ctx.fill(); ctx.shadowBlur = 0;
                     ctx.beginPath();
@@ -570,7 +555,6 @@
                     ctx.fillText('100', body.position.x, body.position.y);
                 }
 
-                // Ball
                 if (body.label === 'ball') {
                     const g = ctx.createRadialGradient(body.position.x - 3, body.position.y - 3, 0, body.position.x, body.position.y, body.circleRadius);
                     g.addColorStop(0, '#fff'); g.addColorStop(0.4, '#ccc'); g.addColorStop(1, '#666');
@@ -579,38 +563,36 @@
                 }
             });
 
-            // Flipper pivots
             if (leftFlipper && rightFlipper) {
                 [leftFlipper.pivot, rightFlipper.pivot].forEach(p => {
-                    ctx.beginPath(); ctx.arc(p.position.x, p.position.y, 7, 0, Math.PI * 2);
+                    ctx.beginPath(); ctx.arc(p.position.x, p.position.y, 6, 0, Math.PI * 2);
                     ctx.fillStyle = level.theme.accent; ctx.shadowColor = level.theme.accent; ctx.shadowBlur = 10;
                     ctx.fill(); ctx.shadowBlur = 0;
                 });
             }
 
-            // Particles
             particles.forEach(p => {
                 ctx.beginPath(); ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
                 ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.fill(); ctx.globalAlpha = 1;
             });
 
-            // Plunger area
-            ctx.fillStyle = level.theme.wall;
-            ctx.fillRect(CONFIG.width - 47, CONFIG.height - 200, 32, 180);
+            // Plunger lane visual
+            ctx.fillStyle = level.theme.wall + '80';
+            ctx.fillRect(CONFIG.width - 38, CONFIG.height - 110, 26, 100);
 
-            const offset = plunger.charging ? plunger.power * 25 : 0;
+            const offset = plunger.charging ? plunger.power * 20 : 0;
             ctx.fillStyle = level.theme.accent;
-            ctx.beginPath(); ctx.arc(CONFIG.width - 31, CONFIG.height - 25 + offset, 12, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(CONFIG.width - 25, CONFIG.height - 20 + offset, 10, 0, Math.PI * 2); ctx.fill();
 
             if (plunger.charging) {
-                plunger.power = Math.min(plunger.power + 0.025, 1);
+                plunger.power = Math.min(plunger.power + 0.03, 1);
                 ctx.fillStyle = `rgba(0,255,136,${plunger.power})`;
-                ctx.fillRect(CONFIG.width - 45, CONFIG.height - 195, 28 * plunger.power, 6);
+                ctx.fillRect(CONFIG.width - 36, CONFIG.height - 105, 22 * plunger.power, 5);
             }
 
             if (!gameState.ballLaunched && gameState.ballInPlay) {
                 ctx.fillStyle = 'rgba(0,255,136,0.15)';
-                ctx.fillRect(CONFIG.width - 47, CONFIG.height - 200, 32, 160);
+                ctx.fillRect(CONFIG.width - 38, CONFIG.height - 110, 26, 90);
             }
         }
 
@@ -630,6 +612,7 @@
             updateScoreDisplay(); updateBallsDisplay(); updateHighScore();
             document.getElementById('game-over').style.display = 'none';
             document.getElementById('level-select').style.display = 'none';
+            document.getElementById('menu-btn').style.display = 'block';
             document.getElementById('level-name-display').textContent = LEVELS[currentLevel].name;
         }
 
@@ -637,6 +620,15 @@
             gameState.isPlaying = false; updateHighScore();
             document.getElementById('final-score').textContent = gameState.score.toLocaleString();
             document.getElementById('game-over').style.display = 'block';
+            document.getElementById('menu-btn').style.display = 'none';
+        }
+
+        function showLevelSelect() {
+            gameState.isPlaying = false;
+            Composite.clear(world, false);
+            document.getElementById('level-select').style.display = 'block';
+            document.getElementById('game-over').style.display = 'none';
+            document.getElementById('menu-btn').style.display = 'none';
         }
 
         document.querySelectorAll('.level-btn').forEach(btn => {
@@ -646,10 +638,8 @@
             });
         });
         document.getElementById('play-btn').addEventListener('click', startGame);
-        document.getElementById('restart-btn').addEventListener('click', () => {
-            document.getElementById('level-select').style.display = 'block';
-            document.getElementById('game-over').style.display = 'none';
-        });
+        document.getElementById('restart-btn').addEventListener('click', showLevelSelect);
+        document.getElementById('menu-btn').addEventListener('click', showLevelSelect);
 
         function handleResize() {
             const scale = Math.min((window.innerWidth - 20) / CONFIG.width, (window.innerHeight - 120) / CONFIG.height, 1);
