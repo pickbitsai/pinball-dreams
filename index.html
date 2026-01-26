@@ -243,7 +243,7 @@
         <div id="touch-right" class="touch-zone"></div>
 
         <!-- Launch Indicator -->
-        <div id="launch-indicator">Press SPACE or Swipe Up to Launch!</div>
+        <div id="launch-indicator">Press SPACE or Tap to Launch!</div>
 
         <!-- Game Over Overlay -->
         <div id="game-over">
@@ -257,7 +257,7 @@
     <!-- Instructions -->
     <div id="instructions">
         <span>Desktop:</span> A/D or Left/Right arrows for flippers | Space to launch<br>
-        <span>Mobile:</span> Tap left/right sides to control flippers | Swipe up to launch
+        <span>Mobile:</span> Tap left/right sides for flippers | Tap to launch
     </div>
 
     <script>
@@ -763,19 +763,23 @@
             updateFlipperStates();
         }, { passive: false });
 
-        // Handle touch end - release flippers and detect swipe for launch
+        // Handle touch end - release flippers and launch ball
         canvas.addEventListener('touchend', (e) => {
             e.preventDefault();
 
             for (const touch of e.changedTouches) {
-                // Check for swipe up to launch
+                // Check for launch (tap or swipe both work)
                 if (touch.identifier === launchTouchId && plunger.charging) {
                     const touchEndY = touch.clientY;
-                    if (touchStartY - touchEndY > 30) {
-                        // Swipe up detected
-                        plunger.power = Math.min((touchStartY - touchEndY) / 100, 1);
-                        launchBall();
+                    const swipeDistance = touchStartY - touchEndY;
+
+                    // Any tap/swipe will launch - swipe up gives more power
+                    if (swipeDistance > 30) {
+                        plunger.power = Math.min(swipeDistance / 100, 1);
+                    } else {
+                        plunger.power = 0.5; // Default power for tap
                     }
+                    launchBall();
                     plunger.charging = false;
                     launchTouchId = null;
                 }
