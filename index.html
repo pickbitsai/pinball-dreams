@@ -259,8 +259,6 @@
             // Plunger lane - bottom wall to hold ball until launch
             walls.push(Bodies.rectangle(W - 25, H - 10, 40, 10, wallOpts));
 
-            // Small guide at top-right to help ball enter playfield
-            walls.push(Bodies.rectangle(W - 50, 65, 8, 30, { ...wallOpts, angle: 0.3 }));
 
             // Bottom left guide to flipper
             const leftGuide = [{ x: 50, y: 560 }, { x: 70, y: 595 }, { x: 85, y: 625 }];
