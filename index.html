@@ -339,7 +339,7 @@
 
         function createFlipper(side) {
             const isLeft = side === 'left';
-            const x = isLeft ? 110 : CONFIG.width - 130;
+            const x = isLeft ? 150 : CONFIG.width - 150;  // Closer together - ~40px gap (2 ball widths)
             const y = CONFIG.height - 65;
             const pivotX = isLeft ? x - 25 : x + 25;
             const level = LEVELS[currentLevel];
