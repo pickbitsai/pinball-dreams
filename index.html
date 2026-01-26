@@ -406,20 +406,26 @@
 
             // Main boundary walls
             const walls = [
-                // Top wall
-                Bodies.rectangle(CONFIG.width / 2, 10, CONFIG.width - 40, 20, wallOptions),
+                // Top wall (with gap on right for ball entry from plunger lane)
+                Bodies.rectangle(CONFIG.width / 2 - 40, 10, CONFIG.width - 120, 20, wallOptions),
 
                 // Left wall (upper section)
                 Bodies.rectangle(20, CONFIG.height / 3, 20, CONFIG.height / 2, wallOptions),
 
-                // Right wall (upper section, leaving gap for plunger lane)
-                Bodies.rectangle(CONFIG.width - 60, CONFIG.height / 3, 20, CONFIG.height / 2, wallOptions),
+                // Right wall (upper section) - shorter to allow ball entry from plunger
+                Bodies.rectangle(CONFIG.width - 60, CONFIG.height / 2.5, 20, CONFIG.height / 3, wallOptions),
 
                 // Plunger lane right wall
                 Bodies.rectangle(CONFIG.width - 10, CONFIG.height / 2, 20, CONFIG.height, wallOptions),
 
-                // Plunger lane separator
-                Bodies.rectangle(CONFIG.width - 40, CONFIG.height - 150, 10, 200, wallOptions),
+                // Plunger lane separator (shorter - stops higher to let ball curve into play area)
+                Bodies.rectangle(CONFIG.width - 40, CONFIG.height - 80, 10, 120, wallOptions),
+
+                // Curved guide at top of plunger lane to direct ball left into play area
+                Bodies.rectangle(CONFIG.width - 50, 60, 60, 15, {
+                    ...wallOptions,
+                    angle: 0.4  // Angled to guide ball left
+                }),
 
                 // Bottom drain walls (angled to guide ball to flippers)
                 Bodies.trapezoid(70, CONFIG.height - 120, 100, 60, 0.3, {
@@ -822,8 +828,8 @@
             if (!ball || gameState.ballLaunched) return;
 
             // Calculate launch force based on charge time or swipe distance
-            const power = Math.max(plunger.power, 0.5);
-            const force = { x: 0, y: -0.05 * power };
+            const power = Math.max(plunger.power, 0.7);
+            const force = { x: -0.005, y: -0.08 * power };  // Slight left angle + more power
 
             Body.applyForce(ball, ball.position, force);
             gameState.ballLaunched = true;
@@ -844,15 +850,15 @@
         function updateFlippers() {
             if (!leftFlipper || !rightFlipper) return;
 
-            // Left flipper
+            // Left flipper: rest=down (0.5), active=up (-0.5)
             const leftTargetAngle = keys.left ?
-                -CONFIG.flipper.activeAngle : CONFIG.flipper.restAngle;
+                CONFIG.flipper.activeAngle : CONFIG.flipper.restAngle;
             const leftAngleDiff = leftTargetAngle - leftFlipper.flipper.angle;
             Body.setAngularVelocity(leftFlipper.flipper, leftAngleDiff * 0.3);
 
-            // Right flipper
+            // Right flipper: rest=down (-0.5), active=up (0.5) - mirrored
             const rightTargetAngle = keys.right ?
-                CONFIG.flipper.activeAngle : -CONFIG.flipper.restAngle;
+                -CONFIG.flipper.activeAngle : -CONFIG.flipper.restAngle;
             const rightAngleDiff = rightTargetAngle - rightFlipper.flipper.angle;
             Body.setAngularVelocity(rightFlipper.flipper, rightAngleDiff * 0.3);
         }
