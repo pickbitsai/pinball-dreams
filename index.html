@@ -177,14 +177,14 @@
             color: #ffcc00;
         }
 
-        /* Mobile Touch Zones (invisible but functional) */
+        /* Mobile Touch Zones - visible feedback areas */
         .touch-zone {
             position: absolute;
             bottom: 0;
-            width: 40%;
-            height: 30%;
+            width: 50%;
+            height: 100%;
             z-index: 50;
-            opacity: 0;
+            pointer-events: none;
         }
 
         #touch-left {
@@ -193,6 +193,11 @@
 
         #touch-right {
             right: 0;
+        }
+
+        /* Touch feedback indicator */
+        .touch-active {
+            background: radial-gradient(ellipse at bottom, rgba(255, 102, 136, 0.3) 0%, transparent 70%);
         }
 
         /* New Ball / Launch indicator */
@@ -252,7 +257,7 @@
     <!-- Instructions -->
     <div id="instructions">
         <span>Desktop:</span> A/D or Left/Right arrows for flippers | Space to launch<br>
-        <span>Mobile:</span> Touch left/right sides for flippers | Swipe up to launch
+        <span>Mobile:</span> Tap left/right sides to control flippers | Swipe up to launch
     </div>
 
     <script>
@@ -680,41 +685,119 @@
         });
 
         // Touch controls for mobile
+        // Track active touches for multi-touch flipper control
+        const activeTouches = new Map();
         let touchStartY = 0;
+        let launchTouchId = null;
 
-        document.getElementById('touch-left').addEventListener('touchstart', (e) => {
-            keys.left = true;
-            e.preventDefault();
-        });
-        document.getElementById('touch-left').addEventListener('touchend', () => {
-            keys.left = false;
-        });
+        const touchLeftZone = document.getElementById('touch-left');
+        const touchRightZone = document.getElementById('touch-right');
 
-        document.getElementById('touch-right').addEventListener('touchstart', (e) => {
-            keys.right = true;
-            e.preventDefault();
-        });
-        document.getElementById('touch-right').addEventListener('touchend', () => {
-            keys.right = false;
-        });
+        /**
+         * Determines which flipper(s) should be active based on touch position
+         * Left half of screen = left flipper, Right half = right flipper
+         */
+        function getTouchSide(touch) {
+            const canvasRect = canvas.getBoundingClientRect();
+            const touchX = touch.clientX;
+            const canvasCenterX = canvasRect.left + canvasRect.width / 2;
 
-        // Swipe up to launch
+            if (touchX < canvasCenterX) {
+                return 'left';
+            } else {
+                return 'right';
+            }
+        }
+
+        /**
+         * Updates flipper states based on all active touches
+         */
+        function updateFlipperStates() {
+            let leftActive = false;
+            let rightActive = false;
+
+            activeTouches.forEach((side) => {
+                if (side === 'left') leftActive = true;
+                if (side === 'right') rightActive = true;
+            });
+
+            keys.left = leftActive;
+            keys.right = rightActive;
+
+            // Visual feedback
+            touchLeftZone.classList.toggle('touch-active', leftActive);
+            touchRightZone.classList.toggle('touch-active', rightActive);
+        }
+
+        // Handle touch start - register new touches
         canvas.addEventListener('touchstart', (e) => {
-            touchStartY = e.touches[0].clientY;
-            if (!gameState.ballLaunched && gameState.ballInPlay) {
-                plunger.charging = true;
-            }
-        });
+            e.preventDefault();
 
-        canvas.addEventListener('touchend', (e) => {
-            const touchEndY = e.changedTouches[0].clientY;
-            if (touchStartY - touchEndY > 30 && plunger.charging) {
-                // Swipe up detected
-                plunger.power = Math.min((touchStartY - touchEndY) / 100, 1);
-                launchBall();
+            for (const touch of e.changedTouches) {
+                const side = getTouchSide(touch);
+                activeTouches.set(touch.identifier, side);
+
+                // Track for swipe detection (use the first touch for launch)
+                if (launchTouchId === null && !gameState.ballLaunched && gameState.ballInPlay) {
+                    launchTouchId = touch.identifier;
+                    touchStartY = touch.clientY;
+                    plunger.charging = true;
+                }
             }
-            plunger.charging = false;
-        });
+
+            updateFlipperStates();
+        }, { passive: false });
+
+        // Handle touch move - update touch positions and check for swipe
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+
+            for (const touch of e.changedTouches) {
+                // Update flipper side if touch moved across center
+                if (activeTouches.has(touch.identifier)) {
+                    const newSide = getTouchSide(touch);
+                    activeTouches.set(touch.identifier, newSide);
+                }
+            }
+
+            updateFlipperStates();
+        }, { passive: false });
+
+        // Handle touch end - release flippers and detect swipe for launch
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+
+            for (const touch of e.changedTouches) {
+                // Check for swipe up to launch
+                if (touch.identifier === launchTouchId && plunger.charging) {
+                    const touchEndY = touch.clientY;
+                    if (touchStartY - touchEndY > 30) {
+                        // Swipe up detected
+                        plunger.power = Math.min((touchStartY - touchEndY) / 100, 1);
+                        launchBall();
+                    }
+                    plunger.charging = false;
+                    launchTouchId = null;
+                }
+
+                activeTouches.delete(touch.identifier);
+            }
+
+            updateFlipperStates();
+        }, { passive: false });
+
+        // Handle touch cancel (e.g., incoming call)
+        canvas.addEventListener('touchcancel', (e) => {
+            for (const touch of e.changedTouches) {
+                activeTouches.delete(touch.identifier);
+                if (touch.identifier === launchTouchId) {
+                    plunger.charging = false;
+                    launchTouchId = null;
+                }
+            }
+
+            updateFlipperStates();
+        }, { passive: false });
 
         /**
          * Launches the ball from the plunger lane
