@@ -95,6 +95,22 @@
             position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
             color: #ffcc00; font-size: 12px; font-weight: bold; opacity: 0.8;
         }
+        #editor-controls {
+            position: absolute; top: 55px; right: 10px; display: none; z-index: 100;
+            flex-direction: column; gap: 5px;
+        }
+        .editor-btn {
+            background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%);
+            border: none; padding: 8px 12px; font-size: 12px; font-weight: bold;
+            color: #fff; border-radius: 8px; cursor: pointer;
+        }
+        .editor-btn.active { background: linear-gradient(180deg, #00ff88 0%, #00cc66 100%); color: #1a1a2e; }
+        .editor-btn.danger { background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%); }
+        #editor-instructions {
+            position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%);
+            color: #ffcc00; font-size: 11px; text-align: center; display: none;
+            background: rgba(0,0,0,0.7); padding: 8px 12px; border-radius: 8px;
+        }
     </style>
 </head>
 <body>
@@ -119,6 +135,13 @@
         <div id="touch-right" class="touch-zone"></div>
         <div id="launch-indicator">Tap to Launch!</div>
         <div id="level-name-display"></div>
+        <div id="editor-controls">
+            <button class="editor-btn active" id="bumper-mode-btn">+ Bumper</button>
+            <button class="editor-btn" id="wall-mode-btn">Draw Wall</button>
+            <button class="editor-btn" id="play-test-btn">Play Test</button>
+            <button class="editor-btn danger" id="clear-btn">Clear All</button>
+        </div>
+        <div id="editor-instructions">Tap to place bumpers | Draw to create walls</div>
 
         <div id="level-select">
             <h2>SELECT LEVEL</h2>
@@ -147,6 +170,11 @@
                     <div class="level-icon">🌊</div>
                     <span class="level-name">Wave</span>
                     <span class="level-desc">Curved chaos</span>
+                </button>
+                <button class="level-btn" data-level="5">
+                    <div class="level-icon">🎨</div>
+                    <span class="level-name">Custom</span>
+                    <span class="level-desc">Build your own!</span>
                 </button>
             </div>
             <button id="play-btn">PLAY</button>
@@ -179,8 +207,18 @@
             { name: "Vortex", theme: { bg: '#0a0a1a', wall: '#6366f1', bumper: '#a855f7', accent: '#22d3ee' } },
             { name: "Diamond", theme: { bg: '#1a2e2a', wall: '#2dd4bf', bumper: '#34d399', accent: '#fbbf24' } },
             { name: "Castle", theme: { bg: '#2e1a0a', wall: '#b45309', bumper: '#fbbf24', accent: '#ef4444' } },
-            { name: "Wave", theme: { bg: '#1e1b4b', wall: '#7c3aed', bumper: '#c084fc', accent: '#fb7185' } }
+            { name: "Wave", theme: { bg: '#1e1b4b', wall: '#7c3aed', bumper: '#c084fc', accent: '#fb7185' } },
+            { name: "Custom", theme: { bg: '#1a1a2e', wall: '#22d3ee', bumper: '#f472b6', accent: '#a78bfa' } }
         ];
+
+        // Custom level editor state
+        let editorMode = 'bumper'; // 'bumper', 'wall', 'play'
+        let isEditing = false;
+        let customBumpers = [];
+        let customWalls = [];
+        let currentDrawing = [];
+        let isDrawing = false;
+        let draggedBumper = null;
 
         let currentLevel = 0;
         let gameState = {
@@ -333,8 +371,109 @@
                 const w2 = [{ x: 140, y: 430 }, { x: 180, y: 410 }, { x: 220, y: 430 }, { x: 260, y: 410 }, { x: 300, y: 430 }];
                 walls.push(...createCurvedWall(w2, 8, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
             }
+            else if (currentLevel === 5) {
+                // Custom level - load saved bumpers and walls
+                customBumpers.forEach(b => createBumper(b.x, b.y, b.radius));
+                customWalls.forEach(wallPoints => {
+                    if (wallPoints.length >= 2) {
+                        walls.push(...createCurvedWall(wallPoints, 10, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
+                    }
+                });
+            }
 
             Composite.add(world, walls);
+        }
+
+        // Editor functions
+        function getCanvasCoords(clientX, clientY) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = CONFIG.width / rect.width;
+            const scaleY = CONFIG.height / rect.height;
+            return {
+                x: (clientX - rect.left) * scaleX,
+                y: (clientY - rect.top) * scaleY
+            };
+        }
+
+        function findBumperAt(x, y) {
+            for (let i = customBumpers.length - 1; i >= 0; i--) {
+                const b = customBumpers[i];
+                const dist = Math.sqrt((b.x - x) ** 2 + (b.y - y) ** 2);
+                if (dist < b.radius + 10) return i;
+            }
+            return -1;
+        }
+
+        function addCustomBumper(x, y) {
+            // Don't place in plunger lane or too close to edges
+            if (x > CONFIG.width - 60 || x < 40 || y < 50 || y > CONFIG.height - 100) return;
+            customBumpers.push({ x, y, radius: 22 + Math.random() * 8 });
+            rebuildCustomLevel();
+        }
+
+        function rebuildCustomLevel() {
+            if (currentLevel !== 5) return;
+            Composite.clear(world, false);
+            bumpers = [];
+            createLevel();
+            leftFlipper = createFlipper('left');
+            rightFlipper = createFlipper('right');
+            createDrainSensor();
+            if (editorMode === 'play') createBall();
+        }
+
+        function startEditorDrawing(x, y) {
+            if (editorMode !== 'wall') return;
+            isDrawing = true;
+            currentDrawing = [{ x, y }];
+        }
+
+        function continueEditorDrawing(x, y) {
+            if (!isDrawing || editorMode !== 'wall') return;
+            const last = currentDrawing[currentDrawing.length - 1];
+            const dist = Math.sqrt((last.x - x) ** 2 + (last.y - y) ** 2);
+            if (dist > 15) { // Min distance between points
+                currentDrawing.push({ x, y });
+            }
+        }
+
+        function finishEditorDrawing() {
+            if (!isDrawing) return;
+            isDrawing = false;
+            if (currentDrawing.length >= 2) {
+                customWalls.push([...currentDrawing]);
+                rebuildCustomLevel();
+            }
+            currentDrawing = [];
+        }
+
+        function clearCustomLevel() {
+            customBumpers = [];
+            customWalls = [];
+            rebuildCustomLevel();
+        }
+
+        function setEditorMode(mode) {
+            editorMode = mode;
+            document.getElementById('bumper-mode-btn').classList.toggle('active', mode === 'bumper');
+            document.getElementById('wall-mode-btn').classList.toggle('active', mode === 'wall');
+            document.getElementById('play-test-btn').classList.toggle('active', mode === 'play');
+
+            if (mode === 'play') {
+                gameState.isPlaying = true;
+                gameState.ballsRemaining = CONFIG.totalBalls;
+                gameState.score = 0;
+                updateScoreDisplay();
+                updateBallsDisplay();
+                createBall();
+                document.getElementById('editor-instructions').style.display = 'none';
+            } else {
+                gameState.isPlaying = false;
+                if (ball) { Composite.remove(world, ball); ball = null; }
+                document.getElementById('editor-instructions').style.display = 'block';
+                document.getElementById('editor-instructions').textContent =
+                    mode === 'bumper' ? 'Tap to place bumpers | Drag to move' : 'Draw walls with your finger';
+            }
         }
 
         function createFlipper(side) {
@@ -422,6 +561,28 @@
 
         document.addEventListener('touchstart', (e) => {
             if (e.target.tagName === 'BUTTON') return;
+
+            // Editor mode touch handling
+            if (isEditing && editorMode !== 'play') {
+                const t = e.changedTouches[0];
+                const coords = getCanvasCoords(t.clientX, t.clientY);
+                const rect = canvas.getBoundingClientRect();
+                if (t.clientX >= rect.left && t.clientX <= rect.right && t.clientY >= rect.top && t.clientY <= rect.bottom) {
+                    if (editorMode === 'bumper') {
+                        const idx = findBumperAt(coords.x, coords.y);
+                        if (idx >= 0) {
+                            draggedBumper = idx;
+                        } else {
+                            addCustomBumper(coords.x, coords.y);
+                        }
+                    } else if (editorMode === 'wall') {
+                        startEditorDrawing(coords.x, coords.y);
+                    }
+                    e.preventDefault();
+                    return;
+                }
+            }
+
             for (const t of e.changedTouches) {
                 activeTouches.set(t.identifier, t.clientX < window.innerWidth / 2 ? 'left' : 'right');
                 const rect = gameContainer.getBoundingClientRect();
@@ -435,12 +596,36 @@
         }, { passive: false });
 
         document.addEventListener('touchmove', (e) => {
+            // Editor mode touch handling
+            if (isEditing && editorMode !== 'play') {
+                const t = e.changedTouches[0];
+                const coords = getCanvasCoords(t.clientX, t.clientY);
+                if (editorMode === 'bumper' && draggedBumper !== null) {
+                    customBumpers[draggedBumper].x = coords.x;
+                    customBumpers[draggedBumper].y = coords.y;
+                    rebuildCustomLevel();
+                } else if (editorMode === 'wall') {
+                    continueEditorDrawing(coords.x, coords.y);
+                }
+                e.preventDefault();
+                return;
+            }
+
             for (const t of e.changedTouches) if (activeTouches.has(t.identifier)) activeTouches.set(t.identifier, t.clientX < window.innerWidth / 2 ? 'left' : 'right');
             updateFlipperStates();
             e.preventDefault();
         }, { passive: false });
 
         document.addEventListener('touchend', (e) => {
+            // Editor mode touch handling
+            if (isEditing && editorMode !== 'play') {
+                if (editorMode === 'bumper') {
+                    draggedBumper = null;
+                } else if (editorMode === 'wall') {
+                    finishEditorDrawing();
+                }
+            }
+
             for (const t of e.changedTouches) {
                 if (t.identifier === launchTouchId && plunger.charging) {
                     plunger.power = Math.max(0.6, Math.min((touchStartY - t.clientY) / 80, 1));
@@ -452,6 +637,8 @@
         }, { passive: false });
 
         document.addEventListener('touchcancel', (e) => {
+            draggedBumper = null;
+            finishEditorDrawing();
             for (const t of e.changedTouches) { activeTouches.delete(t.identifier); if (t.identifier === launchTouchId) { plunger.charging = false; launchTouchId = null; } }
             updateFlipperStates();
         }, { passive: false });
@@ -588,6 +775,33 @@
                 ctx.fillStyle = 'rgba(0,255,136,0.15)';
                 ctx.fillRect(CONFIG.width - 38, CONFIG.height - 110, 26, 90);
             }
+
+            // Draw current wall being created
+            if (isEditing && isDrawing && currentDrawing.length > 0) {
+                ctx.beginPath();
+                ctx.strokeStyle = level.theme.accent;
+                ctx.lineWidth = 10;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+                ctx.moveTo(currentDrawing[0].x, currentDrawing[0].y);
+                for (let i = 1; i < currentDrawing.length; i++) {
+                    ctx.lineTo(currentDrawing[i].x, currentDrawing[i].y);
+                }
+                ctx.stroke();
+            }
+
+            // Draw editor hint circles for bumper mode
+            if (isEditing && editorMode === 'bumper' && !gameState.isPlaying) {
+                ctx.fillStyle = 'rgba(244, 114, 182, 0.2)';
+                ctx.strokeStyle = 'rgba(244, 114, 182, 0.5)';
+                ctx.setLineDash([5, 5]);
+                ctx.lineWidth = 2;
+                // Draw hint area
+                ctx.beginPath();
+                ctx.rect(40, 50, CONFIG.width - 100, CONFIG.height - 150);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
         }
 
         function gameLoop() {
@@ -631,9 +845,90 @@
                 btn.classList.add('selected'); currentLevel = parseInt(btn.dataset.level);
             });
         });
-        document.getElementById('play-btn').addEventListener('click', startGame);
+        document.getElementById('play-btn').addEventListener('click', () => {
+            if (currentLevel === 5) {
+                startCustomEditor();
+            } else {
+                startGame();
+            }
+        });
         document.getElementById('restart-btn').addEventListener('click', showLevelSelect);
-        document.getElementById('menu-btn').addEventListener('click', showLevelSelect);
+        document.getElementById('menu-btn').addEventListener('click', () => {
+            isEditing = false;
+            document.getElementById('editor-controls').style.display = 'none';
+            document.getElementById('editor-instructions').style.display = 'none';
+            showLevelSelect();
+        });
+
+        // Editor button listeners
+        document.getElementById('bumper-mode-btn').addEventListener('click', () => setEditorMode('bumper'));
+        document.getElementById('wall-mode-btn').addEventListener('click', () => setEditorMode('wall'));
+        document.getElementById('play-test-btn').addEventListener('click', () => setEditorMode('play'));
+        document.getElementById('clear-btn').addEventListener('click', clearCustomLevel);
+
+        function startCustomEditor() {
+            isEditing = true;
+            editorMode = 'bumper';
+            gameState.score = 0;
+            gameState.ballsRemaining = CONFIG.totalBalls;
+            gameState.isPlaying = false;
+            gameState.ballInPlay = false;
+            Composite.clear(world, false);
+            bumpers = [];
+            particles = [];
+            createLevel();
+            leftFlipper = createFlipper('left');
+            rightFlipper = createFlipper('right');
+            createDrainSensor();
+            updateScoreDisplay();
+            updateBallsDisplay();
+            document.getElementById('game-over').style.display = 'none';
+            document.getElementById('level-select').style.display = 'none';
+            document.getElementById('menu-btn').style.display = 'block';
+            document.getElementById('editor-controls').style.display = 'flex';
+            document.getElementById('editor-instructions').style.display = 'block';
+            document.getElementById('level-name-display').textContent = 'Custom Editor';
+            setEditorMode('bumper');
+        }
+
+        // Mouse support for desktop editing
+        canvas.addEventListener('mousedown', (e) => {
+            if (!isEditing || editorMode === 'play') return;
+            const coords = getCanvasCoords(e.clientX, e.clientY);
+            if (editorMode === 'bumper') {
+                const idx = findBumperAt(coords.x, coords.y);
+                if (idx >= 0) {
+                    draggedBumper = idx;
+                } else {
+                    addCustomBumper(coords.x, coords.y);
+                }
+            } else if (editorMode === 'wall') {
+                startEditorDrawing(coords.x, coords.y);
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!isEditing || editorMode === 'play') return;
+            const coords = getCanvasCoords(e.clientX, e.clientY);
+            if (editorMode === 'bumper' && draggedBumper !== null) {
+                customBumpers[draggedBumper].x = coords.x;
+                customBumpers[draggedBumper].y = coords.y;
+                rebuildCustomLevel();
+            } else if (editorMode === 'wall') {
+                continueEditorDrawing(coords.x, coords.y);
+            }
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            if (!isEditing || editorMode === 'play') return;
+            draggedBumper = null;
+            finishEditorDrawing();
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            draggedBumper = null;
+            finishEditorDrawing();
+        });
 
         function handleResize() {
             const scale = Math.min((window.innerWidth - 20) / CONFIG.width, (window.innerHeight - 120) / CONFIG.height, 1);
