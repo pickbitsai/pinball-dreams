@@ -138,7 +138,7 @@
         <div id="editor-controls">
             <button class="editor-btn active" id="bumper-mode-btn">+ Bumper</button>
             <button class="editor-btn" id="flipper-mode-btn">+ Flipper</button>
-            <button class="editor-btn" id="ramp-mode-btn">+ Ramp</button>
+            <button class="editor-btn" id="ramp-mode-btn">+ Bonus</button>
             <button class="editor-btn" id="wall-mode-btn">Draw Wall</button>
             <button class="editor-btn" id="play-test-btn">Play Test</button>
             <button class="editor-btn danger" id="clear-btn">Clear All</button>
@@ -563,8 +563,8 @@
                 document.getElementById('editor-instructions').style.display = 'block';
                 const instructions = {
                     'bumper': 'Tap to place bumpers | Drag to move',
-                    'flipper': 'Tap to place flippers | Left/Right side auto-detected',
-                    'ramp': 'Tap to place ramps | Ball enters upper level',
+                    'flipper': 'Tap to place flippers | Left/Right auto-detected',
+                    'ramp': 'Tap to place bonus portals | 5sec bonus round',
                     'wall': 'Draw walls with your finger'
                 };
                 document.getElementById('editor-instructions').textContent = instructions[mode] || '';
@@ -779,14 +779,11 @@
             Body.setAngularVelocity(leftFlipper.flipper, (lTarget - leftFlipper.flipper.angle) * 0.35);
             Body.setAngularVelocity(rightFlipper.flipper, (rTarget - rightFlipper.flipper.angle) * 0.35);
 
-            // Update custom flippers - use same angles as main flippers
+            // Update custom flippers - exact same calculation as main flippers
             customFlipperBodies.forEach(cf => {
                 if (!cf || !cf.flipper) return;
-                const isLeft = cf.side === 'left';
-                const restAngle = isLeft ? CONFIG.flipper.restAngle : -CONFIG.flipper.restAngle;
-                const activeAngle = isLeft ? CONFIG.flipper.activeAngle : -CONFIG.flipper.activeAngle;
-                const isActive = isLeft ? keys.left : keys.right;
-                const target = isActive ? activeAngle : restAngle;
+                // Use exact same target calculation as main flippers (lTarget/rTarget above)
+                const target = cf.side === 'left' ? lTarget : rTarget;
                 Body.setAngularVelocity(cf.flipper, (target - cf.flipper.angle) * 0.4);
             });
         }
