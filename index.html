@@ -137,6 +137,8 @@
         <div id="level-name-display"></div>
         <div id="editor-controls">
             <button class="editor-btn active" id="bumper-mode-btn">+ Bumper</button>
+            <button class="editor-btn" id="flipper-mode-btn">+ Flipper</button>
+            <button class="editor-btn" id="ramp-mode-btn">+ Ramp</button>
             <button class="editor-btn" id="wall-mode-btn">Draw Wall</button>
             <button class="editor-btn" id="play-test-btn">Play Test</button>
             <button class="editor-btn danger" id="clear-btn">Clear All</button>
@@ -212,13 +214,23 @@
         ];
 
         // Custom level editor state
-        let editorMode = 'bumper'; // 'bumper', 'wall', 'play'
+        let editorMode = 'bumper'; // 'bumper', 'flipper', 'ramp', 'wall', 'play'
         let isEditing = false;
         let customBumpers = [];
+        let customFlippers = []; // { x, y, side: 'left'|'right' }
+        let customRamps = []; // { x, y } - entry point for upper level
         let customWalls = [];
         let currentDrawing = [];
         let isDrawing = false;
         let draggedBumper = null;
+        let draggedFlipper = null;
+        let draggedRamp = null;
+        let customFlipperBodies = []; // Store flipper physics bodies
+
+        // Upper level state
+        let isInUpperLevel = false;
+        let upperLevelTimer = 0;
+        const UPPER_LEVEL_DURATION = 5000; // 5 seconds in upper level
 
         let currentLevel = 0;
         let gameState = {
@@ -372,16 +384,54 @@
                 walls.push(...createCurvedWall(w2, 8, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
             }
             else if (currentLevel === 5) {
-                // Custom level - load saved bumpers and walls
+                // Custom level - load saved bumpers, flippers, ramps and walls
                 customBumpers.forEach(b => createBumper(b.x, b.y, b.radius));
                 customWalls.forEach(wallPoints => {
                     if (wallPoints.length >= 2) {
                         walls.push(...createCurvedWall(wallPoints, 10, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
                     }
                 });
+                // Create custom flippers
+                customFlipperBodies = [];
+                customFlippers.forEach(f => {
+                    const flipperBody = createCustomFlipper(f.x, f.y, f.side);
+                    customFlipperBodies.push(flipperBody);
+                });
+                // Create ramps (portals to upper level)
+                customRamps.forEach(r => {
+                    const ramp = Bodies.circle(r.x, r.y, 18, {
+                        isStatic: true, isSensor: true, label: 'ramp',
+                        render: { fillStyle: '#fbbf24' },
+                        collisionFilter: { category: CATEGORY.BUMPER }
+                    });
+                    Composite.add(world, ramp);
+                });
             }
 
             Composite.add(world, walls);
+        }
+
+        function createCustomFlipper(x, y, side) {
+            const isLeft = side === 'left';
+            const level = LEVELS[currentLevel];
+            const pivotX = isLeft ? x - 20 : x + 20;
+
+            const flipper = Bodies.rectangle(x, y, 50, 10, {
+                label: `custom-flipper-${side}`, density: 0.03, friction: 0.9, restitution: 0.1,
+                chamfer: { radius: 5 },
+                collisionFilter: { category: CATEGORY.FLIPPER },
+                render: { fillStyle: level.theme.accent }
+            });
+
+            const pivot = Bodies.circle(pivotX, y, 4, { isStatic: true, render: { fillStyle: level.theme.accent } });
+            const constraint = Constraint.create({
+                bodyA: flipper, pointA: { x: isLeft ? -20 : 20, y: 0 },
+                bodyB: pivot, pointB: { x: 0, y: 0 }, stiffness: 1, length: 0
+            });
+
+            Composite.add(world, [flipper, pivot, constraint]);
+            Body.setAngle(flipper, isLeft ? 0.4 : -0.4);
+            return { flipper, pivot, constraint, side };
         }
 
         // Editor functions
@@ -404,6 +454,24 @@
             return -1;
         }
 
+        function findFlipperAt(x, y) {
+            for (let i = customFlippers.length - 1; i >= 0; i--) {
+                const f = customFlippers[i];
+                const dist = Math.sqrt((f.x - x) ** 2 + (f.y - y) ** 2);
+                if (dist < 35) return i;
+            }
+            return -1;
+        }
+
+        function findRampAt(x, y) {
+            for (let i = customRamps.length - 1; i >= 0; i--) {
+                const r = customRamps[i];
+                const dist = Math.sqrt((r.x - x) ** 2 + (r.y - y) ** 2);
+                if (dist < 25) return i;
+            }
+            return -1;
+        }
+
         function addCustomBumper(x, y) {
             // Don't place in plunger lane or too close to edges
             if (x > CONFIG.width - 60 || x < 40 || y < 50 || y > CONFIG.height - 100) return;
@@ -411,10 +479,25 @@
             rebuildCustomLevel();
         }
 
+        function addCustomFlipper(x, y) {
+            if (x > CONFIG.width - 60 || x < 40 || y < 80 || y > CONFIG.height - 80) return;
+            // Determine side based on x position
+            const side = x < CONFIG.width / 2 ? 'left' : 'right';
+            customFlippers.push({ x, y, side });
+            rebuildCustomLevel();
+        }
+
+        function addCustomRamp(x, y) {
+            if (x > CONFIG.width - 60 || x < 40 || y < 80 || y > CONFIG.height - 150) return;
+            customRamps.push({ x, y });
+            rebuildCustomLevel();
+        }
+
         function rebuildCustomLevel() {
             if (currentLevel !== 5) return;
             Composite.clear(world, false);
             bumpers = [];
+            customFlipperBodies = [];
             createLevel();
             leftFlipper = createFlipper('left');
             rightFlipper = createFlipper('right');
@@ -449,6 +532,8 @@
 
         function clearCustomLevel() {
             customBumpers = [];
+            customFlippers = [];
+            customRamps = [];
             customWalls = [];
             rebuildCustomLevel();
         }
@@ -456,6 +541,8 @@
         function setEditorMode(mode) {
             editorMode = mode;
             document.getElementById('bumper-mode-btn').classList.toggle('active', mode === 'bumper');
+            document.getElementById('flipper-mode-btn').classList.toggle('active', mode === 'flipper');
+            document.getElementById('ramp-mode-btn').classList.toggle('active', mode === 'ramp');
             document.getElementById('wall-mode-btn').classList.toggle('active', mode === 'wall');
             document.getElementById('play-test-btn').classList.toggle('active', mode === 'play');
 
@@ -463,6 +550,7 @@
                 gameState.isPlaying = true;
                 gameState.ballsRemaining = CONFIG.totalBalls;
                 gameState.score = 0;
+                isInUpperLevel = false;
                 updateScoreDisplay();
                 updateBallsDisplay();
                 createBall();
@@ -471,8 +559,13 @@
                 gameState.isPlaying = false;
                 if (ball) { Composite.remove(world, ball); ball = null; }
                 document.getElementById('editor-instructions').style.display = 'block';
-                document.getElementById('editor-instructions').textContent =
-                    mode === 'bumper' ? 'Tap to place bumpers | Drag to move' : 'Draw walls with your finger';
+                const instructions = {
+                    'bumper': 'Tap to place bumpers | Drag to move',
+                    'flipper': 'Tap to place flippers | Left/Right side auto-detected',
+                    'ramp': 'Tap to place ramps | Ball enters upper level',
+                    'wall': 'Draw walls with your finger'
+                };
+                document.getElementById('editor-instructions').textContent = instructions[mode] || '';
             }
         }
 
@@ -575,6 +668,20 @@
                         } else {
                             addCustomBumper(coords.x, coords.y);
                         }
+                    } else if (editorMode === 'flipper') {
+                        const idx = findFlipperAt(coords.x, coords.y);
+                        if (idx >= 0) {
+                            draggedFlipper = idx;
+                        } else {
+                            addCustomFlipper(coords.x, coords.y);
+                        }
+                    } else if (editorMode === 'ramp') {
+                        const idx = findRampAt(coords.x, coords.y);
+                        if (idx >= 0) {
+                            draggedRamp = idx;
+                        } else {
+                            addCustomRamp(coords.x, coords.y);
+                        }
                     } else if (editorMode === 'wall') {
                         startEditorDrawing(coords.x, coords.y);
                     }
@@ -604,6 +711,15 @@
                     customBumpers[draggedBumper].x = coords.x;
                     customBumpers[draggedBumper].y = coords.y;
                     rebuildCustomLevel();
+                } else if (editorMode === 'flipper' && draggedFlipper !== null) {
+                    customFlippers[draggedFlipper].x = coords.x;
+                    customFlippers[draggedFlipper].y = coords.y;
+                    customFlippers[draggedFlipper].side = coords.x < CONFIG.width / 2 ? 'left' : 'right';
+                    rebuildCustomLevel();
+                } else if (editorMode === 'ramp' && draggedRamp !== null) {
+                    customRamps[draggedRamp].x = coords.x;
+                    customRamps[draggedRamp].y = coords.y;
+                    rebuildCustomLevel();
                 } else if (editorMode === 'wall') {
                     continueEditorDrawing(coords.x, coords.y);
                 }
@@ -619,9 +735,10 @@
         document.addEventListener('touchend', (e) => {
             // Editor mode touch handling
             if (isEditing && editorMode !== 'play') {
-                if (editorMode === 'bumper') {
-                    draggedBumper = null;
-                } else if (editorMode === 'wall') {
+                draggedBumper = null;
+                draggedFlipper = null;
+                draggedRamp = null;
+                if (editorMode === 'wall') {
                     finishEditorDrawing();
                 }
             }
@@ -638,6 +755,8 @@
 
         document.addEventListener('touchcancel', (e) => {
             draggedBumper = null;
+            draggedFlipper = null;
+            draggedRamp = null;
             finishEditorDrawing();
             for (const t of e.changedTouches) { activeTouches.delete(t.identifier); if (t.identifier === launchTouchId) { plunger.charging = false; launchTouchId = null; } }
             updateFlipperStates();
@@ -657,6 +776,13 @@
             const rTarget = keys.right ? -CONFIG.flipper.activeAngle : -CONFIG.flipper.restAngle;
             Body.setAngularVelocity(leftFlipper.flipper, (lTarget - leftFlipper.flipper.angle) * 0.35);
             Body.setAngularVelocity(rightFlipper.flipper, (rTarget - rightFlipper.flipper.angle) * 0.35);
+
+            // Update custom flippers
+            customFlipperBodies.forEach(cf => {
+                const isLeft = cf.side === 'left';
+                const target = isLeft ? (keys.left ? -0.4 : 0.4) : (keys.right ? 0.4 : -0.4);
+                Body.setAngularVelocity(cf.flipper, (target - cf.flipper.angle) * 0.35);
+            });
         }
 
         // Collisions
@@ -674,6 +800,12 @@
                 if (bodyA.label === 'slingshot' || bodyB.label === 'slingshot') {
                     gameState.score += 50; updateScoreDisplay();
                 }
+                // Ramp collision - send ball to upper level
+                const ramp = bodyA.label === 'ramp' ? bodyA : bodyB.label === 'ramp' ? bodyB : null;
+                const ballBody = bodyA.label === 'ball' ? bodyA : bodyB.label === 'ball' ? bodyB : null;
+                if (ramp && ballBody && !isInUpperLevel) {
+                    enterUpperLevel(ramp.position.x);
+                }
                 if ((bodyA.label === 'drain' || bodyB.label === 'drain') && (bodyA.label === 'ball' || bodyB.label === 'ball')) {
                     gameState.ballInPlay = false; gameState.ballsRemaining--;
                     updateBallsDisplay();
@@ -681,6 +813,49 @@
                 }
             });
         });
+
+        // Upper level functions
+        function enterUpperLevel(rampX) {
+            if (!ball || isInUpperLevel) return;
+            isInUpperLevel = true;
+            upperLevelTimer = Date.now();
+            gameState.score += 500;
+            updateScoreDisplay();
+            createScorePopup(rampX, 100, 500);
+            // Launch ball upward off screen
+            Body.setPosition(ball, { x: rampX, y: -50 });
+            Body.setVelocity(ball, { x: (Math.random() - 0.5) * 5, y: 2 });
+        }
+
+        function updateUpperLevel() {
+            if (!isInUpperLevel || !ball) return;
+            const elapsed = Date.now() - upperLevelTimer;
+
+            // Ball bounces around in upper level (above screen)
+            if (ball.position.y < -20) {
+                // Keep ball in upper area with some bouncing
+                if (ball.position.x < 30) Body.setVelocity(ball, { x: Math.abs(ball.velocity.x) + 2, y: ball.velocity.y });
+                if (ball.position.x > CONFIG.width - 30) Body.setVelocity(ball, { x: -Math.abs(ball.velocity.x) - 2, y: ball.velocity.y });
+                if (ball.position.y < -100) Body.setVelocity(ball, { x: ball.velocity.x, y: Math.abs(ball.velocity.y) + 1 });
+            }
+
+            // After duration, ball returns to playfield
+            if (elapsed > UPPER_LEVEL_DURATION) {
+                exitUpperLevel();
+            }
+        }
+
+        function exitUpperLevel() {
+            if (!ball) return;
+            isInUpperLevel = false;
+            // Drop ball back into play area from top
+            const dropX = 100 + Math.random() * (CONFIG.width - 200);
+            Body.setPosition(ball, { x: dropX, y: 50 });
+            Body.setVelocity(ball, { x: (Math.random() - 0.5) * 3, y: 3 });
+            gameState.score += 250;
+            updateScoreDisplay();
+            createScorePopup(dropX, 80, 250);
+        }
 
         function updateScoreDisplay() { document.querySelector('#current-score .score-value').textContent = gameState.score.toLocaleString(); }
         function updateBallsDisplay() { document.querySelector('#balls-left .score-value').textContent = gameState.ballsRemaining; }
@@ -790,22 +965,66 @@
                 ctx.stroke();
             }
 
-            // Draw editor hint circles for bumper mode
-            if (isEditing && editorMode === 'bumper' && !gameState.isPlaying) {
+            // Draw editor hint area
+            if (isEditing && !gameState.isPlaying) {
                 ctx.fillStyle = 'rgba(244, 114, 182, 0.2)';
                 ctx.strokeStyle = 'rgba(244, 114, 182, 0.5)';
                 ctx.setLineDash([5, 5]);
                 ctx.lineWidth = 2;
-                // Draw hint area
                 ctx.beginPath();
                 ctx.rect(40, 50, CONFIG.width - 100, CONFIG.height - 150);
                 ctx.stroke();
                 ctx.setLineDash([]);
             }
+
+            // Draw ramps with special glow effect
+            customRamps.forEach(r => {
+                ctx.beginPath();
+                ctx.arc(r.x, r.y, 18, 0, Math.PI * 2);
+                ctx.fillStyle = '#fbbf24';
+                ctx.shadowColor = '#fbbf24';
+                ctx.shadowBlur = 15;
+                ctx.fill();
+                ctx.shadowBlur = 0;
+                // Draw arrow indicating "up"
+                ctx.fillStyle = '#1a1a2e';
+                ctx.beginPath();
+                ctx.moveTo(r.x, r.y - 8);
+                ctx.lineTo(r.x - 6, r.y + 4);
+                ctx.lineTo(r.x + 6, r.y + 4);
+                ctx.closePath();
+                ctx.fill();
+            });
+
+            // Upper level indicator
+            if (isInUpperLevel && gameState.isPlaying) {
+                const elapsed = Date.now() - upperLevelTimer;
+                const remaining = Math.max(0, UPPER_LEVEL_DURATION - elapsed);
+                const progress = remaining / UPPER_LEVEL_DURATION;
+
+                // Draw upper level banner
+                ctx.fillStyle = 'rgba(251, 191, 36, 0.9)';
+                ctx.fillRect(0, 0, CONFIG.width, 40);
+                ctx.fillStyle = '#1a1a2e';
+                ctx.font = 'bold 16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('UPPER LEVEL!', CONFIG.width / 2, 25);
+
+                // Progress bar
+                ctx.fillStyle = 'rgba(0,0,0,0.3)';
+                ctx.fillRect(20, 32, CONFIG.width - 40, 5);
+                ctx.fillStyle = '#00ff88';
+                ctx.fillRect(20, 32, (CONFIG.width - 40) * progress, 5);
+            }
         }
 
         function gameLoop() {
-            if (gameState.isPlaying) { updateFlippers(); Engine.update(engine, 1000 / 60); updateParticles(); }
+            if (gameState.isPlaying) {
+                updateFlippers();
+                updateUpperLevel();
+                Engine.update(engine, 1000 / 60);
+                updateParticles();
+            }
             render();
             requestAnimationFrame(gameLoop);
         }
@@ -862,6 +1081,8 @@
 
         // Editor button listeners
         document.getElementById('bumper-mode-btn').addEventListener('click', () => setEditorMode('bumper'));
+        document.getElementById('flipper-mode-btn').addEventListener('click', () => setEditorMode('flipper'));
+        document.getElementById('ramp-mode-btn').addEventListener('click', () => setEditorMode('ramp'));
         document.getElementById('wall-mode-btn').addEventListener('click', () => setEditorMode('wall'));
         document.getElementById('play-test-btn').addEventListener('click', () => setEditorMode('play'));
         document.getElementById('clear-btn').addEventListener('click', clearCustomLevel);
@@ -902,6 +1123,20 @@
                 } else {
                     addCustomBumper(coords.x, coords.y);
                 }
+            } else if (editorMode === 'flipper') {
+                const idx = findFlipperAt(coords.x, coords.y);
+                if (idx >= 0) {
+                    draggedFlipper = idx;
+                } else {
+                    addCustomFlipper(coords.x, coords.y);
+                }
+            } else if (editorMode === 'ramp') {
+                const idx = findRampAt(coords.x, coords.y);
+                if (idx >= 0) {
+                    draggedRamp = idx;
+                } else {
+                    addCustomRamp(coords.x, coords.y);
+                }
             } else if (editorMode === 'wall') {
                 startEditorDrawing(coords.x, coords.y);
             }
@@ -914,6 +1149,15 @@
                 customBumpers[draggedBumper].x = coords.x;
                 customBumpers[draggedBumper].y = coords.y;
                 rebuildCustomLevel();
+            } else if (editorMode === 'flipper' && draggedFlipper !== null) {
+                customFlippers[draggedFlipper].x = coords.x;
+                customFlippers[draggedFlipper].y = coords.y;
+                customFlippers[draggedFlipper].side = coords.x < CONFIG.width / 2 ? 'left' : 'right';
+                rebuildCustomLevel();
+            } else if (editorMode === 'ramp' && draggedRamp !== null) {
+                customRamps[draggedRamp].x = coords.x;
+                customRamps[draggedRamp].y = coords.y;
+                rebuildCustomLevel();
             } else if (editorMode === 'wall') {
                 continueEditorDrawing(coords.x, coords.y);
             }
@@ -922,11 +1166,15 @@
         canvas.addEventListener('mouseup', () => {
             if (!isEditing || editorMode === 'play') return;
             draggedBumper = null;
+            draggedFlipper = null;
+            draggedRamp = null;
             finishEditorDrawing();
         });
 
         canvas.addEventListener('mouseleave', () => {
             draggedBumper = null;
+            draggedFlipper = null;
+            draggedRamp = null;
             finishEditorDrawing();
         });
 
