@@ -430,7 +430,9 @@
             });
 
             Composite.add(world, [flipper, pivot, constraint]);
-            Body.setAngle(flipper, isLeft ? 0.4 : -0.4);
+            // Use same rest angles as main flippers
+            const restAngle = isLeft ? CONFIG.flipper.restAngle : -CONFIG.flipper.restAngle;
+            Body.setAngle(flipper, restAngle);
             return { flipper, pivot, constraint, side };
         }
 
@@ -777,11 +779,15 @@
             Body.setAngularVelocity(leftFlipper.flipper, (lTarget - leftFlipper.flipper.angle) * 0.35);
             Body.setAngularVelocity(rightFlipper.flipper, (rTarget - rightFlipper.flipper.angle) * 0.35);
 
-            // Update custom flippers
+            // Update custom flippers - use same angles as main flippers
             customFlipperBodies.forEach(cf => {
+                if (!cf || !cf.flipper) return;
                 const isLeft = cf.side === 'left';
-                const target = isLeft ? (keys.left ? -0.4 : 0.4) : (keys.right ? 0.4 : -0.4);
-                Body.setAngularVelocity(cf.flipper, (target - cf.flipper.angle) * 0.35);
+                const restAngle = isLeft ? CONFIG.flipper.restAngle : -CONFIG.flipper.restAngle;
+                const activeAngle = isLeft ? CONFIG.flipper.activeAngle : -CONFIG.flipper.activeAngle;
+                const isActive = isLeft ? keys.left : keys.right;
+                const target = isActive ? activeAngle : restAngle;
+                Body.setAngularVelocity(cf.flipper, (target - cf.flipper.angle) * 0.4);
             });
         }
 
