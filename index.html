@@ -111,6 +111,18 @@
             color: #ffcc00; font-size: 11px; text-align: center; display: none;
             background: rgba(0,0,0,0.7); padding: 8px 12px; border-radius: 8px;
         }
+        #board-selector {
+            position: absolute; top: 55px; left: 10px; display: none; z-index: 100;
+            flex-direction: column; gap: 3px;
+        }
+        .board-btn {
+            background: linear-gradient(180deg, #374151 0%, #1f2937 100%);
+            border: 2px solid #4b5563; padding: 6px 10px; font-size: 11px; font-weight: bold;
+            color: #9ca3af; border-radius: 6px; cursor: pointer;
+        }
+        .board-btn.active { background: linear-gradient(180deg, #fbbf24 0%, #d97706 100%); color: #1a1a2e; border-color: #fbbf24; }
+        .board-btn:hover { border-color: #fbbf24; }
+        #add-board-btn { color: #00ff88; border-color: #00ff88; }
     </style>
 </head>
 <body>
@@ -138,10 +150,16 @@
         <div id="editor-controls">
             <button class="editor-btn active" id="bumper-mode-btn">+ Bumper</button>
             <button class="editor-btn" id="flipper-mode-btn">+ Flipper</button>
-            <button class="editor-btn" id="ramp-mode-btn">+ Bonus</button>
+            <button class="editor-btn" id="portal-mode-btn">+ Portal</button>
             <button class="editor-btn" id="wall-mode-btn">Draw Wall</button>
             <button class="editor-btn" id="play-test-btn">Play Test</button>
-            <button class="editor-btn danger" id="clear-btn">Clear All</button>
+            <button class="editor-btn danger" id="clear-btn">Clear Board</button>
+        </div>
+        <div id="board-selector">
+            <button class="board-btn active" data-board="0">Main</button>
+            <button class="board-btn" data-board="1">Upper 1</button>
+            <button class="board-btn" data-board="2">Upper 2</button>
+            <button class="board-btn" id="add-board-btn">+</button>
         </div>
         <div id="editor-instructions">Tap to place bumpers | Draw to create walls</div>
 
@@ -178,6 +196,11 @@
                     <span class="level-name">Custom</span>
                     <span class="level-desc">Build your own!</span>
                 </button>
+                <button class="level-btn" data-level="6">
+                    <div class="level-icon">🎲</div>
+                    <span class="level-name">Infinite</span>
+                    <span class="level-desc">Endless rogue-like!</span>
+                </button>
             </div>
             <button id="play-btn">PLAY</button>
         </div>
@@ -213,21 +236,256 @@
             { name: "Custom", theme: { bg: '#1a1a2e', wall: '#22d3ee', bumper: '#f472b6', accent: '#a78bfa' } }
         ];
 
-        // Custom level editor state
-        let editorMode = 'bumper'; // 'bumper', 'flipper', 'ramp', 'wall', 'play'
+        // Multi-board custom level system
+        // Each board has its own bumpers, flippers, portals, walls
+        let customBoards = [
+            { name: 'Main', bumpers: [], flippers: [], portals: [], walls: [] },
+            { name: 'Upper 1', bumpers: [], flippers: [], portals: [], walls: [] },
+            { name: 'Upper 2', bumpers: [], flippers: [], portals: [], walls: [] }
+        ];
+        let currentBoard = 0; // Which board we're editing/viewing
+        let activeBoardInPlay = 0; // Which board the ball is currently on
+
+        // Shorthand references to current board's data (updated when board changes)
+        let customBumpers = customBoards[0].bumpers;
+        let customFlippers = customBoards[0].flippers;
+        let customRamps = customBoards[0].portals;  // portals renamed from ramps
+        let customWalls = customBoards[0].walls;
+
+        // Editor state
+        let editorMode = 'bumper'; // 'bumper', 'flipper', 'portal', 'wall', 'play'
         let isEditing = false;
-        let customBumpers = [];
-        let customFlippers = []; // { x, y, side: 'left'|'right' }
-        let customRamps = []; // { x, y } - entry point for upper level
-        let customWalls = [];
         let currentDrawing = [];
         let isDrawing = false;
         let draggedBumper = null;
         let draggedFlipper = null;
-        let draggedRamp = null;
-        let customFlipperBodies = []; // Store flipper physics bodies
+        let draggedPortal = null;
+        let customFlipperBodies = []; // Store flipper physics bodies for current board
 
-        // Upper level state
+        // Progression mode state
+        let progressionMode = false;
+        let progressionLevel = 0;
+        let progressionDifficulty = 1.0;
+        let progressionScore = 0;
+
+        // Random level generator
+        function generateRandomBoard(difficulty) {
+            const board = { name: `Level ${progressionLevel + 1}`, bumpers: [], flippers: [], portals: [], walls: [] };
+
+            // Number of elements scales with difficulty
+            const numBumpers = Math.floor(3 + difficulty * 2 + Math.random() * 3);
+            const numFlippers = Math.random() < 0.3 + difficulty * 0.1 ? Math.floor(Math.random() * 2) + 1 : 0;
+            const numPortals = Math.random() < 0.4 ? 1 : 0; // Chance for portal to next level
+            const numWalls = Math.floor(Math.random() * (2 + difficulty));
+
+            // Generate bumpers in interesting patterns
+            const patterns = ['scattered', 'triangle', 'diamond', 'spiral', 'grid'];
+            const pattern = patterns[Math.floor(Math.random() * patterns.length)];
+
+            const safeZoneTop = 80;
+            const safeZoneBottom = CONFIG.height - 150;
+            const safeZoneLeft = 60;
+            const safeZoneRight = CONFIG.width - 80;
+
+            if (pattern === 'scattered') {
+                for (let i = 0; i < numBumpers; i++) {
+                    board.bumpers.push({
+                        x: safeZoneLeft + Math.random() * (safeZoneRight - safeZoneLeft),
+                        y: safeZoneTop + Math.random() * (safeZoneBottom - safeZoneTop - 100),
+                        radius: 18 + Math.random() * 12
+                    });
+                }
+            } else if (pattern === 'triangle') {
+                const cx = CONFIG.width / 2 - 20;
+                const cy = 200;
+                for (let row = 0; row < 3; row++) {
+                    for (let col = 0; col <= row; col++) {
+                        board.bumpers.push({
+                            x: cx - row * 30 + col * 60,
+                            y: cy + row * 60,
+                            radius: 20 + Math.random() * 8
+                        });
+                    }
+                }
+            } else if (pattern === 'diamond') {
+                const cx = CONFIG.width / 2 - 20;
+                const positions = [
+                    { x: 0, y: -80 }, { x: -60, y: 0 }, { x: 60, y: 0 },
+                    { x: 0, y: 80 }, { x: -60, y: 160 }, { x: 60, y: 160 }, { x: 0, y: 240 }
+                ];
+                positions.slice(0, numBumpers).forEach(p => {
+                    board.bumpers.push({ x: cx + p.x, y: 150 + p.y, radius: 20 + Math.random() * 8 });
+                });
+            } else if (pattern === 'spiral') {
+                const cx = CONFIG.width / 2 - 20;
+                const cy = 250;
+                for (let i = 0; i < numBumpers; i++) {
+                    const angle = (i / numBumpers) * Math.PI * 2;
+                    const r = 40 + i * 20;
+                    board.bumpers.push({
+                        x: cx + Math.cos(angle) * r,
+                        y: cy + Math.sin(angle) * r * 0.7,
+                        radius: 18 + Math.random() * 10
+                    });
+                }
+            } else if (pattern === 'grid') {
+                const cols = 3;
+                const rows = Math.ceil(numBumpers / cols);
+                for (let i = 0; i < numBumpers; i++) {
+                    const col = i % cols;
+                    const row = Math.floor(i / cols);
+                    board.bumpers.push({
+                        x: 100 + col * 80 + (row % 2) * 40,
+                        y: 120 + row * 70,
+                        radius: 20 + Math.random() * 8
+                    });
+                }
+            }
+
+            // Generate extra flippers at random positions
+            for (let i = 0; i < numFlippers; i++) {
+                const isLeft = Math.random() < 0.5;
+                board.flippers.push({
+                    x: isLeft ? 80 + Math.random() * 60 : CONFIG.width - 140 + Math.random() * 60,
+                    y: 300 + Math.random() * 150,
+                    side: isLeft ? 'left' : 'right'
+                });
+            }
+
+            // Generate portal (chance to go to next level)
+            if (numPortals > 0) {
+                board.portals.push({
+                    x: 80 + Math.random() * (CONFIG.width - 180),
+                    y: 100 + Math.random() * 150
+                });
+            }
+
+            // Generate random walls/deflectors
+            for (let i = 0; i < numWalls; i++) {
+                const wallType = Math.random();
+                if (wallType < 0.5) {
+                    // Angled deflector
+                    const startX = 80 + Math.random() * (CONFIG.width - 180);
+                    const startY = 200 + Math.random() * 200;
+                    const angle = (Math.random() - 0.5) * 1.2;
+                    const len = 40 + Math.random() * 40;
+                    board.walls.push([
+                        { x: startX, y: startY },
+                        { x: startX + Math.cos(angle) * len, y: startY + Math.sin(angle) * len }
+                    ]);
+                } else {
+                    // Curved wall
+                    const startX = 80 + Math.random() * (CONFIG.width - 180);
+                    const startY = 200 + Math.random() * 150;
+                    const points = [{ x: startX, y: startY }];
+                    for (let j = 0; j < 2 + Math.floor(Math.random() * 2); j++) {
+                        const lastPt = points[points.length - 1];
+                        points.push({
+                            x: lastPt.x + (Math.random() - 0.5) * 60,
+                            y: lastPt.y + 30 + Math.random() * 30
+                        });
+                    }
+                    board.walls.push(points);
+                }
+            }
+
+            return board;
+        }
+
+        function startProgressionMode() {
+            progressionMode = true;
+            progressionLevel = 0;
+            progressionDifficulty = 1.0;
+            progressionScore = 0;
+
+            // Clear existing boards and generate first set
+            customBoards = [generateRandomBoard(progressionDifficulty)];
+            // Add a couple more boards that can be reached via portals
+            customBoards.push(generateRandomBoard(progressionDifficulty + 0.5));
+            customBoards.push(generateRandomBoard(progressionDifficulty + 1.0));
+
+            // Update board selector UI
+            updateBoardSelectorUI();
+
+            // Start on first board
+            switchBoard(0);
+            currentLevel = 5; // Use custom level logic
+            startGame();
+
+            document.getElementById('level-name-display').textContent = 'Progression - Level 1';
+        }
+
+        function advanceProgressionLevel() {
+            progressionLevel++;
+            progressionDifficulty += 0.3;
+
+            // Generate new boards for next level
+            customBoards = [generateRandomBoard(progressionDifficulty)];
+            customBoards.push(generateRandomBoard(progressionDifficulty + 0.5));
+            customBoards.push(generateRandomBoard(progressionDifficulty + 1.0));
+
+            updateBoardSelectorUI();
+            switchBoard(0);
+
+            document.getElementById('level-name-display').textContent = `Progression - Level ${progressionLevel + 1}`;
+        }
+
+        function updateBoardSelectorUI() {
+            const selector = document.getElementById('board-selector');
+            // Remove existing board buttons (except add button)
+            const existingBtns = selector.querySelectorAll('.board-btn[data-board]');
+            existingBtns.forEach(btn => btn.remove());
+
+            // Add new buttons
+            const addBtn = document.getElementById('add-board-btn');
+            customBoards.forEach((board, idx) => {
+                const btn = document.createElement('button');
+                btn.className = 'board-btn' + (idx === currentBoard ? ' active' : '');
+                btn.dataset.board = idx;
+                btn.textContent = board.name;
+                btn.addEventListener('click', () => switchBoard(idx));
+                selector.insertBefore(btn, addBtn);
+            });
+        }
+
+        // Board switching function
+        function switchBoard(boardIndex) {
+            if (boardIndex < 0 || boardIndex >= customBoards.length) return;
+            currentBoard = boardIndex;
+            // Update shorthand references
+            customBumpers = customBoards[currentBoard].bumpers;
+            customFlippers = customBoards[currentBoard].flippers;
+            customRamps = customBoards[currentBoard].portals;
+            customWalls = customBoards[currentBoard].walls;
+            // Update UI
+            document.querySelectorAll('.board-btn').forEach(btn => {
+                btn.classList.toggle('active', parseInt(btn.dataset.board) === currentBoard);
+            });
+            // Rebuild level to show current board
+            if (currentLevel === 5) rebuildCustomLevel();
+        }
+
+        function addNewBoard() {
+            const newIndex = customBoards.length;
+            customBoards.push({
+                name: `Upper ${newIndex}`,
+                bumpers: [],
+                flippers: [],
+                portals: [],
+                walls: []
+            });
+            // Add button to UI
+            const btn = document.createElement('button');
+            btn.className = 'board-btn';
+            btn.dataset.board = newIndex;
+            btn.textContent = `Upper ${newIndex}`;
+            btn.addEventListener('click', () => switchBoard(newIndex));
+            const addBtn = document.getElementById('add-board-btn');
+            addBtn.parentNode.insertBefore(btn, addBtn);
+            switchBoard(newIndex);
+        }
+
+        // Upper level / portal state
         let isInUpperLevel = false;
         let upperLevelTimer = 0;
         const UPPER_LEVEL_DURATION = 5000; // 5 seconds in upper level
@@ -533,10 +791,16 @@
         }
 
         function clearCustomLevel() {
-            customBumpers = [];
-            customFlippers = [];
-            customRamps = [];
-            customWalls = [];
+            // Clear only current board
+            customBoards[currentBoard].bumpers = [];
+            customBoards[currentBoard].flippers = [];
+            customBoards[currentBoard].portals = [];
+            customBoards[currentBoard].walls = [];
+            // Update shorthand references
+            customBumpers = customBoards[currentBoard].bumpers;
+            customFlippers = customBoards[currentBoard].flippers;
+            customRamps = customBoards[currentBoard].portals;
+            customWalls = customBoards[currentBoard].walls;
             rebuildCustomLevel();
         }
 
@@ -544,7 +808,7 @@
             editorMode = mode;
             document.getElementById('bumper-mode-btn').classList.toggle('active', mode === 'bumper');
             document.getElementById('flipper-mode-btn').classList.toggle('active', mode === 'flipper');
-            document.getElementById('ramp-mode-btn').classList.toggle('active', mode === 'ramp');
+            document.getElementById('portal-mode-btn').classList.toggle('active', mode === 'portal');
             document.getElementById('wall-mode-btn').classList.toggle('active', mode === 'wall');
             document.getElementById('play-test-btn').classList.toggle('active', mode === 'play');
 
@@ -553,18 +817,24 @@
                 gameState.ballsRemaining = CONFIG.totalBalls;
                 gameState.score = 0;
                 isInUpperLevel = false;
+                activeBoardInPlay = 0; // Start on main board
                 updateScoreDisplay();
                 updateBallsDisplay();
+                // Load main board for play
+                switchBoard(0);
                 createBall();
                 document.getElementById('editor-instructions').style.display = 'none';
+                document.getElementById('board-selector').style.display = 'none';
             } else {
                 gameState.isPlaying = false;
                 if (ball) { Composite.remove(world, ball); ball = null; }
                 document.getElementById('editor-instructions').style.display = 'block';
+                document.getElementById('board-selector').style.display = 'flex';
+                document.getElementById('level-name-display').textContent = 'Custom Editor - ' + customBoards[currentBoard].name;
                 const instructions = {
                     'bumper': 'Tap to place bumpers | Drag to move',
                     'flipper': 'Tap to place flippers | Left/Right auto-detected',
-                    'ramp': 'Tap to place bonus portals | 5sec bonus round',
+                    'portal': 'Tap to place portals | Warp to next board',
                     'wall': 'Draw walls with your finger'
                 };
                 document.getElementById('editor-instructions').textContent = instructions[mode] || '';
@@ -677,10 +947,10 @@
                         } else {
                             addCustomFlipper(coords.x, coords.y);
                         }
-                    } else if (editorMode === 'ramp') {
+                    } else if (editorMode === 'portal') {
                         const idx = findRampAt(coords.x, coords.y);
                         if (idx >= 0) {
-                            draggedRamp = idx;
+                            draggedPortal = idx;
                         } else {
                             addCustomRamp(coords.x, coords.y);
                         }
@@ -718,9 +988,9 @@
                     customFlippers[draggedFlipper].y = coords.y;
                     customFlippers[draggedFlipper].side = coords.x < CONFIG.width / 2 ? 'left' : 'right';
                     rebuildCustomLevel();
-                } else if (editorMode === 'ramp' && draggedRamp !== null) {
-                    customRamps[draggedRamp].x = coords.x;
-                    customRamps[draggedRamp].y = coords.y;
+                } else if (editorMode === 'portal' && draggedPortal !== null) {
+                    customRamps[draggedPortal].x = coords.x;
+                    customRamps[draggedPortal].y = coords.y;
                     rebuildCustomLevel();
                 } else if (editorMode === 'wall') {
                     continueEditorDrawing(coords.x, coords.y);
@@ -739,7 +1009,7 @@
             if (isEditing && editorMode !== 'play') {
                 draggedBumper = null;
                 draggedFlipper = null;
-                draggedRamp = null;
+                draggedPortal = null;
                 if (editorMode === 'wall') {
                     finishEditorDrawing();
                 }
@@ -758,7 +1028,7 @@
         document.addEventListener('touchcancel', (e) => {
             draggedBumper = null;
             draggedFlipper = null;
-            draggedRamp = null;
+            draggedPortal = null;
             finishEditorDrawing();
             for (const t of e.changedTouches) { activeTouches.delete(t.identifier); if (t.identifier === launchTouchId) { plunger.charging = false; launchTouchId = null; } }
             updateFlipperStates();
@@ -817,32 +1087,43 @@
             });
         });
 
-        // Upper level functions
+        // Multi-board portal functions
         function enterUpperLevel(rampX) {
             if (!ball || isInUpperLevel) return;
+
+            // Check if there's a next board to go to
+            const nextBoard = activeBoardInPlay + 1;
+            if (nextBoard >= customBoards.length) {
+                // No more boards - give bonus and return
+                gameState.score += 1000;
+                updateScoreDisplay();
+                createScorePopup(rampX, 100, 1000);
+                // Bounce ball back
+                Body.setVelocity(ball, { x: (Math.random() - 0.5) * 8, y: 5 });
+                return;
+            }
+
             isInUpperLevel = true;
             upperLevelTimer = Date.now();
             gameState.score += 500;
             updateScoreDisplay();
             createScorePopup(rampX, 100, 500);
-            // Launch ball upward off screen
-            Body.setPosition(ball, { x: rampX, y: -50 });
-            Body.setVelocity(ball, { x: (Math.random() - 0.5) * 5, y: 2 });
+
+            // Transition to next board
+            activeBoardInPlay = nextBoard;
+            loadBoardForPlay(nextBoard);
+
+            // Drop ball from top of new board
+            const dropX = 100 + Math.random() * (CONFIG.width - 200);
+            Body.setPosition(ball, { x: dropX, y: 50 });
+            Body.setVelocity(ball, { x: (Math.random() - 0.5) * 3, y: 3 });
         }
 
         function updateUpperLevel() {
             if (!isInUpperLevel || !ball) return;
             const elapsed = Date.now() - upperLevelTimer;
 
-            // Ball bounces around in upper level (above screen)
-            if (ball.position.y < -20) {
-                // Keep ball in upper area with some bouncing
-                if (ball.position.x < 30) Body.setVelocity(ball, { x: Math.abs(ball.velocity.x) + 2, y: ball.velocity.y });
-                if (ball.position.x > CONFIG.width - 30) Body.setVelocity(ball, { x: -Math.abs(ball.velocity.x) - 2, y: ball.velocity.y });
-                if (ball.position.y < -100) Body.setVelocity(ball, { x: ball.velocity.x, y: Math.abs(ball.velocity.y) + 1 });
-            }
-
-            // After duration, ball returns to playfield
+            // After duration on upper board, return to main
             if (elapsed > UPPER_LEVEL_DURATION) {
                 exitUpperLevel();
             }
@@ -851,13 +1132,72 @@
         function exitUpperLevel() {
             if (!ball) return;
             isInUpperLevel = false;
-            // Drop ball back into play area from top
+
+            // Bonus for completing upper level
+            const levelBonus = 250 * activeBoardInPlay;
+            gameState.score += levelBonus;
+
+            // In progression mode, check if we should advance to next level
+            if (progressionMode && activeBoardInPlay >= customBoards.length - 1) {
+                // Completed all boards! Advance to next progression level
+                advanceProgressionLevel();
+                gameState.score += 1000; // Level completion bonus
+                updateScoreDisplay();
+                createScorePopup(CONFIG.width / 2, 150, 1000);
+            }
+
+            // Return to main board (board 0)
+            activeBoardInPlay = 0;
+            loadBoardForPlay(0);
+
+            // Drop ball from top
             const dropX = 100 + Math.random() * (CONFIG.width - 200);
             Body.setPosition(ball, { x: dropX, y: 50 });
             Body.setVelocity(ball, { x: (Math.random() - 0.5) * 3, y: 3 });
-            gameState.score += 250;
+
             updateScoreDisplay();
-            createScorePopup(dropX, 80, 250);
+            if (levelBonus > 0) createScorePopup(dropX, 80, levelBonus);
+        }
+
+        // Load a specific board for play (preserves ball)
+        function loadBoardForPlay(boardIndex) {
+            const savedBall = ball;
+            const savedVel = ball ? { x: ball.velocity.x, y: ball.velocity.y } : { x: 0, y: 0 };
+            const savedPos = ball ? { x: ball.position.x, y: ball.position.y } : { x: 200, y: 50 };
+
+            // Remove ball temporarily
+            if (ball) Composite.remove(world, ball);
+            ball = null;
+
+            // Switch board data
+            currentBoard = boardIndex;
+            customBumpers = customBoards[currentBoard].bumpers;
+            customFlippers = customBoards[currentBoard].flippers;
+            customRamps = customBoards[currentBoard].portals;
+            customWalls = customBoards[currentBoard].walls;
+
+            // Rebuild level
+            Composite.clear(world, false);
+            bumpers = [];
+            customFlipperBodies = [];
+            createLevel();
+            leftFlipper = createFlipper('left');
+            rightFlipper = createFlipper('right');
+            createDrainSensor();
+
+            // Restore ball
+            ball = Bodies.circle(savedPos.x, savedPos.y, CONFIG.ball.radius, {
+                label: 'ball', restitution: CONFIG.ball.restitution,
+                friction: CONFIG.ball.friction, frictionAir: CONFIG.ball.frictionAir,
+                density: CONFIG.ball.density, render: { fillStyle: '#ddd' },
+                collisionFilter: { category: CATEGORY.BALL, mask: CATEGORY.WALL | CATEGORY.FLIPPER | CATEGORY.BUMPER | CATEGORY.SENSOR }
+            });
+            Body.setVelocity(ball, savedVel);
+            Composite.add(world, ball);
+
+            // Update display
+            document.getElementById('level-name-display').textContent =
+                customBoards[boardIndex].name + (boardIndex > 0 ? ' - UPPER LEVEL!' : '');
         }
 
         function updateScoreDisplay() { document.querySelector('#current-score .score-value').textContent = gameState.score.toLocaleString(); }
@@ -999,8 +1339,8 @@
                 ctx.fill();
             });
 
-            // Upper level indicator
-            if (isInUpperLevel && gameState.isPlaying) {
+            // Upper level indicator - show when on any board other than main
+            if (activeBoardInPlay > 0 && gameState.isPlaying) {
                 const elapsed = Date.now() - upperLevelTimer;
                 const remaining = Math.max(0, UPPER_LEVEL_DURATION - elapsed);
                 const progress = remaining / UPPER_LEVEL_DURATION;
@@ -1011,13 +1351,18 @@
                 ctx.fillStyle = '#1a1a2e';
                 ctx.font = 'bold 16px Arial';
                 ctx.textAlign = 'center';
-                ctx.fillText('UPPER LEVEL!', CONFIG.width / 2, 25);
+                ctx.fillText(customBoards[activeBoardInPlay].name.toUpperCase() + '!', CONFIG.width / 2, 18);
 
-                // Progress bar
+                // Progress bar showing time remaining
                 ctx.fillStyle = 'rgba(0,0,0,0.3)';
-                ctx.fillRect(20, 32, CONFIG.width - 40, 5);
+                ctx.fillRect(20, 28, CONFIG.width - 40, 8);
                 ctx.fillStyle = '#00ff88';
-                ctx.fillRect(20, 32, (CONFIG.width - 40) * progress, 5);
+                ctx.fillRect(20, 28, (CONFIG.width - 40) * progress, 8);
+
+                // Board indicator
+                ctx.font = 'bold 10px Arial';
+                ctx.fillStyle = '#1a1a2e';
+                ctx.fillText(`Board ${activeBoardInPlay + 1} of ${customBoards.length}`, CONFIG.width / 2, 38);
             }
         }
 
@@ -1048,17 +1393,26 @@
 
         function endGame() {
             gameState.isPlaying = false; updateHighScore();
-            document.getElementById('final-score').textContent = gameState.score.toLocaleString();
+            let finalText = gameState.score.toLocaleString();
+            if (progressionMode) {
+                finalText += `\nLevel ${progressionLevel + 1} reached!`;
+            }
+            document.getElementById('final-score').textContent = finalText;
             document.getElementById('game-over').style.display = 'block';
             document.getElementById('menu-btn').style.display = 'none';
+            document.getElementById('board-selector').style.display = 'none';
         }
 
         function showLevelSelect() {
             gameState.isPlaying = false;
+            progressionMode = false;
+            isInUpperLevel = false;
+            activeBoardInPlay = 0;
             Composite.clear(world, false);
             document.getElementById('level-select').style.display = 'block';
             document.getElementById('game-over').style.display = 'none';
             document.getElementById('menu-btn').style.display = 'none';
+            document.getElementById('board-selector').style.display = 'none';
         }
 
         document.querySelectorAll('.level-btn').forEach(btn => {
@@ -1070,6 +1424,8 @@
         document.getElementById('play-btn').addEventListener('click', () => {
             if (currentLevel === 5) {
                 startCustomEditor();
+            } else if (currentLevel === 6) {
+                startProgressionMode();
             } else {
                 startGame();
             }
@@ -1079,16 +1435,23 @@
             isEditing = false;
             document.getElementById('editor-controls').style.display = 'none';
             document.getElementById('editor-instructions').style.display = 'none';
+            document.getElementById('board-selector').style.display = 'none';
             showLevelSelect();
         });
 
         // Editor button listeners
         document.getElementById('bumper-mode-btn').addEventListener('click', () => setEditorMode('bumper'));
         document.getElementById('flipper-mode-btn').addEventListener('click', () => setEditorMode('flipper'));
-        document.getElementById('ramp-mode-btn').addEventListener('click', () => setEditorMode('ramp'));
+        document.getElementById('portal-mode-btn').addEventListener('click', () => setEditorMode('portal'));
         document.getElementById('wall-mode-btn').addEventListener('click', () => setEditorMode('wall'));
         document.getElementById('play-test-btn').addEventListener('click', () => setEditorMode('play'));
         document.getElementById('clear-btn').addEventListener('click', clearCustomLevel);
+
+        // Board selector button listeners
+        document.querySelectorAll('.board-btn[data-board]').forEach(btn => {
+            btn.addEventListener('click', () => switchBoard(parseInt(btn.dataset.board)));
+        });
+        document.getElementById('add-board-btn').addEventListener('click', addNewBoard);
 
         function startCustomEditor() {
             isEditing = true;
@@ -1100,6 +1463,8 @@
             Composite.clear(world, false);
             bumpers = [];
             particles = [];
+            // Reset to main board
+            switchBoard(0);
             createLevel();
             leftFlipper = createFlipper('left');
             rightFlipper = createFlipper('right');
@@ -1110,8 +1475,9 @@
             document.getElementById('level-select').style.display = 'none';
             document.getElementById('menu-btn').style.display = 'block';
             document.getElementById('editor-controls').style.display = 'flex';
+            document.getElementById('board-selector').style.display = 'flex';
             document.getElementById('editor-instructions').style.display = 'block';
-            document.getElementById('level-name-display').textContent = 'Custom Editor';
+            document.getElementById('level-name-display').textContent = 'Custom Editor - ' + customBoards[currentBoard].name;
             setEditorMode('bumper');
         }
 
@@ -1133,10 +1499,10 @@
                 } else {
                     addCustomFlipper(coords.x, coords.y);
                 }
-            } else if (editorMode === 'ramp') {
+            } else if (editorMode === 'portal') {
                 const idx = findRampAt(coords.x, coords.y);
                 if (idx >= 0) {
-                    draggedRamp = idx;
+                    draggedPortal = idx;
                 } else {
                     addCustomRamp(coords.x, coords.y);
                 }
@@ -1157,9 +1523,9 @@
                 customFlippers[draggedFlipper].y = coords.y;
                 customFlippers[draggedFlipper].side = coords.x < CONFIG.width / 2 ? 'left' : 'right';
                 rebuildCustomLevel();
-            } else if (editorMode === 'ramp' && draggedRamp !== null) {
-                customRamps[draggedRamp].x = coords.x;
-                customRamps[draggedRamp].y = coords.y;
+            } else if (editorMode === 'portal' && draggedPortal !== null) {
+                customRamps[draggedPortal].x = coords.x;
+                customRamps[draggedPortal].y = coords.y;
                 rebuildCustomLevel();
             } else if (editorMode === 'wall') {
                 continueEditorDrawing(coords.x, coords.y);
@@ -1170,14 +1536,14 @@
             if (!isEditing || editorMode === 'play') return;
             draggedBumper = null;
             draggedFlipper = null;
-            draggedRamp = null;
+            draggedPortal = null;
             finishEditorDrawing();
         });
 
         canvas.addEventListener('mouseleave', () => {
             draggedBumper = null;
             draggedFlipper = null;
-            draggedRamp = null;
+            draggedPortal = null;
             finishEditorDrawing();
         });
 
