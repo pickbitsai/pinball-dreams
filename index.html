@@ -22,7 +22,7 @@
         #score-display {
             background: linear-gradient(180deg, #2d2d44 0%, #1a1a2e 100%);
             border: 3px solid #4a4a6a;
-            border-radius: 10px 10px 0 0;
+            border-radius: 0;
             padding: 10px 20px;
             width: 100%;
             max-width: 400px;
@@ -35,7 +35,7 @@
         .score-value { color: #00ff88; font-size: 24px; font-weight: bold; font-family: 'Courier New', monospace; }
         #high-score .score-value { color: #ffcc00; }
         #balls-left .score-value { color: #ff6688; }
-        #game-canvas { border: 3px solid #4a4a6a; border-top: none; border-radius: 0 0 10px 10px; }
+        #game-canvas { border: 3px solid #4a4a6a; border-top: none; border-radius: 0; }
 
         .score-popup {
             position: absolute; color: #ffcc00; font-size: 20px; font-weight: bold;
@@ -276,29 +276,26 @@
             };
             const walls = [];
 
-            // Left wall - smooth curve from top to flipper area
-            const leftCurve = [
-                { x: 25, y: 25 }, { x: 22, y: 80 }, { x: 20, y: 150 },
-                { x: 20, y: 300 }, { x: 20, y: 420 },
-                { x: 28, y: 500 }, { x: 50, y: 560 }
+            // Left wall - straight vertical border + guide to flipper
+            const leftWall = [
+                { x: 20, y: 0 }, { x: 20, y: 540 },
+                { x: 28, y: 560 }, { x: 50, y: 580 }
             ];
-            walls.push(...createCurvedWall(leftCurve, 18, wallOpts));
+            walls.push(...createCurvedWall(leftWall, 14, wallOpts));
 
-            // Right wall - starts below the flat top section
-            const rightCurve = [
-                { x: W - 50, y: 100 },
-                { x: W - 50, y: 200 }, { x: W - 50, y: 350 },
-                { x: W - 42, y: 480 }, { x: W - 30, y: 560 }
+            // Right wall - straight vertical border + guide to flipper
+            const rightWall = [
+                { x: W - 50, y: 80 }, { x: W - 50, y: 540 },
+                { x: W - 42, y: 560 }, { x: W - 30, y: 580 }
             ];
-            walls.push(...createCurvedWall(rightCurve, 18, wallOpts));
+            walls.push(...createCurvedWall(rightWall, 14, wallOpts));
 
-            // Top wall - flat across the entire top, curves down to plunger lane
-            const topCurve = [
-                { x: 25, y: 25 }, { x: 100, y: 15 }, { x: 200, y: 12 },
-                { x: 300, y: 15 }, { x: W - 50, y: 25 },    // Flat across top
-                { x: W - 20, y: 45 }, { x: W - 8, y: 70 }   // Curve down to plunger lane
+            // Top - open for seamless table transition; only curve into plunger lane
+            const plungerEntrance = [
+                { x: W - 50, y: 20 },
+                { x: W - 20, y: 45 }, { x: W - 8, y: 70 }
             ];
-            walls.push(...createCurvedWall(topCurve, 16, wallOpts));
+            walls.push(...createCurvedWall(plungerEntrance, 16, wallOpts));
 
             // Plunger lane - right edge wall (full height from y=60 to bottom)
             walls.push(Bodies.rectangle(W - 8, H / 2 + 50, 10, H - 80, wallOpts));
@@ -311,11 +308,11 @@
 
 
             // Bottom left guide to flipper
-            const leftGuide = [{ x: 50, y: 560 }, { x: 70, y: 595 }, { x: 85, y: 625 }];
+            const leftGuide = [{ x: 50, y: 580 }, { x: 70, y: 600 }, { x: 85, y: 625 }];
             walls.push(...createCurvedWall(leftGuide, 12, wallOpts));
 
             // Bottom right guide to flipper
-            const rightGuide = [{ x: W - 70, y: 560 }, { x: W - 90, y: 595 }, { x: W - 105, y: 625 }];
+            const rightGuide = [{ x: W - 30, y: 580 }, { x: W - 90, y: 600 }, { x: W - 105, y: 625 }];
             walls.push(...createCurvedWall(rightGuide, 12, wallOpts));
 
             // Level-specific elements
@@ -857,6 +854,20 @@
             createScorePopup(dropX, 80, 250);
         }
 
+        // Seamless top transition - ball clears the open top and returns from "another table"
+        function checkTopTransition() {
+            if (!ball || !gameState.isPlaying || !gameState.ballInPlay || isInUpperLevel) return;
+            if (ball.position.y < -15) {
+                const dropX = 40 + Math.random() * (CONFIG.width - 140);
+                Body.setPosition(ball, { x: dropX, y: 25 });
+                Body.setVelocity(ball, { x: ball.velocity.x * 0.7, y: Math.abs(ball.velocity.y) * 0.4 + 2 });
+                gameState.score += 200;
+                updateScoreDisplay();
+                createScorePopup(dropX, 40, 200);
+                createParticles(dropX, 25, LEVELS[currentLevel].theme.accent);
+            }
+        }
+
         function updateScoreDisplay() { document.querySelector('#current-score .score-value').textContent = gameState.score.toLocaleString(); }
         function updateBallsDisplay() { document.querySelector('#balls-left .score-value').textContent = gameState.ballsRemaining; }
         function updateHighScore() {
@@ -1022,6 +1033,7 @@
             if (gameState.isPlaying) {
                 updateFlippers();
                 updateUpperLevel();
+                checkTopTransition();
                 Engine.update(engine, 1000 / 60);
                 updateParticles();
             }
