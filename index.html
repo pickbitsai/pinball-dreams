@@ -96,13 +96,14 @@
             color: #ffcc00; font-size: 12px; font-weight: bold; opacity: 0.8;
         }
         #editor-controls {
-            position: absolute; top: 55px; right: 10px; display: none; z-index: 100;
-            flex-direction: column; gap: 5px;
+            position: absolute; top: 46px; left: 0; right: 0; display: none; z-index: 100;
+            flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 3px;
+            padding: 4px 6px; background: rgba(26,26,46,0.85);
         }
         .editor-btn {
             background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%);
-            border: none; padding: 8px 12px; font-size: 12px; font-weight: bold;
-            color: #fff; border-radius: 8px; cursor: pointer;
+            border: none; padding: 5px 8px; font-size: 10px; font-weight: bold;
+            color: #fff; border-radius: 5px; cursor: pointer; white-space: nowrap;
         }
         .editor-btn.active { background: linear-gradient(180deg, #00ff88 0%, #00cc66 100%); color: #1a1a2e; }
         .editor-btn.danger { background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%); }
