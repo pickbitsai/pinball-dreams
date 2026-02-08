@@ -285,9 +285,9 @@
             ];
             walls.push(...createCurvedWall(leftWall, 14, wallOpts));
 
-            // Right wall - straight vertical border + guide to flipper
+            // Right wall - starts at y=100 to leave gap for ball to exit plunger lane
             const rightWall = [
-                { x: W - 50, y: 20 }, { x: W - 50, y: 545 },
+                { x: W - 50, y: 100 }, { x: W - 50, y: 545 },
                 { x: W - 60, y: 565 }, { x: W - 75, y: 580 }
             ];
             walls.push(...createCurvedWall(rightWall, 14, wallOpts));
