@@ -22,7 +22,7 @@
         #score-display {
             background: linear-gradient(180deg, #2d2d44 0%, #1a1a2e 100%);
             border: 3px solid #4a4a6a;
-            border-radius: 10px 10px 0 0;
+            border-radius: 0;
             padding: 10px 20px;
             width: 100%;
             max-width: 400px;
@@ -35,7 +35,7 @@
         .score-value { color: #00ff88; font-size: 24px; font-weight: bold; font-family: 'Courier New', monospace; }
         #high-score .score-value { color: #ffcc00; }
         #balls-left .score-value { color: #ff6688; }
-        #game-canvas { border: 3px solid #4a4a6a; border-top: none; border-radius: 0 0 10px 10px; }
+        #game-canvas { border: 3px solid #4a4a6a; border-top: none; border-radius: 0; }
 
         .score-popup {
             position: absolute; color: #ffcc00; font-size: 20px; font-weight: bold;
@@ -96,16 +96,20 @@
             color: #ffcc00; font-size: 12px; font-weight: bold; opacity: 0.8;
         }
         #editor-controls {
-            position: absolute; top: 55px; right: 10px; display: none; z-index: 100;
-            flex-direction: column; gap: 5px;
+            display: none; z-index: 100;
+            flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 4px;
+            padding: 6px; background: rgba(26,26,46,0.95);
+            border: 2px solid #4a4a6a; border-top: none; width: 100%; max-width: 400px;
         }
         .editor-btn {
             background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%);
-            border: none; padding: 8px 12px; font-size: 12px; font-weight: bold;
-            color: #fff; border-radius: 8px; cursor: pointer;
+            border: none; padding: 6px 10px; font-size: 11px; font-weight: bold;
+            color: #fff; border-radius: 5px; cursor: pointer; white-space: nowrap;
         }
         .editor-btn.active { background: linear-gradient(180deg, #00ff88 0%, #00cc66 100%); color: #1a1a2e; }
         .editor-btn.danger { background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%); }
+        .editor-btn.extend { background: linear-gradient(180deg, #f59e0b 0%, #d97706 100%); }
+        .editor-btn.extend.active { background: linear-gradient(180deg, #fbbf24 0%, #f59e0b 100%); color: #1a1a2e; }
         #editor-instructions {
             position: absolute; bottom: 60px; left: 50%; transform: translateX(-50%);
             color: #ffcc00; font-size: 11px; text-align: center; display: none;
@@ -136,12 +140,13 @@
         <div id="launch-indicator">Tap to Launch!</div>
         <div id="level-name-display"></div>
         <div id="editor-controls">
-            <button class="editor-btn active" id="bumper-mode-btn">+ Bumper</button>
-            <button class="editor-btn" id="flipper-mode-btn">+ Flipper</button>
-            <button class="editor-btn" id="ramp-mode-btn">+ Ramp</button>
-            <button class="editor-btn" id="wall-mode-btn">Draw Wall</button>
-            <button class="editor-btn" id="play-test-btn">Play Test</button>
-            <button class="editor-btn danger" id="clear-btn">Clear All</button>
+            <button class="editor-btn active" id="bumper-mode-btn">Bumper</button>
+            <button class="editor-btn" id="flipper-mode-btn">Flipper</button>
+            <button class="editor-btn" id="ramp-mode-btn">Ramp</button>
+            <button class="editor-btn" id="wall-mode-btn">Wall</button>
+            <button class="editor-btn extend" id="extend-btn">Extend</button>
+            <button class="editor-btn" id="play-test-btn">Test</button>
+            <button class="editor-btn danger" id="clear-btn">Clear</button>
         </div>
         <div id="editor-instructions">Tap to place bumpers | Draw to create walls</div>
 
@@ -250,6 +255,9 @@
         let ball = null, leftFlipper = null, rightFlipper = null;
         let bumpers = [], obstacles = [], particles = [];
         let plunger = { power: 0, charging: false };
+        let ballLaunchTime = 0;
+        let boardExtended = false;
+        let cameraY = 0;
         const keys = { left: false, right: false };
 
         // Create smooth curved wall using connected segments
@@ -276,29 +284,47 @@
             };
             const walls = [];
 
-            // Left wall - smooth curve from top to flipper area
-            const leftCurve = [
-                { x: 25, y: 25 }, { x: 22, y: 80 }, { x: 20, y: 150 },
-                { x: 20, y: 300 }, { x: 20, y: 420 },
-                { x: 28, y: 500 }, { x: 50, y: 560 }
+            // Left wall - straight vertical border + guide to flipper
+            // Starts at y=50 to leave open gap at top for seamless transition
+            const leftWall = [
+                { x: 20, y: 50 }, { x: 20, y: 540 },
+                { x: 28, y: 560 }, { x: 50, y: 580 }
             ];
-            walls.push(...createCurvedWall(leftCurve, 18, wallOpts));
+            walls.push(...createCurvedWall(leftWall, 14, wallOpts));
 
-            // Right wall - starts below the flat top section
-            const rightCurve = [
-                { x: W - 50, y: 100 },
-                { x: W - 50, y: 200 }, { x: W - 50, y: 350 },
-                { x: W - 42, y: 480 }, { x: W - 30, y: 560 }
+            // Right wall - starts at y=100 to leave gap for ball to exit plunger lane
+            const rightWall = [
+                { x: W - 50, y: 100 }, { x: W - 50, y: 545 },
+                { x: W - 60, y: 565 }, { x: W - 75, y: 580 }
             ];
-            walls.push(...createCurvedWall(rightCurve, 18, wallOpts));
+            walls.push(...createCurvedWall(rightWall, 14, wallOpts));
 
-            // Top wall - flat across the entire top, curves down to plunger lane
-            const topCurve = [
-                { x: 25, y: 25 }, { x: 100, y: 15 }, { x: 200, y: 12 },
-                { x: 300, y: 15 }, { x: W - 50, y: 25 },    // Flat across top
-                { x: W - 20, y: 45 }, { x: W - 8, y: 70 }   // Curve down to plunger lane
+            // Plunger entrance curve
+            const plungerEntrance = [
+                { x: W - 50, y: 20 },
+                { x: W - 20, y: 45 }, { x: W - 8, y: 70 }
             ];
-            walls.push(...createCurvedWall(topCurve, 16, wallOpts));
+            walls.push(...createCurvedWall(plungerEntrance, 16, wallOpts));
+
+            if (boardExtended) {
+                // Extended board - no top wall, Table 2 walls above
+                const extLeft = [{ x: 20, y: -650 }, { x: 20, y: 50 }];
+                walls.push(...createCurvedWall(extLeft, 14, wallOpts));
+                const extRight = [{ x: W - 50, y: -650 }, { x: W - 50, y: 100 }];
+                walls.push(...createCurvedWall(extRight, 14, wallOpts));
+                // Top wall of Table 2
+                walls.push(Bodies.rectangle((20 + W - 50) / 2, -650, W - 70, 14, wallOpts));
+                // Divider marker at y=0 (subtle visual only, no physics)
+            } else {
+                // Default - closed top wall
+                walls.push(Bodies.rectangle((20 + W - 50) / 2, 30, W - 70, 14, wallOpts));
+                // Top exit sensor for ramp-based upper level
+                Composite.add(world, Bodies.rectangle(W / 2 - 15, 10, W - 80, 16, {
+                    isStatic: true, isSensor: true, label: 'top-exit',
+                    render: { fillStyle: 'transparent' },
+                    collisionFilter: { category: CATEGORY.SENSOR }
+                }));
+            }
 
             // Plunger lane - right edge wall (full height from y=60 to bottom)
             walls.push(Bodies.rectangle(W - 8, H / 2 + 50, 10, H - 80, wallOpts));
@@ -311,11 +337,11 @@
 
 
             // Bottom left guide to flipper
-            const leftGuide = [{ x: 50, y: 560 }, { x: 70, y: 595 }, { x: 85, y: 625 }];
+            const leftGuide = [{ x: 50, y: 580 }, { x: 70, y: 600 }, { x: 85, y: 625 }];
             walls.push(...createCurvedWall(leftGuide, 12, wallOpts));
 
             // Bottom right guide to flipper
-            const rightGuide = [{ x: W - 70, y: 560 }, { x: W - 90, y: 595 }, { x: W - 105, y: 625 }];
+            const rightGuide = [{ x: W - 75, y: 580 }, { x: W - 90, y: 600 }, { x: W - 105, y: 625 }];
             walls.push(...createCurvedWall(rightGuide, 12, wallOpts));
 
             // Level-specific elements
@@ -652,8 +678,15 @@
             document.getElementById('touch-right').classList.toggle('touch-active', r);
         }
 
+        function isMenuVisible() {
+            const ls = document.getElementById('level-select');
+            const go = document.getElementById('game-over');
+            return (ls && ls.style.display !== 'none') || (go && go.style.display !== 'none');
+        }
+
         document.addEventListener('touchstart', (e) => {
             if (e.target.tagName === 'BUTTON') return;
+            if (isMenuVisible()) return;
 
             // Editor mode touch handling
             if (isEditing && editorMode !== 'play') {
@@ -703,6 +736,7 @@
         }, { passive: false });
 
         document.addEventListener('touchmove', (e) => {
+            if (isMenuVisible()) return;
             // Editor mode touch handling
             if (isEditing && editorMode !== 'play') {
                 const t = e.changedTouches[0];
@@ -733,6 +767,7 @@
         }, { passive: false });
 
         document.addEventListener('touchend', (e) => {
+            if (isMenuVisible()) return;
             // Editor mode touch handling
             if (isEditing && editorMode !== 'play') {
                 draggedBumper = null;
@@ -754,6 +789,7 @@
         }, { passive: false });
 
         document.addEventListener('touchcancel', (e) => {
+            if (isMenuVisible()) return;
             draggedBumper = null;
             draggedFlipper = null;
             draggedRamp = null;
@@ -767,6 +803,7 @@
             const power = Math.max(plunger.power, 0.7);
             Body.applyForce(ball, ball.position, { x: 0, y: -0.055 * power });
             gameState.ballLaunched = true; plunger.power = 0;
+            ballLaunchTime = Date.now();
             document.getElementById('launch-indicator').style.display = 'none';
         }
 
@@ -803,8 +840,14 @@
                 // Ramp collision - send ball to upper level
                 const ramp = bodyA.label === 'ramp' ? bodyA : bodyB.label === 'ramp' ? bodyB : null;
                 const ballBody = bodyA.label === 'ball' ? bodyA : bodyB.label === 'ball' ? bodyB : null;
-                if (ramp && ballBody && !isInUpperLevel) {
+                if (ramp && ballBody && !isInUpperLevel && !boardExtended) {
                     enterUpperLevel(ramp.position.x);
+                }
+                // Top exit - seamless transition to "another table" (only when not extended)
+                if ((bodyA.label === 'top-exit' || bodyB.label === 'top-exit') &&
+                    (bodyA.label === 'ball' || bodyB.label === 'ball') &&
+                    !isInUpperLevel && !boardExtended && ball && ball.velocity.y < -1) {
+                    triggerTopTransition();
                 }
                 if ((bodyA.label === 'drain' || bodyB.label === 'drain') && (bodyA.label === 'ball' || bodyB.label === 'ball')) {
                     gameState.ballInPlay = false; gameState.ballsRemaining--;
@@ -857,6 +900,22 @@
             createScorePopup(dropX, 80, 250);
         }
 
+        // Seamless top transition - ball exits through open top into the upper level
+        function triggerTopTransition() {
+            if (!ball || !gameState.isPlaying || !gameState.ballInPlay || isInUpperLevel) return;
+            // Ball must be in the playfield for at least 3 seconds before top exit activates
+            if (Date.now() - ballLaunchTime < 3000) return;
+            enterUpperLevel(ball.position.x);
+        }
+
+        // Fallback position check in case ball escapes past the sensor
+        function checkTopTransition() {
+            if (!ball || !gameState.isPlaying || !gameState.ballInPlay || isInUpperLevel) return;
+            if (ball.position.y < -10) {
+                triggerTopTransition();
+            }
+        }
+
         function updateScoreDisplay() { document.querySelector('#current-score .score-value').textContent = gameState.score.toLocaleString(); }
         function updateBallsDisplay() { document.querySelector('#balls-left .score-value').textContent = gameState.ballsRemaining; }
         function updateHighScore() {
@@ -867,7 +926,8 @@
         function createScorePopup(x, y, pts) {
             const p = document.createElement('div'); p.className = 'score-popup'; p.textContent = '+' + pts;
             const r = canvas.getBoundingClientRect();
-            p.style.left = (r.left + x) + 'px'; p.style.top = (r.top + y) + 'px';
+            const s = r.width / CONFIG.width;
+            p.style.left = (r.left + x * s) + 'px'; p.style.top = (r.top + (y + cameraY) * s) + 'px';
             document.body.appendChild(p); setTimeout(() => p.remove(), 1000);
         }
 
@@ -879,11 +939,46 @@
             particles = particles.filter(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life -= 0.025; return p.life > 0; });
         }
 
+        // Camera follow
+        function updateCamera() {
+            if (!boardExtended || !ball || !gameState.isPlaying) {
+                cameraY += (0 - cameraY) * 0.1;
+                return;
+            }
+            // Camera centers on ball, clamped to valid range
+            const targetCam = Math.max(0, Math.min(CONFIG.height, -(ball.position.y - CONFIG.height / 2)));
+            cameraY += (targetCam - cameraY) * 0.08;
+        }
+
         // Render
         function render() {
             const level = LEVELS[currentLevel];
+            const W = CONFIG.width, H = CONFIG.height;
+
+            ctx.save();
+            ctx.translate(0, cameraY);
+
+            // Background - draw for both tables when extended
             ctx.fillStyle = level.theme.bg;
-            ctx.fillRect(0, 0, CONFIG.width, CONFIG.height);
+            if (boardExtended) {
+                ctx.fillRect(0, -H, W, H); // Table 2 bg
+                // Divider line between tables
+                ctx.strokeStyle = level.theme.wall + '60';
+                ctx.lineWidth = 2;
+                ctx.setLineDash([8, 6]);
+                ctx.beginPath();
+                ctx.moveTo(30, 0);
+                ctx.lineTo(W - 60, 0);
+                ctx.stroke();
+                ctx.setLineDash([]);
+                // Table 2 label
+                ctx.fillStyle = level.theme.wall + '40';
+                ctx.font = 'bold 14px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('TABLE 2', W / 2 - 15, -320);
+            }
+            ctx.fillStyle = level.theme.bg;
+            ctx.fillRect(0, 0, W, H);
 
             Composite.allBodies(world).forEach(body => {
                 if (body.render.fillStyle === 'transparent') return;
@@ -996,21 +1091,22 @@
                 ctx.fill();
             });
 
-            // Upper level indicator
-            if (isInUpperLevel && gameState.isPlaying) {
+            // Restore camera transform before drawing HUD
+            ctx.restore();
+
+            // Upper level indicator (HUD - fixed position)
+            if (isInUpperLevel && gameState.isPlaying && !boardExtended) {
                 const elapsed = Date.now() - upperLevelTimer;
                 const remaining = Math.max(0, UPPER_LEVEL_DURATION - elapsed);
                 const progress = remaining / UPPER_LEVEL_DURATION;
 
-                // Draw upper level banner
                 ctx.fillStyle = 'rgba(251, 191, 36, 0.9)';
                 ctx.fillRect(0, 0, CONFIG.width, 40);
                 ctx.fillStyle = '#1a1a2e';
                 ctx.font = 'bold 16px Arial';
                 ctx.textAlign = 'center';
-                ctx.fillText('UPPER LEVEL!', CONFIG.width / 2, 25);
+                ctx.fillText('TABLE 2!', CONFIG.width / 2, 25);
 
-                // Progress bar
                 ctx.fillStyle = 'rgba(0,0,0,0.3)';
                 ctx.fillRect(20, 32, CONFIG.width - 40, 5);
                 ctx.fillStyle = '#00ff88';
@@ -1021,10 +1117,11 @@
         function gameLoop() {
             if (gameState.isPlaying) {
                 updateFlippers();
-                updateUpperLevel();
+                if (!boardExtended) { updateUpperLevel(); checkTopTransition(); }
                 Engine.update(engine, 1000 / 60);
                 updateParticles();
             }
+            updateCamera();
             render();
             requestAnimationFrame(gameLoop);
         }
@@ -1032,6 +1129,7 @@
         function startGame() {
             gameState.score = 0; gameState.ballsRemaining = CONFIG.totalBalls;
             gameState.isPlaying = true; gameState.ballInPlay = false;
+            if (currentLevel !== 5) { boardExtended = false; cameraY = 0; }
             Composite.clear(world, false); bumpers = []; obstacles = []; particles = [];
             createLevel();
             leftFlipper = createFlipper('left'); rightFlipper = createFlipper('right');
@@ -1052,10 +1150,12 @@
 
         function showLevelSelect() {
             gameState.isPlaying = false;
+            boardExtended = false; cameraY = 0;
             Composite.clear(world, false);
             document.getElementById('level-select').style.display = 'block';
             document.getElementById('game-over').style.display = 'none';
             document.getElementById('menu-btn').style.display = 'none';
+            document.getElementById('editor-controls').style.display = 'none';
         }
 
         document.querySelectorAll('.level-btn').forEach(btn => {
@@ -1086,6 +1186,13 @@
         document.getElementById('wall-mode-btn').addEventListener('click', () => setEditorMode('wall'));
         document.getElementById('play-test-btn').addEventListener('click', () => setEditorMode('play'));
         document.getElementById('clear-btn').addEventListener('click', clearCustomLevel);
+        document.getElementById('extend-btn').addEventListener('click', () => {
+            boardExtended = !boardExtended;
+            document.getElementById('extend-btn').classList.toggle('active', boardExtended);
+            document.getElementById('extend-btn').textContent = boardExtended ? 'Extended' : 'Extend';
+            cameraY = 0;
+            rebuildCustomLevel();
+        });
 
         function startCustomEditor() {
             isEditing = true;
@@ -1109,6 +1216,8 @@
             document.getElementById('editor-controls').style.display = 'flex';
             document.getElementById('editor-instructions').style.display = 'block';
             document.getElementById('level-name-display').textContent = 'Custom Editor';
+            document.getElementById('extend-btn').classList.toggle('active', boardExtended);
+            document.getElementById('extend-btn').textContent = boardExtended ? 'Extended' : 'Extend';
             setEditorMode('bumper');
         }
 
