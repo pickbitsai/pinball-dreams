@@ -278,8 +278,9 @@
             const walls = [];
 
             // Left wall - straight vertical border + guide to flipper
+            // Starts at y=50 to leave open gap at top for seamless transition
             const leftWall = [
-                { x: 20, y: 0 }, { x: 20, y: 540 },
+                { x: 20, y: 50 }, { x: 20, y: 540 },
                 { x: 28, y: 560 }, { x: 50, y: 580 }
             ];
             walls.push(...createCurvedWall(leftWall, 14, wallOpts));
