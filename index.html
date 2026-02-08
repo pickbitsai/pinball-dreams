@@ -286,8 +286,8 @@
 
             // Right wall - straight vertical border + guide to flipper
             const rightWall = [
-                { x: W - 50, y: 80 }, { x: W - 50, y: 540 },
-                { x: W - 42, y: 560 }, { x: W - 30, y: 580 }
+                { x: W - 50, y: 20 }, { x: W - 50, y: 545 },
+                { x: W - 60, y: 565 }, { x: W - 75, y: 580 }
             ];
             walls.push(...createCurvedWall(rightWall, 14, wallOpts));
 
@@ -313,7 +313,7 @@
             walls.push(...createCurvedWall(leftGuide, 12, wallOpts));
 
             // Bottom right guide to flipper
-            const rightGuide = [{ x: W - 30, y: 580 }, { x: W - 90, y: 600 }, { x: W - 105, y: 625 }];
+            const rightGuide = [{ x: W - 75, y: 580 }, { x: W - 90, y: 600 }, { x: W - 105, y: 625 }];
             walls.push(...createCurvedWall(rightGuide, 12, wallOpts));
 
             // Level-specific elements
