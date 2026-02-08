@@ -658,8 +658,15 @@
             document.getElementById('touch-right').classList.toggle('touch-active', r);
         }
 
+        function isMenuVisible() {
+            const ls = document.getElementById('level-select');
+            const go = document.getElementById('game-over');
+            return (ls && ls.style.display !== 'none') || (go && go.style.display !== 'none');
+        }
+
         document.addEventListener('touchstart', (e) => {
             if (e.target.tagName === 'BUTTON') return;
+            if (isMenuVisible()) return;
 
             // Editor mode touch handling
             if (isEditing && editorMode !== 'play') {
@@ -709,6 +716,7 @@
         }, { passive: false });
 
         document.addEventListener('touchmove', (e) => {
+            if (isMenuVisible()) return;
             // Editor mode touch handling
             if (isEditing && editorMode !== 'play') {
                 const t = e.changedTouches[0];
@@ -739,6 +747,7 @@
         }, { passive: false });
 
         document.addEventListener('touchend', (e) => {
+            if (isMenuVisible()) return;
             // Editor mode touch handling
             if (isEditing && editorMode !== 'play') {
                 draggedBumper = null;
@@ -760,6 +769,7 @@
         }, { passive: false });
 
         document.addEventListener('touchcancel', (e) => {
+            if (isMenuVisible()) return;
             draggedBumper = null;
             draggedFlipper = null;
             draggedRamp = null;
