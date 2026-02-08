@@ -299,6 +299,13 @@
             ];
             walls.push(...createCurvedWall(plungerEntrance, 16, wallOpts));
 
+            // Top exit sensor - spans the open gap between left and right walls
+            Composite.add(world, Bodies.rectangle(W / 2 - 15, 10, W - 80, 16, {
+                isStatic: true, isSensor: true, label: 'top-exit',
+                render: { fillStyle: 'transparent' },
+                collisionFilter: { category: CATEGORY.SENSOR }
+            }));
+
             // Plunger lane - right edge wall (full height from y=60 to bottom)
             walls.push(Bodies.rectangle(W - 8, H / 2 + 50, 10, H - 80, wallOpts));
 
@@ -805,6 +812,12 @@
                 if (ramp && ballBody && !isInUpperLevel) {
                     enterUpperLevel(ramp.position.x);
                 }
+                // Top exit - seamless transition to "another table"
+                if ((bodyA.label === 'top-exit' || bodyB.label === 'top-exit') &&
+                    (bodyA.label === 'ball' || bodyB.label === 'ball') &&
+                    !isInUpperLevel && ball && ball.velocity.y < -1) {
+                    triggerTopTransition();
+                }
                 if ((bodyA.label === 'drain' || bodyB.label === 'drain') && (bodyA.label === 'ball' || bodyB.label === 'ball')) {
                     gameState.ballInPlay = false; gameState.ballsRemaining--;
                     updateBallsDisplay();
@@ -856,17 +869,17 @@
             createScorePopup(dropX, 80, 250);
         }
 
-        // Seamless top transition - ball clears the open top and returns from "another table"
+        // Seamless top transition - ball exits through open top into the upper level
+        function triggerTopTransition() {
+            if (!ball || !gameState.isPlaying || !gameState.ballInPlay || isInUpperLevel) return;
+            enterUpperLevel(ball.position.x);
+        }
+
+        // Fallback position check in case ball escapes past the sensor
         function checkTopTransition() {
             if (!ball || !gameState.isPlaying || !gameState.ballInPlay || isInUpperLevel) return;
-            if (ball.position.y < -15) {
-                const dropX = 40 + Math.random() * (CONFIG.width - 140);
-                Body.setPosition(ball, { x: dropX, y: 25 });
-                Body.setVelocity(ball, { x: ball.velocity.x * 0.7, y: Math.abs(ball.velocity.y) * 0.4 + 2 });
-                gameState.score += 200;
-                updateScoreDisplay();
-                createScorePopup(dropX, 40, 200);
-                createParticles(dropX, 25, LEVELS[currentLevel].theme.accent);
+            if (ball.position.y < -10) {
+                triggerTopTransition();
             }
         }
 
@@ -1021,7 +1034,7 @@
                 ctx.fillStyle = '#1a1a2e';
                 ctx.font = 'bold 16px Arial';
                 ctx.textAlign = 'center';
-                ctx.fillText('UPPER LEVEL!', CONFIG.width / 2, 25);
+                ctx.fillText('TABLE 2!', CONFIG.width / 2, 25);
 
                 // Progress bar
                 ctx.fillStyle = 'rgba(0,0,0,0.3)';
