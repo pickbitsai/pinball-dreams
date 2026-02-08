@@ -251,6 +251,7 @@
         let ball = null, leftFlipper = null, rightFlipper = null;
         let bumpers = [], obstacles = [], particles = [];
         let plunger = { power: 0, charging: false };
+        let ballLaunchTime = 0;
         const keys = { left: false, right: false };
 
         // Create smooth curved wall using connected segments
@@ -783,6 +784,7 @@
             const power = Math.max(plunger.power, 0.7);
             Body.applyForce(ball, ball.position, { x: 0, y: -0.055 * power });
             gameState.ballLaunched = true; plunger.power = 0;
+            ballLaunchTime = Date.now();
             document.getElementById('launch-indicator').style.display = 'none';
         }
 
@@ -882,6 +884,8 @@
         // Seamless top transition - ball exits through open top into the upper level
         function triggerTopTransition() {
             if (!ball || !gameState.isPlaying || !gameState.ballInPlay || isInUpperLevel) return;
+            // Ball must be in the playfield for at least 3 seconds before top exit activates
+            if (Date.now() - ballLaunchTime < 3000) return;
             enterUpperLevel(ball.position.x);
         }
 
