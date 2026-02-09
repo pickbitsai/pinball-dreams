@@ -54,6 +54,7 @@
         #game-over { display: none; border-color: #ff6688; }
         #game-over h2 { color: #ff6688; font-size: 32px; margin-bottom: 15px; }
         #final-score { color: #00ff88; font-size: 28px; font-weight: bold; margin: 15px 0; }
+        #final-floor { color: #22d3ee; font-size: 18px; margin-bottom: 10px; display: none; }
         #level-select h2 { color: #00ff88; font-size: 24px; margin-bottom: 15px; }
 
         .level-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; margin-bottom: 15px; }
@@ -66,6 +67,8 @@
         .level-btn .level-name { color: #fff; font-size: 14px; font-weight: bold; display: block; margin-bottom: 3px; }
         .level-btn .level-desc { color: #8888aa; font-size: 10px; }
         .level-btn .level-icon { font-size: 20px; margin-bottom: 3px; }
+        .level-btn.climb-btn { border-color: #22d3ee; }
+        .level-btn.climb-btn:hover, .level-btn.climb-btn.selected { border-color: #00ff88; }
 
         #restart-btn, #play-btn, #menu-btn {
             background: linear-gradient(180deg, #00ff88 0%, #00cc66 100%);
@@ -94,6 +97,17 @@
         #level-name-display {
             position: absolute; top: 8px; left: 50%; transform: translateX(-50%);
             color: #ffcc00; font-size: 12px; font-weight: bold; opacity: 0.8;
+        }
+        #climb-hud {
+            position: absolute; top: 8px; right: 10px; display: none; z-index: 100;
+            text-align: right;
+        }
+        #climb-hud .floor-display { color: #22d3ee; font-size: 14px; font-weight: bold; }
+        #climb-hud .element-display { font-size: 12px; margin-top: 2px; }
+        #ball-save-indicator {
+            position: absolute; bottom: 45px; left: 50%; transform: translateX(-50%);
+            color: #00ff88; font-size: 14px; font-weight: bold; display: none;
+            animation: pulse 0.5s infinite; z-index: 100;
         }
         #editor-controls {
             display: none; z-index: 100;
@@ -139,6 +153,11 @@
         <div id="touch-right" class="touch-zone"></div>
         <div id="launch-indicator">Tap to Launch!</div>
         <div id="level-name-display"></div>
+        <div id="climb-hud">
+            <div class="floor-display">Floor: <span id="floor-num">1</span> / <span id="floor-total">5</span></div>
+            <div class="element-display" id="element-display"></div>
+        </div>
+        <div id="ball-save-indicator">BALL SAVE!</div>
         <div id="editor-controls">
             <button class="editor-btn active" id="bumper-mode-btn">Bumper</button>
             <button class="editor-btn" id="flipper-mode-btn">Flipper</button>
@@ -183,6 +202,11 @@
                     <span class="level-name">Custom</span>
                     <span class="level-desc">Build your own!</span>
                 </button>
+                <button class="level-btn climb-btn" data-level="6" style="grid-column: span 2;">
+                    <div class="level-icon">🧗</div>
+                    <span class="level-name">Climb Mode</span>
+                    <span class="level-desc">Ice Climbers meets Pinball! Scale 20 floors with elemental balls!</span>
+                </button>
             </div>
             <button id="play-btn">PLAY</button>
         </div>
@@ -191,6 +215,7 @@
             <h2>GAME OVER</h2>
             <p style="color:#fff">Final Score:</p>
             <div id="final-score">0</div>
+            <div id="final-floor">Reached Floor: <span id="final-floor-num">1</span></div>
             <button id="restart-btn">PLAY AGAIN</button>
         </div>
     </div>
@@ -215,27 +240,60 @@
             { name: "Diamond", theme: { bg: '#1a2e2a', wall: '#2dd4bf', bumper: '#34d399', accent: '#fbbf24' } },
             { name: "Castle", theme: { bg: '#2e1a0a', wall: '#b45309', bumper: '#fbbf24', accent: '#ef4444' } },
             { name: "Wave", theme: { bg: '#1e1b4b', wall: '#7c3aed', bumper: '#c084fc', accent: '#fb7185' } },
-            { name: "Custom", theme: { bg: '#1a1a2e', wall: '#22d3ee', bumper: '#f472b6', accent: '#a78bfa' } }
+            { name: "Custom", theme: { bg: '#1a1a2e', wall: '#22d3ee', bumper: '#f472b6', accent: '#a78bfa' } },
+            { name: "Climb", theme: { bg: '#0a1628', wall: '#4a90d9', bumper: '#22d3ee', accent: '#ff6688' } }
         ];
 
+        const ELEMENT_COLORS = {
+            normal: { ball: ['#fff', '#ccc', '#666'], name: 'Normal', icon: '' },
+            hot: { ball: ['#fff', '#ff6644', '#cc2200'], name: 'Hot', icon: '🔥' },
+            water: { ball: ['#fff', '#4488ff', '#0044cc'], name: 'Water', icon: '💧' },
+            grass: { ball: ['#fff', '#44ff66', '#00aa22'], name: 'Grass', icon: '🌿' }
+        };
+
         // Custom level editor state
-        let editorMode = 'bumper'; // 'bumper', 'flipper', 'ramp', 'wall', 'play'
+        let editorMode = 'bumper';
         let isEditing = false;
         let customBumpers = [];
-        let customFlippers = []; // { x, y, side: 'left'|'right' }
-        let customRamps = []; // { x, y } - entry point for upper level
+        let customFlippers = [];
+        let customRamps = [];
         let customWalls = [];
         let currentDrawing = [];
         let isDrawing = false;
         let draggedBumper = null;
         let draggedFlipper = null;
         let draggedRamp = null;
-        let customFlipperBodies = []; // Store flipper physics bodies
+        let customFlipperBodies = [];
 
         // Upper level state
         let isInUpperLevel = false;
         let upperLevelTimer = 0;
-        const UPPER_LEVEL_DURATION = 5000; // 5 seconds in upper level
+        const UPPER_LEVEL_DURATION = 5000;
+
+        // Climb mode state
+        let climbMode = {
+            active: false,
+            totalFloors: 5,
+            highestFloor: 0,
+            currentBallFloor: 0,
+            elementalBall: 'normal',
+            checkpointFlippers: [],
+            dropTargets: [],
+            kickbackLeft: null,
+            kickbackRight: null,
+            kickbackLeftActive: false,
+            kickbackRightActive: false,
+            ballSaveActive: false,
+            ballSaveTimer: 0,
+            ballSaveUsed: false,
+            spinners: [],
+            iceBlocks: [],
+            fireHazards: [],
+            waterPools: [],
+            powerUps: [],
+            destructWalls: [],
+            floorObstacles: []
+        };
 
         let currentLevel = 0;
         let gameState = {
@@ -260,7 +318,6 @@
         let cameraY = 0;
         const keys = { left: false, right: false };
 
-        // Create smooth curved wall using connected segments
         function createCurvedWall(points, thickness, options) {
             const bodies = [];
             for (let i = 0; i < points.length - 1; i++) {
@@ -274,6 +331,11 @@
             return bodies;
         }
 
+        // Helper: get Y offset for a floor (floor 0 = bottom, floor N = higher up)
+        function floorY(floor) {
+            return -floor * CONFIG.height;
+        }
+
         function createLevel() {
             const level = LEVELS[currentLevel];
             const W = CONFIG.width, H = CONFIG.height;
@@ -284,15 +346,20 @@
             };
             const walls = [];
 
-            // Left wall - straight vertical border + guide to flipper
-            // Starts at y=50 to leave open gap at top for seamless transition
+            if (currentLevel === 6) {
+                createClimbLevel(walls, wallOpts);
+                Composite.add(world, walls);
+                return;
+            }
+
+            // Left wall
             const leftWall = [
                 { x: 20, y: 50 }, { x: 20, y: 540 },
                 { x: 28, y: 560 }, { x: 50, y: 580 }
             ];
             walls.push(...createCurvedWall(leftWall, 14, wallOpts));
 
-            // Right wall - starts at y=100 to leave gap for ball to exit plunger lane
+            // Right wall
             const rightWall = [
                 { x: W - 50, y: 100 }, { x: W - 50, y: 545 },
                 { x: W - 60, y: 565 }, { x: W - 75, y: 580 }
@@ -307,18 +374,13 @@
             walls.push(...createCurvedWall(plungerEntrance, 16, wallOpts));
 
             if (boardExtended) {
-                // Extended board - no top wall, Table 2 walls above
                 const extLeft = [{ x: 20, y: -650 }, { x: 20, y: 50 }];
                 walls.push(...createCurvedWall(extLeft, 14, wallOpts));
                 const extRight = [{ x: W - 50, y: -650 }, { x: W - 50, y: 100 }];
                 walls.push(...createCurvedWall(extRight, 14, wallOpts));
-                // Top wall of Table 2
                 walls.push(Bodies.rectangle((20 + W - 50) / 2, -650, W - 70, 14, wallOpts));
-                // Divider marker at y=0 (subtle visual only, no physics)
             } else {
-                // Default - closed top wall
                 walls.push(Bodies.rectangle((20 + W - 50) / 2, 30, W - 70, 14, wallOpts));
-                // Top exit sensor for ramp-based upper level
                 Composite.add(world, Bodies.rectangle(W / 2 - 15, 10, W - 80, 16, {
                     isStatic: true, isSensor: true, label: 'top-exit',
                     render: { fillStyle: 'transparent' },
@@ -326,38 +388,28 @@
                 }));
             }
 
-            // Plunger lane - right edge wall (full height from y=60 to bottom)
+            // Plunger lane
             walls.push(Bodies.rectangle(W - 8, H / 2 + 50, 10, H - 80, wallOpts));
-
-            // Plunger lane - left edge wall (from y=500 to bottom to contain ball)
             walls.push(Bodies.rectangle(W - 42, H - 100, 8, 200, wallOpts));
-
-            // Plunger lane - bottom wall to hold ball until launch
             walls.push(Bodies.rectangle(W - 25, H - 10, 40, 10, wallOpts));
 
-
-            // Bottom left guide to flipper
+            // Bottom guides
             const leftGuide = [{ x: 50, y: 580 }, { x: 70, y: 600 }, { x: 85, y: 625 }];
             walls.push(...createCurvedWall(leftGuide, 12, wallOpts));
-
-            // Bottom right guide to flipper
             const rightGuide = [{ x: W - 75, y: 580 }, { x: W - 90, y: 600 }, { x: W - 105, y: 625 }];
             walls.push(...createCurvedWall(rightGuide, 12, wallOpts));
 
             // Level-specific elements
             if (currentLevel === 0) {
-                // Classic - standard bumper triangle
                 createBumper(120, 180, 24);
                 createBumper(200, 130, 28);
                 createBumper(280, 180, 24);
                 createBumper(160, 300, 22);
                 createBumper(240, 300, 22);
-                // Slingshots
                 walls.push(Bodies.polygon(75, H - 180, 3, 30, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
                 walls.push(Bodies.polygon(W - 95, H - 180, 3, 30, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
             }
             else if (currentLevel === 1) {
-                // Vortex - spiral pattern
                 const cx = 170, cy = 280;
                 for (let i = 0; i < 6; i++) {
                     const a = (i / 6) * Math.PI * 2 - Math.PI/2;
@@ -367,7 +419,6 @@
                 walls.push(Bodies.rectangle(170, 280, 70, 10, { ...wallOpts, restitution: 0.8, render: { fillStyle: level.theme.accent } }));
             }
             else if (currentLevel === 2) {
-                // Diamond pattern
                 createBumper(180, 120, 24);
                 createBumper(100, 200, 20);
                 createBumper(260, 200, 20);
@@ -375,21 +426,18 @@
                 createBumper(100, 360, 20);
                 createBumper(260, 360, 20);
                 createBumper(180, 440, 24);
-                // Angled deflectors
                 walls.push(Bodies.rectangle(140, 200, 40, 8, { ...wallOpts, angle: 0.5, render: { fillStyle: level.theme.accent } }));
                 walls.push(Bodies.rectangle(220, 200, 40, 8, { ...wallOpts, angle: -0.5, render: { fillStyle: level.theme.accent } }));
                 walls.push(Bodies.rectangle(140, 360, 40, 8, { ...wallOpts, angle: -0.5, render: { fillStyle: level.theme.accent } }));
                 walls.push(Bodies.rectangle(220, 360, 40, 8, { ...wallOpts, angle: 0.5, render: { fillStyle: level.theme.accent } }));
             }
             else if (currentLevel === 3) {
-                // Castle towers
                 createBumper(90, 160, 28);
                 createBumper(180, 120, 32);
                 createBumper(270, 160, 28);
                 createBumper(135, 300, 24);
                 createBumper(225, 300, 24);
                 createBumper(180, 420, 26);
-                // Ramparts
                 for (let i = 0; i < 3; i++) {
                     walls.push(Bodies.rectangle(70 + i * 40, 230, 25, 10, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
                     walls.push(Bodies.rectangle(210 + i * 40, 230, 25, 10, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
@@ -397,33 +445,28 @@
                 walls.push(Bodies.rectangle(180, 200, 12, 45, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
             }
             else if (currentLevel === 4) {
-                // Wave
                 createBumper(90, 180, 22);
                 createBumper(270, 220, 22);
                 createBumper(130, 340, 24);
                 createBumper(230, 400, 24);
                 createBumper(170, 480, 20);
-                // Wave rails
                 const w1 = [{ x: 70, y: 270 }, { x: 110, y: 250 }, { x: 150, y: 270 }, { x: 190, y: 250 }, { x: 230, y: 270 }];
                 walls.push(...createCurvedWall(w1, 8, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
                 const w2 = [{ x: 140, y: 430 }, { x: 180, y: 410 }, { x: 220, y: 430 }, { x: 260, y: 410 }, { x: 300, y: 430 }];
                 walls.push(...createCurvedWall(w2, 8, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
             }
             else if (currentLevel === 5) {
-                // Custom level - load saved bumpers, flippers, ramps and walls
                 customBumpers.forEach(b => createBumper(b.x, b.y, b.radius));
                 customWalls.forEach(wallPoints => {
                     if (wallPoints.length >= 2) {
                         walls.push(...createCurvedWall(wallPoints, 10, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
                     }
                 });
-                // Create custom flippers
                 customFlipperBodies = [];
                 customFlippers.forEach(f => {
                     const flipperBody = createCustomFlipper(f.x, f.y, f.side);
                     customFlipperBodies.push(flipperBody);
                 });
-                // Create ramps (portals to upper level)
                 customRamps.forEach(r => {
                     const ramp = Bodies.circle(r.x, r.y, 18, {
                         isStatic: true, isSensor: true, label: 'ramp',
@@ -437,24 +480,307 @@
             Composite.add(world, walls);
         }
 
+        // ===== CLIMB MODE LEVEL GENERATION =====
+        function createClimbLevel(walls, wallOpts) {
+            const W = CONFIG.width, H = CONFIG.height;
+            const cm = climbMode;
+            cm.checkpointFlippers = [];
+            cm.dropTargets = [];
+            cm.spinners = [];
+            cm.iceBlocks = [];
+            cm.fireHazards = [];
+            cm.waterPools = [];
+            cm.powerUps = [];
+            cm.destructWalls = [];
+
+            // FLOOR 0 (base floor): standard pinball board with plunger
+            // Y range: 0 to H (700)
+            // Left wall for floor 0 - open at top (y=50) so ball can pass upward
+            const leftWall0 = [
+                { x: 20, y: 50 }, { x: 20, y: 540 },
+                { x: 28, y: 560 }, { x: 50, y: 580 }
+            ];
+            walls.push(...createCurvedWall(leftWall0, 14, wallOpts));
+
+            // Right wall for floor 0 - open at y=100 for plunger exit
+            const rightWall0 = [
+                { x: W - 50, y: 100 }, { x: W - 50, y: 545 },
+                { x: W - 60, y: 565 }, { x: W - 75, y: 580 }
+            ];
+            walls.push(...createCurvedWall(rightWall0, 14, wallOpts));
+
+            // Plunger entrance curve
+            walls.push(...createCurvedWall([
+                { x: W - 50, y: 20 }, { x: W - 20, y: 45 }, { x: W - 8, y: 70 }
+            ], 16, wallOpts));
+
+            // Plunger lane walls
+            walls.push(Bodies.rectangle(W - 8, H / 2 + 50, 10, H - 80, wallOpts));
+            walls.push(Bodies.rectangle(W - 42, H - 100, 8, 200, wallOpts));
+            walls.push(Bodies.rectangle(W - 25, H - 10, 40, 10, wallOpts));
+
+            // Bottom guides for floor 0
+            walls.push(...createCurvedWall([{ x: 50, y: 580 }, { x: 70, y: 600 }, { x: 85, y: 625 }], 12, wallOpts));
+            walls.push(...createCurvedWall([{ x: W - 75, y: 580 }, { x: W - 90, y: 600 }, { x: W - 105, y: 625 }], 12, wallOpts));
+
+            // Floor 0 bumpers
+            createBumper(150, 200, 24);
+            createBumper(250, 200, 24);
+            createBumper(200, 300, 26);
+
+            // Slingshots on floor 0
+            walls.push(Bodies.polygon(75, H - 180, 3, 30, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: LEVELS[6].theme.accent } }));
+            walls.push(Bodies.polygon(W - 95, H - 180, 3, 30, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: LEVELS[6].theme.accent } }));
+
+            // Kickbacks on floor 0 outlanes
+            createKickbacks(walls, wallOpts);
+
+            // Ball save sensor at bottom
+            cm.ballSaveActive = true;
+            cm.ballSaveTimer = 0;
+            cm.ballSaveUsed = false;
+
+            // Generate upper floors (1 through totalFloors-1)
+            for (let floor = 1; floor < cm.totalFloors; floor++) {
+                createClimbFloor(floor, walls, wallOpts);
+            }
+
+            // Top wall at highest floor
+            const topY = floorY(cm.totalFloors - 1);
+            walls.push(Bodies.rectangle(W / 2 - 15, topY + 30, W - 70, 14, wallOpts));
+        }
+
+        function createClimbFloor(floor, walls, wallOpts) {
+            const W = CONFIG.width, H = CONFIG.height;
+            const level = LEVELS[6];
+            const baseY = floorY(floor); // top of this floor
+            const bottomY = baseY + H; // bottom of this floor (= top of floor below)
+            const difficulty = floor / (climbMode.totalFloors - 1); // 0 to 1
+
+            // Left wall for this floor - OPEN at bottom (no wall at bottomY) to allow ball passage
+            // Wall runs from top of floor down to ~100px above bottom, leaving gap
+            const wallTopY = baseY + 50;
+            const wallBottomY = bottomY - 80; // leave 80px gap at bottom for ball to pass through
+            walls.push(...createCurvedWall([
+                { x: 20, y: wallTopY },
+                { x: 20, y: wallBottomY }
+            ], 14, wallOpts));
+
+            // Right wall - same open gap at bottom
+            walls.push(...createCurvedWall([
+                { x: W - 50, y: wallTopY },
+                { x: W - 50, y: wallBottomY }
+            ], 14, wallOpts));
+
+            // Funnel guides at the BOTTOM of this floor to guide ball toward the opening
+            // These guide the ball falling from this floor down to the floor below
+            walls.push(...createCurvedWall([
+                { x: 20, y: wallBottomY },
+                { x: 40, y: wallBottomY + 30 },
+                { x: 70, y: wallBottomY + 50 }
+            ], 10, wallOpts));
+            walls.push(...createCurvedWall([
+                { x: W - 50, y: wallBottomY },
+                { x: W - 70, y: wallBottomY + 30 },
+                { x: W - 100, y: wallBottomY + 50 }
+            ], 10, wallOpts));
+
+            // Checkpoint paddles on this floor
+            const flipperY = baseY + H - 100;
+            const lf = createClimbFlipper(150, flipperY, 'left', floor);
+            const rf = createClimbFlipper(W - 150, flipperY, 'right', floor);
+            climbMode.checkpointFlippers.push({ floor, left: lf, right: rf });
+
+            // Flipper guides for this floor
+            walls.push(...createCurvedWall([
+                { x: 50, y: flipperY - 40 }, { x: 70, y: flipperY - 20 }, { x: 85, y: flipperY + 5 }
+            ], 10, wallOpts));
+            walls.push(...createCurvedWall([
+                { x: W - 75, y: flipperY - 40 }, { x: W - 90, y: flipperY - 20 }, { x: W - 105, y: flipperY + 5 }
+            ], 10, wallOpts));
+
+            // Floor content based on difficulty
+            const contentY = baseY + 100;
+            const midX = W / 2 - 15;
+
+            // Bumpers - more on higher floors
+            const numBumpers = 2 + Math.floor(difficulty * 4);
+            const seed = floor * 137;
+            for (let i = 0; i < numBumpers; i++) {
+                const bx = 80 + ((seed + i * 97) % (W - 180));
+                const by = contentY + 50 + ((seed + i * 53) % (H - 350));
+                const br = 18 + (i % 3) * 4;
+                createBumper(bx, by, br);
+            }
+
+            // Drop targets - appear from floor 2+
+            if (floor >= 2) {
+                const dtY = contentY + 80;
+                const dtCount = 3 + Math.floor(difficulty * 2);
+                const dtStartX = midX - (dtCount * 25) / 2;
+                for (let i = 0; i < dtCount; i++) {
+                    const dt = Bodies.rectangle(dtStartX + i * 25, dtY, 8, 25, {
+                        isStatic: true, label: 'drop-target',
+                        restitution: 0.5,
+                        render: { fillStyle: '#ff6688' },
+                        collisionFilter: { category: CATEGORY.BUMPER },
+                        plugin: { hit: false, floor, index: i, score: 200 }
+                    });
+                    Composite.add(world, dt);
+                    climbMode.dropTargets.push(dt);
+                }
+            }
+
+            // Spinners - appear from floor 1+
+            if (floor >= 1) {
+                const spX = 80 + ((seed + 33) % (W - 180));
+                const spY = contentY + 200;
+                const spinner = Bodies.rectangle(spX, spY, 40, 4, {
+                    isStatic: true, label: 'spinner',
+                    restitution: 0.8,
+                    render: { fillStyle: '#fbbf24' },
+                    collisionFilter: { category: CATEGORY.BUMPER },
+                    plugin: { angle: 0, floor, score: 25 }
+                });
+                Composite.add(world, spinner);
+                climbMode.spinners.push(spinner);
+            }
+
+            // Elemental obstacles - appear from floor 2+
+            if (floor >= 2) {
+                const obstacleTypes = [];
+                if (floor >= 2) obstacleTypes.push('ice');
+                if (floor >= 4) obstacleTypes.push('fire');
+                if (floor >= 6) obstacleTypes.push('water');
+
+                obstacleTypes.forEach((type, idx) => {
+                    const ox = 80 + ((seed + idx * 71 + 200) % (W - 180));
+                    const oy = contentY + 150 + idx * 80;
+                    if (type === 'ice') {
+                        const ice = Bodies.rectangle(ox, oy, 50, 50, {
+                            isStatic: true, label: 'ice-block',
+                            render: { fillStyle: '#88ccff' },
+                            collisionFilter: { category: CATEGORY.WALL },
+                            plugin: { floor, type: 'ice' }
+                        });
+                        Composite.add(world, ice);
+                        climbMode.iceBlocks.push(ice);
+                    } else if (type === 'fire') {
+                        const fire = Bodies.circle(ox, oy, 20, {
+                            isStatic: true, label: 'fire-hazard',
+                            restitution: 2.0,
+                            render: { fillStyle: '#ff4422' },
+                            collisionFilter: { category: CATEGORY.BUMPER },
+                            plugin: { floor, type: 'fire', score: -50 }
+                        });
+                        Composite.add(world, fire);
+                        climbMode.fireHazards.push(fire);
+                    } else if (type === 'water') {
+                        const water = Bodies.rectangle(ox, oy, 60, 15, {
+                            isStatic: true, label: 'water-pool', isSensor: true,
+                            render: { fillStyle: '#4488ff' },
+                            collisionFilter: { category: CATEGORY.SENSOR },
+                            plugin: { floor, type: 'water' }
+                        });
+                        Composite.add(world, water);
+                        climbMode.waterPools.push(water);
+                    }
+                });
+            }
+
+            // Power-ups: elemental ball pickups (sometimes behind destructible walls)
+            if (floor >= 1) {
+                const puTypes = ['hot'];
+                if (floor >= 3) puTypes.push('water');
+                if (floor >= 5) puTypes.push('grass');
+                const puType = puTypes[(seed + floor) % puTypes.length];
+                const puX = 80 + ((seed + 500) % (W - 180));
+                const puY = contentY + 300;
+
+                // Sometimes behind a destructible wall
+                if (floor >= 3 && floor % 2 === 0) {
+                    const dw = Bodies.rectangle(puX, puY - 20, 50, 12, {
+                        isStatic: true, label: 'destruct-wall',
+                        render: { fillStyle: '#8B6914' },
+                        collisionFilter: { category: CATEGORY.WALL },
+                        plugin: { health: 3, floor }
+                    });
+                    Composite.add(world, dw);
+                    climbMode.destructWalls.push(dw);
+                }
+
+                const pu = Bodies.circle(puX, puY, 12, {
+                    isStatic: true, isSensor: true, label: 'power-up',
+                    render: { fillStyle: ELEMENT_COLORS[puType].ball[1] },
+                    collisionFilter: { category: CATEGORY.SENSOR },
+                    plugin: { type: puType, floor, collected: false }
+                });
+                Composite.add(world, pu);
+                climbMode.powerUps.push(pu);
+            }
+        }
+
+        function createClimbFlipper(x, y, side, floor) {
+            const isLeft = side === 'left';
+            const pivotX = isLeft ? x - 25 : x + 25;
+            const level = LEVELS[6];
+
+            const flipper = Bodies.rectangle(x, y, 60, 12, {
+                label: `climb-flipper-${side}`, density: 0.03, friction: 0.9, restitution: 0.1,
+                chamfer: { radius: 6 },
+                collisionFilter: { category: CATEGORY.FLIPPER },
+                render: { fillStyle: level.theme.accent }
+            });
+
+            const pivot = Bodies.circle(pivotX, y, 5, { isStatic: true, render: { fillStyle: level.theme.accent } });
+            const constraint = Constraint.create({
+                bodyA: flipper, pointA: { x: isLeft ? -25 : 25, y: 0 },
+                bodyB: pivot, pointB: { x: 0, y: 0 }, stiffness: 1, length: 0
+            });
+
+            Composite.add(world, [flipper, pivot, constraint]);
+            Body.setAngle(flipper, isLeft ? CONFIG.flipper.restAngle : -CONFIG.flipper.restAngle);
+            return { flipper, pivot, constraint };
+        }
+
+        function createKickbacks(walls, wallOpts) {
+            const W = CONFIG.width, H = CONFIG.height;
+            // Left kickback - small wall in outlane that bounces ball back
+            const kbL = Bodies.rectangle(35, H - 250, 8, 40, {
+                ...wallOpts, label: 'kickback-left',
+                restitution: 2.0,
+                render: { fillStyle: '#00ff88' }
+            });
+            walls.push(kbL);
+            climbMode.kickbackLeft = kbL;
+            climbMode.kickbackLeftActive = true;
+
+            // Right kickback
+            const kbR = Bodies.rectangle(W - 65, H - 250, 8, 40, {
+                ...wallOpts, label: 'kickback-right',
+                restitution: 2.0,
+                render: { fillStyle: '#00ff88' }
+            });
+            walls.push(kbR);
+            climbMode.kickbackRight = kbR;
+            climbMode.kickbackRightActive = true;
+        }
+
         function createCustomFlipper(x, y, side) {
             const isLeft = side === 'left';
             const level = LEVELS[currentLevel];
             const pivotX = isLeft ? x - 20 : x + 20;
-
             const flipper = Bodies.rectangle(x, y, 50, 10, {
                 label: `custom-flipper-${side}`, density: 0.03, friction: 0.9, restitution: 0.1,
                 chamfer: { radius: 5 },
                 collisionFilter: { category: CATEGORY.FLIPPER },
                 render: { fillStyle: level.theme.accent }
             });
-
             const pivot = Bodies.circle(pivotX, y, 4, { isStatic: true, render: { fillStyle: level.theme.accent } });
             const constraint = Constraint.create({
                 bodyA: flipper, pointA: { x: isLeft ? -20 : 20, y: 0 },
                 bodyB: pivot, pointB: { x: 0, y: 0 }, stiffness: 1, length: 0
             });
-
             Composite.add(world, [flipper, pivot, constraint]);
             Body.setAngle(flipper, isLeft ? 0.4 : -0.4);
             return { flipper, pivot, constraint, side };
@@ -465,17 +791,13 @@
             const rect = canvas.getBoundingClientRect();
             const scaleX = CONFIG.width / rect.width;
             const scaleY = CONFIG.height / rect.height;
-            return {
-                x: (clientX - rect.left) * scaleX,
-                y: (clientY - rect.top) * scaleY
-            };
+            return { x: (clientX - rect.left) * scaleX, y: (clientY - rect.top) * scaleY - cameraY };
         }
 
         function findBumperAt(x, y) {
             for (let i = customBumpers.length - 1; i >= 0; i--) {
                 const b = customBumpers[i];
-                const dist = Math.sqrt((b.x - x) ** 2 + (b.y - y) ** 2);
-                if (dist < b.radius + 10) return i;
+                if (Math.sqrt((b.x - x) ** 2 + (b.y - y) ** 2) < b.radius + 10) return i;
             }
             return -1;
         }
@@ -483,8 +805,7 @@
         function findFlipperAt(x, y) {
             for (let i = customFlippers.length - 1; i >= 0; i--) {
                 const f = customFlippers[i];
-                const dist = Math.sqrt((f.x - x) ** 2 + (f.y - y) ** 2);
-                if (dist < 35) return i;
+                if (Math.sqrt((f.x - x) ** 2 + (f.y - y) ** 2) < 35) return i;
             }
             return -1;
         }
@@ -492,14 +813,12 @@
         function findRampAt(x, y) {
             for (let i = customRamps.length - 1; i >= 0; i--) {
                 const r = customRamps[i];
-                const dist = Math.sqrt((r.x - x) ** 2 + (r.y - y) ** 2);
-                if (dist < 25) return i;
+                if (Math.sqrt((r.x - x) ** 2 + (r.y - y) ** 2) < 25) return i;
             }
             return -1;
         }
 
         function addCustomBumper(x, y) {
-            // Don't place in plunger lane or too close to edges
             if (x > CONFIG.width - 60 || x < 40 || y < 50 || y > CONFIG.height - 100) return;
             customBumpers.push({ x, y, radius: 22 + Math.random() * 8 });
             rebuildCustomLevel();
@@ -507,7 +826,6 @@
 
         function addCustomFlipper(x, y) {
             if (x > CONFIG.width - 60 || x < 40 || y < 80 || y > CONFIG.height - 80) return;
-            // Determine side based on x position
             const side = x < CONFIG.width / 2 ? 'left' : 'right';
             customFlippers.push({ x, y, side });
             rebuildCustomLevel();
@@ -531,38 +849,19 @@
             if (editorMode === 'play') createBall();
         }
 
-        function startEditorDrawing(x, y) {
-            if (editorMode !== 'wall') return;
-            isDrawing = true;
-            currentDrawing = [{ x, y }];
-        }
-
+        function startEditorDrawing(x, y) { if (editorMode !== 'wall') return; isDrawing = true; currentDrawing = [{ x, y }]; }
         function continueEditorDrawing(x, y) {
             if (!isDrawing || editorMode !== 'wall') return;
             const last = currentDrawing[currentDrawing.length - 1];
-            const dist = Math.sqrt((last.x - x) ** 2 + (last.y - y) ** 2);
-            if (dist > 15) { // Min distance between points
-                currentDrawing.push({ x, y });
-            }
+            if (Math.sqrt((last.x - x) ** 2 + (last.y - y) ** 2) > 15) currentDrawing.push({ x, y });
         }
-
         function finishEditorDrawing() {
             if (!isDrawing) return;
             isDrawing = false;
-            if (currentDrawing.length >= 2) {
-                customWalls.push([...currentDrawing]);
-                rebuildCustomLevel();
-            }
+            if (currentDrawing.length >= 2) { customWalls.push([...currentDrawing]); rebuildCustomLevel(); }
             currentDrawing = [];
         }
-
-        function clearCustomLevel() {
-            customBumpers = [];
-            customFlippers = [];
-            customRamps = [];
-            customWalls = [];
-            rebuildCustomLevel();
-        }
+        function clearCustomLevel() { customBumpers = []; customFlippers = []; customRamps = []; customWalls = []; rebuildCustomLevel(); }
 
         function setEditorMode(mode) {
             editorMode = mode;
@@ -571,50 +870,37 @@
             document.getElementById('ramp-mode-btn').classList.toggle('active', mode === 'ramp');
             document.getElementById('wall-mode-btn').classList.toggle('active', mode === 'wall');
             document.getElementById('play-test-btn').classList.toggle('active', mode === 'play');
-
             if (mode === 'play') {
-                gameState.isPlaying = true;
-                gameState.ballsRemaining = CONFIG.totalBalls;
-                gameState.score = 0;
-                isInUpperLevel = false;
-                updateScoreDisplay();
-                updateBallsDisplay();
-                createBall();
+                gameState.isPlaying = true; gameState.ballsRemaining = CONFIG.totalBalls;
+                gameState.score = 0; isInUpperLevel = false;
+                updateScoreDisplay(); updateBallsDisplay(); createBall();
                 document.getElementById('editor-instructions').style.display = 'none';
             } else {
                 gameState.isPlaying = false;
                 if (ball) { Composite.remove(world, ball); ball = null; }
                 document.getElementById('editor-instructions').style.display = 'block';
-                const instructions = {
-                    'bumper': 'Tap to place bumpers | Drag to move',
-                    'flipper': 'Tap to place flippers | Left/Right side auto-detected',
-                    'ramp': 'Tap to place ramps | Ball enters upper level',
-                    'wall': 'Draw walls with your finger'
-                };
+                const instructions = { 'bumper': 'Tap to place bumpers | Drag to move', 'flipper': 'Tap to place flippers | Left/Right side auto-detected', 'ramp': 'Tap to place ramps | Ball enters upper level', 'wall': 'Draw walls with your finger' };
                 document.getElementById('editor-instructions').textContent = instructions[mode] || '';
             }
         }
 
         function createFlipper(side) {
             const isLeft = side === 'left';
-            const x = isLeft ? 150 : CONFIG.width - 150;  // Closer together - ~40px gap (2 ball widths)
+            const x = isLeft ? 150 : CONFIG.width - 150;
             const y = CONFIG.height - 65;
             const pivotX = isLeft ? x - 25 : x + 25;
             const level = LEVELS[currentLevel];
-
             const flipper = Bodies.rectangle(x, y, 60, 12, {
                 label: `flipper-${side}`, density: 0.03, friction: 0.9, restitution: 0.1,
                 chamfer: { radius: 6 },
                 collisionFilter: { category: CATEGORY.FLIPPER },
                 render: { fillStyle: level.theme.accent }
             });
-
             const pivot = Bodies.circle(pivotX, y, 5, { isStatic: true, render: { fillStyle: level.theme.accent } });
             const constraint = Constraint.create({
                 bodyA: flipper, pointA: { x: isLeft ? -25 : 25, y: 0 },
                 bodyB: pivot, pointB: { x: 0, y: 0 }, stiffness: 1, length: 0
             });
-
             Composite.add(world, [flipper, pivot, constraint]);
             Body.setAngle(flipper, isLeft ? CONFIG.flipper.restAngle : -CONFIG.flipper.restAngle);
             return { flipper, pivot, constraint };
@@ -651,6 +937,13 @@
             Composite.add(world, ball);
             gameState.ballLaunched = false;
             gameState.ballInPlay = true;
+            if (climbMode.active) {
+                climbMode.elementalBall = 'normal';
+                climbMode.ballSaveActive = true;
+                climbMode.ballSaveTimer = Date.now();
+                climbMode.ballSaveUsed = false;
+                updateClimbHUD();
+            }
             document.getElementById('launch-indicator').style.display = 'block';
         }
 
@@ -687,42 +980,18 @@
         document.addEventListener('touchstart', (e) => {
             if (e.target.tagName === 'BUTTON') return;
             if (isMenuVisible()) return;
-
-            // Editor mode touch handling
             if (isEditing && editorMode !== 'play') {
                 const t = e.changedTouches[0];
                 const coords = getCanvasCoords(t.clientX, t.clientY);
                 const rect = canvas.getBoundingClientRect();
                 if (t.clientX >= rect.left && t.clientX <= rect.right && t.clientY >= rect.top && t.clientY <= rect.bottom) {
-                    if (editorMode === 'bumper') {
-                        const idx = findBumperAt(coords.x, coords.y);
-                        if (idx >= 0) {
-                            draggedBumper = idx;
-                        } else {
-                            addCustomBumper(coords.x, coords.y);
-                        }
-                    } else if (editorMode === 'flipper') {
-                        const idx = findFlipperAt(coords.x, coords.y);
-                        if (idx >= 0) {
-                            draggedFlipper = idx;
-                        } else {
-                            addCustomFlipper(coords.x, coords.y);
-                        }
-                    } else if (editorMode === 'ramp') {
-                        const idx = findRampAt(coords.x, coords.y);
-                        if (idx >= 0) {
-                            draggedRamp = idx;
-                        } else {
-                            addCustomRamp(coords.x, coords.y);
-                        }
-                    } else if (editorMode === 'wall') {
-                        startEditorDrawing(coords.x, coords.y);
-                    }
-                    e.preventDefault();
-                    return;
+                    if (editorMode === 'bumper') { const idx = findBumperAt(coords.x, coords.y); if (idx >= 0) draggedBumper = idx; else addCustomBumper(coords.x, coords.y); }
+                    else if (editorMode === 'flipper') { const idx = findFlipperAt(coords.x, coords.y); if (idx >= 0) draggedFlipper = idx; else addCustomFlipper(coords.x, coords.y); }
+                    else if (editorMode === 'ramp') { const idx = findRampAt(coords.x, coords.y); if (idx >= 0) draggedRamp = idx; else addCustomRamp(coords.x, coords.y); }
+                    else if (editorMode === 'wall') startEditorDrawing(coords.x, coords.y);
+                    e.preventDefault(); return;
                 }
             }
-
             for (const t of e.changedTouches) {
                 activeTouches.set(t.identifier, t.clientX < window.innerWidth / 2 ? 'left' : 'right');
                 const rect = gameContainer.getBoundingClientRect();
@@ -731,53 +1000,27 @@
                     launchTouchId = t.identifier; touchStartY = t.clientY; plunger.charging = true;
                 }
             }
-            updateFlipperStates();
-            e.preventDefault();
+            updateFlipperStates(); e.preventDefault();
         }, { passive: false });
 
         document.addEventListener('touchmove', (e) => {
             if (isMenuVisible()) return;
-            // Editor mode touch handling
             if (isEditing && editorMode !== 'play') {
                 const t = e.changedTouches[0];
                 const coords = getCanvasCoords(t.clientX, t.clientY);
-                if (editorMode === 'bumper' && draggedBumper !== null) {
-                    customBumpers[draggedBumper].x = coords.x;
-                    customBumpers[draggedBumper].y = coords.y;
-                    rebuildCustomLevel();
-                } else if (editorMode === 'flipper' && draggedFlipper !== null) {
-                    customFlippers[draggedFlipper].x = coords.x;
-                    customFlippers[draggedFlipper].y = coords.y;
-                    customFlippers[draggedFlipper].side = coords.x < CONFIG.width / 2 ? 'left' : 'right';
-                    rebuildCustomLevel();
-                } else if (editorMode === 'ramp' && draggedRamp !== null) {
-                    customRamps[draggedRamp].x = coords.x;
-                    customRamps[draggedRamp].y = coords.y;
-                    rebuildCustomLevel();
-                } else if (editorMode === 'wall') {
-                    continueEditorDrawing(coords.x, coords.y);
-                }
-                e.preventDefault();
-                return;
+                if (editorMode === 'bumper' && draggedBumper !== null) { customBumpers[draggedBumper].x = coords.x; customBumpers[draggedBumper].y = coords.y; rebuildCustomLevel(); }
+                else if (editorMode === 'flipper' && draggedFlipper !== null) { customFlippers[draggedFlipper].x = coords.x; customFlippers[draggedFlipper].y = coords.y; customFlippers[draggedFlipper].side = coords.x < CONFIG.width / 2 ? 'left' : 'right'; rebuildCustomLevel(); }
+                else if (editorMode === 'ramp' && draggedRamp !== null) { customRamps[draggedRamp].x = coords.x; customRamps[draggedRamp].y = coords.y; rebuildCustomLevel(); }
+                else if (editorMode === 'wall') continueEditorDrawing(coords.x, coords.y);
+                e.preventDefault(); return;
             }
-
             for (const t of e.changedTouches) if (activeTouches.has(t.identifier)) activeTouches.set(t.identifier, t.clientX < window.innerWidth / 2 ? 'left' : 'right');
-            updateFlipperStates();
-            e.preventDefault();
+            updateFlipperStates(); e.preventDefault();
         }, { passive: false });
 
         document.addEventListener('touchend', (e) => {
             if (isMenuVisible()) return;
-            // Editor mode touch handling
-            if (isEditing && editorMode !== 'play') {
-                draggedBumper = null;
-                draggedFlipper = null;
-                draggedRamp = null;
-                if (editorMode === 'wall') {
-                    finishEditorDrawing();
-                }
-            }
-
+            if (isEditing && editorMode !== 'play') { draggedBumper = null; draggedFlipper = null; draggedRamp = null; if (editorMode === 'wall') finishEditorDrawing(); }
             for (const t of e.changedTouches) {
                 if (t.identifier === launchTouchId && plunger.charging) {
                     plunger.power = Math.max(0.6, Math.min((touchStartY - t.clientY) / 80, 1));
@@ -790,10 +1033,7 @@
 
         document.addEventListener('touchcancel', (e) => {
             if (isMenuVisible()) return;
-            draggedBumper = null;
-            draggedFlipper = null;
-            draggedRamp = null;
-            finishEditorDrawing();
+            draggedBumper = null; draggedFlipper = null; draggedRamp = null; finishEditorDrawing();
             for (const t of e.changedTouches) { activeTouches.delete(t.identifier); if (t.identifier === launchTouchId) { plunger.charging = false; launchTouchId = null; } }
             updateFlipperStates();
         }, { passive: false });
@@ -820,6 +1060,16 @@
                 const target = isLeft ? (keys.left ? -0.4 : 0.4) : (keys.right ? 0.4 : -0.4);
                 Body.setAngularVelocity(cf.flipper, (target - cf.flipper.angle) * 0.35);
             });
+
+            // Update climb mode checkpoint flippers
+            if (climbMode.active) {
+                climbMode.checkpointFlippers.forEach(cp => {
+                    const lT = keys.left ? CONFIG.flipper.activeAngle : CONFIG.flipper.restAngle;
+                    const rT = keys.right ? -CONFIG.flipper.activeAngle : -CONFIG.flipper.restAngle;
+                    Body.setAngularVelocity(cp.left.flipper, (lT - cp.left.flipper.angle) * 0.35);
+                    Body.setAngularVelocity(cp.right.flipper, (rT - cp.right.flipper.angle) * 0.35);
+                });
+            }
         }
 
         // Collisions
@@ -837,19 +1087,155 @@
                 if (bodyA.label === 'slingshot' || bodyB.label === 'slingshot') {
                     gameState.score += 50; updateScoreDisplay();
                 }
-                // Ramp collision - send ball to upper level
+
+                // Ramp collision
                 const ramp = bodyA.label === 'ramp' ? bodyA : bodyB.label === 'ramp' ? bodyB : null;
                 const ballBody = bodyA.label === 'ball' ? bodyA : bodyB.label === 'ball' ? bodyB : null;
-                if (ramp && ballBody && !isInUpperLevel && !boardExtended) {
+                if (ramp && ballBody && !isInUpperLevel && !boardExtended && !climbMode.active) {
                     enterUpperLevel(ramp.position.x);
                 }
-                // Top exit - seamless transition to "another table" (only when not extended)
+
+                // Top exit
                 if ((bodyA.label === 'top-exit' || bodyB.label === 'top-exit') &&
                     (bodyA.label === 'ball' || bodyB.label === 'ball') &&
-                    !isInUpperLevel && !boardExtended && ball && ball.velocity.y < -1) {
+                    !isInUpperLevel && !boardExtended && !climbMode.active && ball && ball.velocity.y < -1) {
                     triggerTopTransition();
                 }
+
+                // Drop targets
+                const dt = bodyA.label === 'drop-target' ? bodyA : bodyB.label === 'drop-target' ? bodyB : null;
+                if (dt && dt.plugin && !dt.plugin.hit && (bodyA.label === 'ball' || bodyB.label === 'ball')) {
+                    dt.plugin.hit = true;
+                    dt.render.fillStyle = '#444';
+                    Body.setPosition(dt, { x: dt.position.x, y: dt.position.y + 15 });
+                    gameState.score += dt.plugin.score;
+                    updateScoreDisplay();
+                    createScorePopup(dt.position.x, dt.position.y, dt.plugin.score);
+                    // Check if all targets on this floor are hit
+                    const floorTargets = climbMode.dropTargets.filter(t => t.plugin.floor === dt.plugin.floor);
+                    if (floorTargets.every(t => t.plugin.hit)) {
+                        gameState.score += 1000;
+                        updateScoreDisplay();
+                        createScorePopup(dt.position.x, dt.position.y - 30, 1000);
+                    }
+                }
+
+                // Spinner
+                const sp = bodyA.label === 'spinner' ? bodyA : bodyB.label === 'spinner' ? bodyB : null;
+                if (sp && sp.plugin && (bodyA.label === 'ball' || bodyB.label === 'ball')) {
+                    gameState.score += sp.plugin.score;
+                    updateScoreDisplay();
+                    sp.plugin.angle += 3;
+                }
+
+                // Fire hazard
+                const fire = bodyA.label === 'fire-hazard' ? bodyA : bodyB.label === 'fire-hazard' ? bodyB : null;
+                if (fire && (bodyA.label === 'ball' || bodyB.label === 'ball') && climbMode.active) {
+                    if (climbMode.elementalBall === 'water') {
+                        // Water extinguishes fire
+                        Composite.remove(world, fire);
+                        climbMode.fireHazards = climbMode.fireHazards.filter(f => f !== fire);
+                        gameState.score += 500;
+                        updateScoreDisplay();
+                        createScorePopup(fire.position.x, fire.position.y, 500);
+                        createParticles(fire.position.x, fire.position.y, '#4488ff');
+                    } else {
+                        // Fire damages - deflect ball downward
+                        if (ball) Body.setVelocity(ball, { x: ball.velocity.x, y: Math.abs(ball.velocity.y) + 3 });
+                        gameState.score = Math.max(0, gameState.score - 50);
+                        updateScoreDisplay();
+                    }
+                }
+
+                // Ice block
+                const ice = bodyA.label === 'ice-block' ? bodyA : bodyB.label === 'ice-block' ? bodyB : null;
+                if (ice && (bodyA.label === 'ball' || bodyB.label === 'ball') && climbMode.active) {
+                    if (climbMode.elementalBall === 'hot') {
+                        // Hot ball melts ice
+                        Composite.remove(world, ice);
+                        climbMode.iceBlocks = climbMode.iceBlocks.filter(b => b !== ice);
+                        gameState.score += 300;
+                        updateScoreDisplay();
+                        createScorePopup(ice.position.x, ice.position.y, 300);
+                        createParticles(ice.position.x, ice.position.y, '#ff6644');
+                    }
+                }
+
+                // Water pool
+                const wp = bodyA.label === 'water-pool' ? bodyA : bodyB.label === 'water-pool' ? bodyB : null;
+                if (wp && (bodyA.label === 'ball' || bodyB.label === 'ball') && climbMode.active) {
+                    if (climbMode.elementalBall === 'grass') {
+                        // Grass soaks up water
+                        Composite.remove(world, wp);
+                        climbMode.waterPools = climbMode.waterPools.filter(w => w !== wp);
+                        gameState.score += 300;
+                        updateScoreDisplay();
+                        createScorePopup(wp.position.x, wp.position.y, 300);
+                        createParticles(wp.position.x, wp.position.y, '#44ff66');
+                    } else {
+                        // Water slows ball
+                        if (ball) Body.setVelocity(ball, { x: ball.velocity.x * 0.5, y: ball.velocity.y * 0.5 });
+                    }
+                }
+
+                // Power-up pickup
+                const pu = bodyA.label === 'power-up' ? bodyA : bodyB.label === 'power-up' ? bodyB : null;
+                if (pu && pu.plugin && !pu.plugin.collected && (bodyA.label === 'ball' || bodyB.label === 'ball') && climbMode.active) {
+                    pu.plugin.collected = true;
+                    climbMode.elementalBall = pu.plugin.type;
+                    Composite.remove(world, pu);
+                    climbMode.powerUps = climbMode.powerUps.filter(p => p !== pu);
+                    gameState.score += 100;
+                    updateScoreDisplay();
+                    createScorePopup(pu.position.x, pu.position.y, 100);
+                    createParticles(pu.position.x, pu.position.y, ELEMENT_COLORS[pu.plugin.type].ball[1]);
+                    updateClimbHUD();
+                }
+
+                // Destructible wall
+                const dw = bodyA.label === 'destruct-wall' ? bodyA : bodyB.label === 'destruct-wall' ? bodyB : null;
+                if (dw && dw.plugin && (bodyA.label === 'ball' || bodyB.label === 'ball')) {
+                    dw.plugin.health--;
+                    if (dw.plugin.health <= 0) {
+                        Composite.remove(world, dw);
+                        climbMode.destructWalls = climbMode.destructWalls.filter(w => w !== dw);
+                        createParticles(dw.position.x, dw.position.y, '#8B6914');
+                    } else {
+                        const alpha = Math.floor((dw.plugin.health / 3) * 255).toString(16).padStart(2, '0');
+                        dw.render.fillStyle = '#8B6914' + alpha;
+                    }
+                }
+
+                // Kickback deactivation
+                if (climbMode.active) {
+                    if ((bodyA === climbMode.kickbackLeft || bodyB === climbMode.kickbackLeft) &&
+                        (bodyA.label === 'ball' || bodyB.label === 'ball') && climbMode.kickbackLeftActive) {
+                        climbMode.kickbackLeftActive = false;
+                        if (climbMode.kickbackLeft) climbMode.kickbackLeft.render.fillStyle = '#444';
+                    }
+                    if ((bodyA === climbMode.kickbackRight || bodyB === climbMode.kickbackRight) &&
+                        (bodyA.label === 'ball' || bodyB.label === 'ball') && climbMode.kickbackRightActive) {
+                        climbMode.kickbackRightActive = false;
+                        if (climbMode.kickbackRight) climbMode.kickbackRight.render.fillStyle = '#444';
+                    }
+                }
+
+                // Drain
                 if ((bodyA.label === 'drain' || bodyB.label === 'drain') && (bodyA.label === 'ball' || bodyB.label === 'ball')) {
+                    // Ball save check for climb mode
+                    if (climbMode.active && climbMode.ballSaveActive && !climbMode.ballSaveUsed &&
+                        (Date.now() - climbMode.ballSaveTimer < 10000)) {
+                        // Ball save! Return ball to play
+                        climbMode.ballSaveUsed = true;
+                        climbMode.ballSaveActive = false;
+                        document.getElementById('ball-save-indicator').style.display = 'block';
+                        setTimeout(() => document.getElementById('ball-save-indicator').style.display = 'none', 2000);
+                        if (ball) {
+                            Body.setPosition(ball, { x: CONFIG.width / 2, y: CONFIG.height - 200 });
+                            Body.setVelocity(ball, { x: 0, y: -5 });
+                        }
+                        return;
+                    }
                     gameState.ballInPlay = false; gameState.ballsRemaining--;
                     updateBallsDisplay();
                     if (gameState.ballsRemaining <= 0) endGame(); else setTimeout(createBall, 800);
@@ -857,15 +1243,13 @@
             });
         });
 
-        // Upper level functions
+        // Upper level functions (for non-climb modes)
         function enterUpperLevel(rampX) {
             if (!ball || isInUpperLevel) return;
             isInUpperLevel = true;
             upperLevelTimer = Date.now();
-            gameState.score += 500;
-            updateScoreDisplay();
+            gameState.score += 500; updateScoreDisplay();
             createScorePopup(rampX, 100, 500);
-            // Launch ball upward off screen
             Body.setPosition(ball, { x: rampX, y: -50 });
             Body.setVelocity(ball, { x: (Math.random() - 0.5) * 5, y: 2 });
         }
@@ -873,47 +1257,71 @@
         function updateUpperLevel() {
             if (!isInUpperLevel || !ball) return;
             const elapsed = Date.now() - upperLevelTimer;
-
-            // Ball bounces around in upper level (above screen)
             if (ball.position.y < -20) {
-                // Keep ball in upper area with some bouncing
                 if (ball.position.x < 30) Body.setVelocity(ball, { x: Math.abs(ball.velocity.x) + 2, y: ball.velocity.y });
                 if (ball.position.x > CONFIG.width - 30) Body.setVelocity(ball, { x: -Math.abs(ball.velocity.x) - 2, y: ball.velocity.y });
                 if (ball.position.y < -100) Body.setVelocity(ball, { x: ball.velocity.x, y: Math.abs(ball.velocity.y) + 1 });
             }
-
-            // After duration, ball returns to playfield
-            if (elapsed > UPPER_LEVEL_DURATION) {
-                exitUpperLevel();
-            }
+            if (elapsed > UPPER_LEVEL_DURATION) exitUpperLevel();
         }
 
         function exitUpperLevel() {
             if (!ball) return;
             isInUpperLevel = false;
-            // Drop ball back into play area from top
             const dropX = 100 + Math.random() * (CONFIG.width - 200);
             Body.setPosition(ball, { x: dropX, y: 50 });
             Body.setVelocity(ball, { x: (Math.random() - 0.5) * 3, y: 3 });
-            gameState.score += 250;
-            updateScoreDisplay();
+            gameState.score += 250; updateScoreDisplay();
             createScorePopup(dropX, 80, 250);
         }
 
-        // Seamless top transition - ball exits through open top into the upper level
         function triggerTopTransition() {
             if (!ball || !gameState.isPlaying || !gameState.ballInPlay || isInUpperLevel) return;
-            // Ball must be in the playfield for at least 3 seconds before top exit activates
             if (Date.now() - ballLaunchTime < 3000) return;
             enterUpperLevel(ball.position.x);
         }
 
-        // Fallback position check in case ball escapes past the sensor
         function checkTopTransition() {
             if (!ball || !gameState.isPlaying || !gameState.ballInPlay || isInUpperLevel) return;
-            if (ball.position.y < -10) {
-                triggerTopTransition();
+            if (ball.position.y < -10) triggerTopTransition();
+        }
+
+        // Climb mode updates
+        function updateClimbMode() {
+            if (!climbMode.active || !ball || !gameState.isPlaying) return;
+
+            // Track which floor the ball is on
+            const ballFloor = Math.max(0, Math.floor(-ball.position.y / CONFIG.height + 1));
+            const actualFloor = ball.position.y > 0 ? 0 : ballFloor;
+            climbMode.currentBallFloor = actualFloor;
+
+            if (actualFloor > climbMode.highestFloor) {
+                climbMode.highestFloor = actualFloor;
+                gameState.score += 500 * actualFloor;
+                updateScoreDisplay();
+                createScorePopup(ball.position.x, ball.position.y, 500 * actualFloor);
             }
+
+            updateClimbHUD();
+
+            // Animate spinners
+            climbMode.spinners.forEach(sp => {
+                if (sp.plugin) {
+                    sp.plugin.angle += 0.02;
+                    Body.setAngle(sp, sp.plugin.angle);
+                }
+            });
+        }
+
+        function updateClimbHUD() {
+            if (!climbMode.active) return;
+            document.getElementById('floor-num').textContent = climbMode.currentBallFloor + 1;
+            document.getElementById('floor-total').textContent = climbMode.totalFloors;
+            const elem = climbMode.elementalBall;
+            const elemInfo = ELEMENT_COLORS[elem];
+            document.getElementById('element-display').innerHTML =
+                elem === 'normal' ? '<span style="color:#888">Normal Ball</span>' :
+                `<span style="color:${elemInfo.ball[1]}">${elemInfo.icon} ${elemInfo.name} Ball</span>`;
         }
 
         function updateScoreDisplay() { document.querySelector('#current-score .score-value').textContent = gameState.score.toLocaleString(); }
@@ -941,11 +1349,16 @@
 
         // Camera follow
         function updateCamera() {
+            if (climbMode.active && ball && gameState.isPlaying) {
+                // Camera follows ball through all floors
+                const targetCam = Math.max(0, -(ball.position.y - CONFIG.height / 2));
+                cameraY += (targetCam - cameraY) * 0.08;
+                return;
+            }
             if (!boardExtended || !ball || !gameState.isPlaying) {
                 cameraY += (0 - cameraY) * 0.1;
                 return;
             }
-            // Camera centers on ball, clamped to valid range
             const targetCam = Math.max(0, Math.min(CONFIG.height, -(ball.position.y - CONFIG.height / 2)));
             cameraY += (targetCam - cameraY) * 0.08;
         }
@@ -958,11 +1371,35 @@
             ctx.save();
             ctx.translate(0, cameraY);
 
-            // Background - draw for both tables when extended
+            // Background
             ctx.fillStyle = level.theme.bg;
-            if (boardExtended) {
-                ctx.fillRect(0, -H, W, H); // Table 2 bg
-                // Divider line between tables
+            if (climbMode.active) {
+                // Draw backgrounds for all floors
+                for (let f = climbMode.totalFloors - 1; f >= 0; f--) {
+                    const fy = floorY(f);
+                    // Alternate slightly different bg colors per floor
+                    const brightness = f % 2 === 0 ? '' : '10';
+                    ctx.fillStyle = level.theme.bg;
+                    ctx.fillRect(0, fy, W, H);
+                    // Floor divider line
+                    if (f > 0) {
+                        ctx.strokeStyle = level.theme.wall + '40';
+                        ctx.lineWidth = 1;
+                        ctx.setLineDash([6, 4]);
+                        ctx.beginPath();
+                        ctx.moveTo(30, fy + H);
+                        ctx.lineTo(W - 60, fy + H);
+                        ctx.stroke();
+                        ctx.setLineDash([]);
+                        // Floor number label
+                        ctx.fillStyle = level.theme.wall + '30';
+                        ctx.font = 'bold 60px Arial';
+                        ctx.textAlign = 'center';
+                        ctx.fillText(f + 1, W / 2 - 15, fy + H / 2 + 20);
+                    }
+                }
+            } else if (boardExtended) {
+                ctx.fillRect(0, -H, W, H);
                 ctx.strokeStyle = level.theme.wall + '60';
                 ctx.lineWidth = 2;
                 ctx.setLineDash([8, 6]);
@@ -971,7 +1408,6 @@
                 ctx.lineTo(W - 60, 0);
                 ctx.stroke();
                 ctx.setLineDash([]);
-                // Table 2 label
                 ctx.fillStyle = level.theme.wall + '40';
                 ctx.font = 'bold 14px Arial';
                 ctx.textAlign = 'center';
@@ -980,6 +1416,7 @@
             ctx.fillStyle = level.theme.bg;
             ctx.fillRect(0, 0, W, H);
 
+            // Draw all physics bodies
             Composite.allBodies(world).forEach(body => {
                 if (body.render.fillStyle === 'transparent') return;
                 ctx.beginPath();
@@ -1006,14 +1443,74 @@
                     ctx.fillText('100', body.position.x, body.position.y);
                 }
 
+                // Elemental ball rendering
                 if (body.label === 'ball') {
+                    const colors = climbMode.active ? ELEMENT_COLORS[climbMode.elementalBall].ball : ['#fff', '#ccc', '#666'];
                     const g = ctx.createRadialGradient(body.position.x - 3, body.position.y - 3, 0, body.position.x, body.position.y, body.circleRadius);
-                    g.addColorStop(0, '#fff'); g.addColorStop(0.4, '#ccc'); g.addColorStop(1, '#666');
+                    g.addColorStop(0, colors[0]); g.addColorStop(0.4, colors[1]); g.addColorStop(1, colors[2]);
                     ctx.fillStyle = g; ctx.fill();
                     ctx.strokeStyle = '#444'; ctx.lineWidth = 1.5; ctx.stroke();
+                    // Elemental glow
+                    if (climbMode.active && climbMode.elementalBall !== 'normal') {
+                        ctx.shadowColor = colors[1]; ctx.shadowBlur = 15;
+                        ctx.beginPath();
+                        ctx.arc(body.position.x, body.position.y, body.circleRadius + 2, 0, Math.PI * 2);
+                        ctx.strokeStyle = colors[1] + '80'; ctx.lineWidth = 2; ctx.stroke();
+                        ctx.shadowBlur = 0;
+                    }
+                }
+
+                // Ice block special rendering
+                if (body.label === 'ice-block') {
+                    ctx.shadowColor = '#88ccff'; ctx.shadowBlur = 8; ctx.fill(); ctx.shadowBlur = 0;
+                    ctx.strokeStyle = '#aaddff'; ctx.lineWidth = 2; ctx.stroke();
+                    ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillText('ICE', body.position.x, body.position.y);
+                }
+
+                // Fire hazard special rendering
+                if (body.label === 'fire-hazard') {
+                    ctx.shadowColor = '#ff4422'; ctx.shadowBlur = 15; ctx.fill(); ctx.shadowBlur = 0;
+                    ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillText('🔥', body.position.x, body.position.y);
+                }
+
+                // Water pool rendering
+                if (body.label === 'water-pool') {
+                    ctx.fillStyle = '#4488ff40';
+                    ctx.fillRect(body.position.x - 30, body.position.y - 7, 60, 15);
+                    ctx.strokeStyle = '#4488ff'; ctx.lineWidth = 1;
+                    ctx.strokeRect(body.position.x - 30, body.position.y - 7, 60, 15);
+                    ctx.fillStyle = '#fff'; ctx.font = 'bold 8px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillText('WATER', body.position.x, body.position.y);
+                }
+
+                // Drop target rendering
+                if (body.label === 'drop-target' && body.plugin) {
+                    if (!body.plugin.hit) {
+                        ctx.shadowColor = '#ff6688'; ctx.shadowBlur = 5; ctx.fill(); ctx.shadowBlur = 0;
+                    }
+                }
+
+                // Spinner rendering
+                if (body.label === 'spinner') {
+                    ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 5; ctx.fill(); ctx.shadowBlur = 0;
+                }
+
+                // Power-up rendering
+                if (body.label === 'power-up' && body.plugin && !body.plugin.collected) {
+                    const puColor = ELEMENT_COLORS[body.plugin.type].ball[1];
+                    ctx.shadowColor = puColor; ctx.shadowBlur = 12;
+                    ctx.beginPath();
+                    ctx.arc(body.position.x, body.position.y, 12, 0, Math.PI * 2);
+                    ctx.fillStyle = puColor; ctx.fill();
+                    ctx.shadowBlur = 0;
+                    ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillText(ELEMENT_COLORS[body.plugin.type].icon, body.position.x, body.position.y);
                 }
             });
 
+            // Flipper pivots
             if (leftFlipper && rightFlipper) {
                 [leftFlipper.pivot, rightFlipper.pivot].forEach(p => {
                     ctx.beginPath(); ctx.arc(p.position.x, p.position.y, 6, 0, Math.PI * 2);
@@ -1022,6 +1519,18 @@
                 });
             }
 
+            // Climb flipper pivots
+            if (climbMode.active) {
+                climbMode.checkpointFlippers.forEach(cp => {
+                    [cp.left.pivot, cp.right.pivot].forEach(p => {
+                        ctx.beginPath(); ctx.arc(p.position.x, p.position.y, 5, 0, Math.PI * 2);
+                        ctx.fillStyle = level.theme.accent; ctx.shadowColor = level.theme.accent; ctx.shadowBlur = 8;
+                        ctx.fill(); ctx.shadowBlur = 0;
+                    });
+                });
+            }
+
+            // Particles
             particles.forEach(p => {
                 ctx.beginPath(); ctx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
                 ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.fill(); ctx.globalAlpha = 1;
@@ -1030,94 +1539,66 @@
             // Plunger lane visual
             ctx.fillStyle = level.theme.wall + '80';
             ctx.fillRect(CONFIG.width - 38, CONFIG.height - 110, 26, 100);
-
             const offset = plunger.charging ? plunger.power * 20 : 0;
             ctx.fillStyle = level.theme.accent;
             ctx.beginPath(); ctx.arc(CONFIG.width - 25, CONFIG.height - 20 + offset, 10, 0, Math.PI * 2); ctx.fill();
-
             if (plunger.charging) {
                 plunger.power = Math.min(plunger.power + 0.03, 1);
                 ctx.fillStyle = `rgba(0,255,136,${plunger.power})`;
                 ctx.fillRect(CONFIG.width - 36, CONFIG.height - 105, 22 * plunger.power, 5);
             }
-
             if (!gameState.ballLaunched && gameState.ballInPlay) {
                 ctx.fillStyle = 'rgba(0,255,136,0.15)';
                 ctx.fillRect(CONFIG.width - 38, CONFIG.height - 110, 26, 90);
             }
 
-            // Draw current wall being created
+            // Editor drawing
             if (isEditing && isDrawing && currentDrawing.length > 0) {
-                ctx.beginPath();
-                ctx.strokeStyle = level.theme.accent;
-                ctx.lineWidth = 10;
-                ctx.lineCap = 'round';
-                ctx.lineJoin = 'round';
+                ctx.beginPath(); ctx.strokeStyle = level.theme.accent; ctx.lineWidth = 10;
+                ctx.lineCap = 'round'; ctx.lineJoin = 'round';
                 ctx.moveTo(currentDrawing[0].x, currentDrawing[0].y);
-                for (let i = 1; i < currentDrawing.length; i++) {
-                    ctx.lineTo(currentDrawing[i].x, currentDrawing[i].y);
-                }
+                for (let i = 1; i < currentDrawing.length; i++) ctx.lineTo(currentDrawing[i].x, currentDrawing[i].y);
                 ctx.stroke();
             }
-
-            // Draw editor hint area
             if (isEditing && !gameState.isPlaying) {
-                ctx.fillStyle = 'rgba(244, 114, 182, 0.2)';
-                ctx.strokeStyle = 'rgba(244, 114, 182, 0.5)';
-                ctx.setLineDash([5, 5]);
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.rect(40, 50, CONFIG.width - 100, CONFIG.height - 150);
-                ctx.stroke();
-                ctx.setLineDash([]);
+                ctx.fillStyle = 'rgba(244, 114, 182, 0.2)'; ctx.strokeStyle = 'rgba(244, 114, 182, 0.5)';
+                ctx.setLineDash([5, 5]); ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.rect(40, 50, CONFIG.width - 100, CONFIG.height - 150); ctx.stroke(); ctx.setLineDash([]);
             }
 
-            // Draw ramps with special glow effect
+            // Ramps
             customRamps.forEach(r => {
-                ctx.beginPath();
-                ctx.arc(r.x, r.y, 18, 0, Math.PI * 2);
-                ctx.fillStyle = '#fbbf24';
-                ctx.shadowColor = '#fbbf24';
-                ctx.shadowBlur = 15;
-                ctx.fill();
-                ctx.shadowBlur = 0;
-                // Draw arrow indicating "up"
-                ctx.fillStyle = '#1a1a2e';
-                ctx.beginPath();
-                ctx.moveTo(r.x, r.y - 8);
-                ctx.lineTo(r.x - 6, r.y + 4);
-                ctx.lineTo(r.x + 6, r.y + 4);
-                ctx.closePath();
-                ctx.fill();
+                ctx.beginPath(); ctx.arc(r.x, r.y, 18, 0, Math.PI * 2);
+                ctx.fillStyle = '#fbbf24'; ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 15; ctx.fill(); ctx.shadowBlur = 0;
+                ctx.fillStyle = '#1a1a2e'; ctx.beginPath();
+                ctx.moveTo(r.x, r.y - 8); ctx.lineTo(r.x - 6, r.y + 4); ctx.lineTo(r.x + 6, r.y + 4);
+                ctx.closePath(); ctx.fill();
             });
 
-            // Restore camera transform before drawing HUD
             ctx.restore();
 
-            // Upper level indicator (HUD - fixed position)
-            if (isInUpperLevel && gameState.isPlaying && !boardExtended) {
+            // HUD (fixed position, not affected by camera)
+            if (isInUpperLevel && gameState.isPlaying && !boardExtended && !climbMode.active) {
                 const elapsed = Date.now() - upperLevelTimer;
                 const remaining = Math.max(0, UPPER_LEVEL_DURATION - elapsed);
                 const progress = remaining / UPPER_LEVEL_DURATION;
-
-                ctx.fillStyle = 'rgba(251, 191, 36, 0.9)';
-                ctx.fillRect(0, 0, CONFIG.width, 40);
-                ctx.fillStyle = '#1a1a2e';
-                ctx.font = 'bold 16px Arial';
-                ctx.textAlign = 'center';
+                ctx.fillStyle = 'rgba(251, 191, 36, 0.9)'; ctx.fillRect(0, 0, CONFIG.width, 40);
+                ctx.fillStyle = '#1a1a2e'; ctx.font = 'bold 16px Arial'; ctx.textAlign = 'center';
                 ctx.fillText('TABLE 2!', CONFIG.width / 2, 25);
-
-                ctx.fillStyle = 'rgba(0,0,0,0.3)';
-                ctx.fillRect(20, 32, CONFIG.width - 40, 5);
-                ctx.fillStyle = '#00ff88';
-                ctx.fillRect(20, 32, (CONFIG.width - 40) * progress, 5);
+                ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(20, 32, CONFIG.width - 40, 5);
+                ctx.fillStyle = '#00ff88'; ctx.fillRect(20, 32, (CONFIG.width - 40) * progress, 5);
             }
         }
 
         function gameLoop() {
             if (gameState.isPlaying) {
                 updateFlippers();
-                if (!boardExtended) { updateUpperLevel(); checkTopTransition(); }
+                if (climbMode.active) {
+                    updateClimbMode();
+                } else if (!boardExtended) {
+                    updateUpperLevel();
+                    checkTopTransition();
+                }
                 Engine.update(engine, 1000 / 60);
                 updateParticles();
             }
@@ -1129,7 +1610,24 @@
         function startGame() {
             gameState.score = 0; gameState.ballsRemaining = CONFIG.totalBalls;
             gameState.isPlaying = true; gameState.ballInPlay = false;
-            if (currentLevel !== 5) { boardExtended = false; cameraY = 0; }
+            isInUpperLevel = false;
+
+            if (currentLevel === 6) {
+                // Climb mode
+                climbMode.active = true;
+                climbMode.totalFloors = 5; // Start with 5, gets harder
+                climbMode.highestFloor = 0;
+                climbMode.currentBallFloor = 0;
+                climbMode.elementalBall = 'normal';
+                boardExtended = false;
+                cameraY = 0;
+                document.getElementById('climb-hud').style.display = 'block';
+            } else {
+                climbMode.active = false;
+                document.getElementById('climb-hud').style.display = 'none';
+                if (currentLevel !== 5) { boardExtended = false; cameraY = 0; }
+            }
+
             Composite.clear(world, false); bumpers = []; obstacles = []; particles = [];
             createLevel();
             leftFlipper = createFlipper('left'); rightFlipper = createFlipper('right');
@@ -1139,6 +1637,7 @@
             document.getElementById('level-select').style.display = 'none';
             document.getElementById('menu-btn').style.display = 'block';
             document.getElementById('level-name-display').textContent = LEVELS[currentLevel].name;
+            document.getElementById('ball-save-indicator').style.display = 'none';
         }
 
         function endGame() {
@@ -1146,16 +1645,28 @@
             document.getElementById('final-score').textContent = gameState.score.toLocaleString();
             document.getElementById('game-over').style.display = 'block';
             document.getElementById('menu-btn').style.display = 'none';
+            document.getElementById('climb-hud').style.display = 'none';
+            document.getElementById('ball-save-indicator').style.display = 'none';
+            if (climbMode.active) {
+                document.getElementById('final-floor').style.display = 'block';
+                document.getElementById('final-floor-num').textContent = climbMode.highestFloor + 1;
+            } else {
+                document.getElementById('final-floor').style.display = 'none';
+            }
+            climbMode.active = false;
         }
 
         function showLevelSelect() {
             gameState.isPlaying = false;
             boardExtended = false; cameraY = 0;
+            climbMode.active = false;
             Composite.clear(world, false);
             document.getElementById('level-select').style.display = 'block';
             document.getElementById('game-over').style.display = 'none';
             document.getElementById('menu-btn').style.display = 'none';
             document.getElementById('editor-controls').style.display = 'none';
+            document.getElementById('climb-hud').style.display = 'none';
+            document.getElementById('ball-save-indicator').style.display = 'none';
         }
 
         document.querySelectorAll('.level-btn').forEach(btn => {
@@ -1165,11 +1676,8 @@
             });
         });
         document.getElementById('play-btn').addEventListener('click', () => {
-            if (currentLevel === 5) {
-                startCustomEditor();
-            } else {
-                startGame();
-            }
+            if (currentLevel === 5) startCustomEditor();
+            else startGame();
         });
         document.getElementById('restart-btn').addEventListener('click', showLevelSelect);
         document.getElementById('menu-btn').addEventListener('click', () => {
@@ -1190,26 +1698,18 @@
             boardExtended = !boardExtended;
             document.getElementById('extend-btn').classList.toggle('active', boardExtended);
             document.getElementById('extend-btn').textContent = boardExtended ? 'Extended' : 'Extend';
-            cameraY = 0;
-            rebuildCustomLevel();
+            cameraY = 0; rebuildCustomLevel();
         });
 
         function startCustomEditor() {
-            isEditing = true;
-            editorMode = 'bumper';
-            gameState.score = 0;
-            gameState.ballsRemaining = CONFIG.totalBalls;
-            gameState.isPlaying = false;
-            gameState.ballInPlay = false;
-            Composite.clear(world, false);
-            bumpers = [];
-            particles = [];
+            isEditing = true; editorMode = 'bumper';
+            gameState.score = 0; gameState.ballsRemaining = CONFIG.totalBalls;
+            gameState.isPlaying = false; gameState.ballInPlay = false;
+            Composite.clear(world, false); bumpers = []; particles = [];
             createLevel();
-            leftFlipper = createFlipper('left');
-            rightFlipper = createFlipper('right');
+            leftFlipper = createFlipper('left'); rightFlipper = createFlipper('right');
             createDrainSensor();
-            updateScoreDisplay();
-            updateBallsDisplay();
+            updateScoreDisplay(); updateBallsDisplay();
             document.getElementById('game-over').style.display = 'none';
             document.getElementById('level-select').style.display = 'none';
             document.getElementById('menu-btn').style.display = 'block';
@@ -1225,67 +1725,21 @@
         canvas.addEventListener('mousedown', (e) => {
             if (!isEditing || editorMode === 'play') return;
             const coords = getCanvasCoords(e.clientX, e.clientY);
-            if (editorMode === 'bumper') {
-                const idx = findBumperAt(coords.x, coords.y);
-                if (idx >= 0) {
-                    draggedBumper = idx;
-                } else {
-                    addCustomBumper(coords.x, coords.y);
-                }
-            } else if (editorMode === 'flipper') {
-                const idx = findFlipperAt(coords.x, coords.y);
-                if (idx >= 0) {
-                    draggedFlipper = idx;
-                } else {
-                    addCustomFlipper(coords.x, coords.y);
-                }
-            } else if (editorMode === 'ramp') {
-                const idx = findRampAt(coords.x, coords.y);
-                if (idx >= 0) {
-                    draggedRamp = idx;
-                } else {
-                    addCustomRamp(coords.x, coords.y);
-                }
-            } else if (editorMode === 'wall') {
-                startEditorDrawing(coords.x, coords.y);
-            }
+            if (editorMode === 'bumper') { const idx = findBumperAt(coords.x, coords.y); if (idx >= 0) draggedBumper = idx; else addCustomBumper(coords.x, coords.y); }
+            else if (editorMode === 'flipper') { const idx = findFlipperAt(coords.x, coords.y); if (idx >= 0) draggedFlipper = idx; else addCustomFlipper(coords.x, coords.y); }
+            else if (editorMode === 'ramp') { const idx = findRampAt(coords.x, coords.y); if (idx >= 0) draggedRamp = idx; else addCustomRamp(coords.x, coords.y); }
+            else if (editorMode === 'wall') startEditorDrawing(coords.x, coords.y);
         });
-
         canvas.addEventListener('mousemove', (e) => {
             if (!isEditing || editorMode === 'play') return;
             const coords = getCanvasCoords(e.clientX, e.clientY);
-            if (editorMode === 'bumper' && draggedBumper !== null) {
-                customBumpers[draggedBumper].x = coords.x;
-                customBumpers[draggedBumper].y = coords.y;
-                rebuildCustomLevel();
-            } else if (editorMode === 'flipper' && draggedFlipper !== null) {
-                customFlippers[draggedFlipper].x = coords.x;
-                customFlippers[draggedFlipper].y = coords.y;
-                customFlippers[draggedFlipper].side = coords.x < CONFIG.width / 2 ? 'left' : 'right';
-                rebuildCustomLevel();
-            } else if (editorMode === 'ramp' && draggedRamp !== null) {
-                customRamps[draggedRamp].x = coords.x;
-                customRamps[draggedRamp].y = coords.y;
-                rebuildCustomLevel();
-            } else if (editorMode === 'wall') {
-                continueEditorDrawing(coords.x, coords.y);
-            }
+            if (editorMode === 'bumper' && draggedBumper !== null) { customBumpers[draggedBumper].x = coords.x; customBumpers[draggedBumper].y = coords.y; rebuildCustomLevel(); }
+            else if (editorMode === 'flipper' && draggedFlipper !== null) { customFlippers[draggedFlipper].x = coords.x; customFlippers[draggedFlipper].y = coords.y; customFlippers[draggedFlipper].side = coords.x < CONFIG.width / 2 ? 'left' : 'right'; rebuildCustomLevel(); }
+            else if (editorMode === 'ramp' && draggedRamp !== null) { customRamps[draggedRamp].x = coords.x; customRamps[draggedRamp].y = coords.y; rebuildCustomLevel(); }
+            else if (editorMode === 'wall') continueEditorDrawing(coords.x, coords.y);
         });
-
-        canvas.addEventListener('mouseup', () => {
-            if (!isEditing || editorMode === 'play') return;
-            draggedBumper = null;
-            draggedFlipper = null;
-            draggedRamp = null;
-            finishEditorDrawing();
-        });
-
-        canvas.addEventListener('mouseleave', () => {
-            draggedBumper = null;
-            draggedFlipper = null;
-            draggedRamp = null;
-            finishEditorDrawing();
-        });
+        canvas.addEventListener('mouseup', () => { if (!isEditing || editorMode === 'play') return; draggedBumper = null; draggedFlipper = null; draggedRamp = null; finishEditorDrawing(); });
+        canvas.addEventListener('mouseleave', () => { draggedBumper = null; draggedFlipper = null; draggedRamp = null; finishEditorDrawing(); });
 
         function handleResize() {
             const scale = Math.min((window.innerWidth - 20) / CONFIG.width, (window.innerHeight - 120) / CONFIG.height, 1);
