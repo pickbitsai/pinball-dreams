@@ -502,9 +502,14 @@
             ];
             walls.push(...createCurvedWall(leftWall0, 14, wallOpts));
 
-            // Right wall for floor 0 - extends up to y=-40, with plunger exit gap at y=20-100
+            // Right wall for floor 0 - split to preserve plunger exit gap (y=20 to y=100)
+            // Upper segment: closes gap between floors above the plunger entrance
+            walls.push(...createCurvedWall([
+                { x: W - 50, y: -40 }, { x: W - 50, y: 15 }
+            ], 14, wallOpts));
+            // Lower segment: main right wall from below plunger exit down to flipper guide
             const rightWall0 = [
-                { x: W - 50, y: -40 }, { x: W - 50, y: 545 },
+                { x: W - 50, y: 100 }, { x: W - 50, y: 545 },
                 { x: W - 60, y: 565 }, { x: W - 75, y: 580 }
             ];
             walls.push(...createCurvedWall(rightWall0, 14, wallOpts));
@@ -1230,8 +1235,8 @@
                         document.getElementById('ball-save-indicator').style.display = 'block';
                         setTimeout(() => document.getElementById('ball-save-indicator').style.display = 'none', 2000);
                         if (ball) {
-                            Body.setPosition(ball, { x: CONFIG.width / 2, y: CONFIG.height - 200 });
-                            Body.setVelocity(ball, { x: 0, y: -5 });
+                            Body.setPosition(ball, { x: 150, y: CONFIG.height - 80 });
+                            Body.setVelocity(ball, { x: 2, y: -10 });
                         }
                         return;
                     }
