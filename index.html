@@ -529,7 +529,7 @@
 
             // Bottom guides for floor 0 - extend to flipper pivots to seal gaps
             walls.push(...createCurvedWall([{ x: 50, y: 580 }, { x: 70, y: 600 }, { x: 95, y: 625 }, { x: 122, y: 638 }], 12, wallOpts));
-            walls.push(...createCurvedWall([{ x: W - 75, y: 580 }, { x: W - 90, y: 600 }, { x: W - 115, y: 625 }, { x: W - 148, y: 638 }], 12, wallOpts));
+            walls.push(...createCurvedWall([{ x: W - 75, y: 580 }, { x: W - 90, y: 600 }, { x: W - 110, y: 620 }, { x: W - 125, y: 633 }], 12, wallOpts));
 
             // Floor 0 bumpers
             createBumper(150, 200, 24);
@@ -645,7 +645,7 @@
                 { x: 50, y: flipperY - 40 }, { x: 70, y: flipperY - 20 }, { x: 95, y: flipperY + 5 }, { x: 122, y: flipperY + 18 }
             ], 10, wallOpts));
             walls.push(...createCurvedWall([
-                { x: W - 75, y: flipperY - 40 }, { x: W - 90, y: flipperY - 20 }, { x: W - 115, y: flipperY + 5 }, { x: W - 148, y: flipperY + 18 }
+                { x: W - 75, y: flipperY - 40 }, { x: W - 90, y: flipperY - 20 }, { x: W - 110, y: flipperY }, { x: W - 125, y: flipperY + 13 }
             ], 10, wallOpts));
 
             // Upper paddles on this floor - mounted against side walls
@@ -1759,8 +1759,8 @@
         function gameLoop() {
             if (gameState.isPlaying) {
                 updateFlippers();
-                // Close plunger lane after ball exits into playfield
-                if (ball && gameState.ballLaunched && !plungerGate && ball.position.x < CONFIG.width - 55) {
+                // Close plunger lane after ball exits well into playfield
+                if (ball && gameState.ballLaunched && !plungerGate && ball.position.x < CONFIG.width - 120 && ball.position.y > 80) {
                     createPlungerGate();
                 }
                 if (climbMode.active) {
