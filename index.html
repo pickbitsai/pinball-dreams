@@ -315,6 +315,7 @@
         let ball = null, leftFlipper = null, rightFlipper = null;
         let bumpers = [], obstacles = [], particles = [];
         let plunger = { power: 0, charging: false };
+        let plungerGate = null;
         let ballLaunchTime = 0;
         let boardExtended = false;
         let cameraY = 0;
@@ -987,8 +988,28 @@
             }));
         }
 
+        function removePlungerGate() {
+            if (plungerGate) {
+                Composite.remove(world, plungerGate);
+                plungerGate = null;
+            }
+        }
+
+        function createPlungerGate() {
+            removePlungerGate();
+            const W = CONFIG.width;
+            // Seal the gap between y=15 and y=100 at x=W-50
+            plungerGate = Bodies.rectangle(W - 50, 57, 14, 90, {
+                isStatic: true, label: 'plunger-gate',
+                render: { fillStyle: '#4a4a6a' },
+                collisionFilter: { category: CATEGORY.WALL }
+            });
+            Composite.add(world, plungerGate);
+        }
+
         function createBall() {
             if (ball) Composite.remove(world, ball);
+            removePlungerGate();
             ball = Bodies.circle(CONFIG.width - 25, CONFIG.height - 50, CONFIG.ball.radius, {
                 label: 'ball', restitution: CONFIG.ball.restitution,
                 friction: CONFIG.ball.friction, frictionAir: CONFIG.ball.frictionAir,
@@ -1694,6 +1715,10 @@
         function gameLoop() {
             if (gameState.isPlaying) {
                 updateFlippers();
+                // Close plunger lane after ball exits into playfield
+                if (ball && gameState.ballLaunched && !plungerGate && ball.position.x < CONFIG.width - 55) {
+                    createPlungerGate();
+                }
                 if (climbMode.active) {
                     updateClimbMode();
                 } else if (!boardExtended) {
