@@ -578,8 +578,7 @@
                 { x: W - 50, y: wallBottomY }
             ], 14, wallOpts));
 
-            // Funnel guides narrow toward a central opening (~120px wide)
-            // Extends past floor boundary to overlap with the floor below's walls
+            // Funnel guides narrow toward a central opening
             walls.push(...createCurvedWall([
                 { x: 20, y: wallBottomY },
                 { x: 50, y: wallBottomY + 25 },
@@ -590,6 +589,26 @@
                 { x: W - 80, y: wallBottomY + 25 },
                 { x: W - 130, y: wallBottomY + 55 }
             ], 10, wallOpts));
+
+            // Breakable floor panels across the opening - hit them to open passage
+            const panelY = wallBottomY + 45;
+            const panelCount = 4;
+            const openLeft = 105;
+            const openRight = W - 135;
+            const openWidth = openRight - openLeft;
+            const panelW = (openWidth / panelCount) - 3;
+            for (let i = 0; i < panelCount; i++) {
+                const px = openLeft + (openWidth / panelCount) * (i + 0.5);
+                const panel = Bodies.rectangle(px, panelY, panelW, 10, {
+                    isStatic: true, label: 'floor-panel',
+                    restitution: 0.5,
+                    render: { fillStyle: '#4a90d9' },
+                    collisionFilter: { category: CATEGORY.BUMPER },
+                    plugin: { floor, hit: false, score: 150 }
+                });
+                Composite.add(world, panel);
+                climbMode.dropTargets.push(panel);
+            }
 
             // Checkpoint paddles on this floor
             const flipperY = baseY + H - 100;
@@ -774,8 +793,9 @@
 
         function createBallSaveGate() {
             removeBallSaveGate();
-            const W = CONFIG.width, H = CONFIG.height;
-            const gate = Bodies.rectangle(W / 2 - 15, H - 30, 120, 8, {
+            const H = CONFIG.height;
+            // Spans full drain gap: from left guide (x~75) to right guide (x~305), below flippers
+            const gate = Bodies.rectangle(190, H - 10, 240, 8, {
                 isStatic: true, label: 'ball-save-gate',
                 restitution: 1.0,
                 render: { fillStyle: '#00ff88' },
@@ -1164,6 +1184,17 @@
                     }
                 }
 
+                // Floor panels - breakable ceiling panels at floor transitions
+                const fp = bodyA.label === 'floor-panel' ? bodyA : bodyB.label === 'floor-panel' ? bodyB : null;
+                if (fp && fp.plugin && !fp.plugin.hit && (bodyA.label === 'ball' || bodyB.label === 'ball')) {
+                    fp.plugin.hit = true;
+                    gameState.score += fp.plugin.score;
+                    updateScoreDisplay();
+                    createScorePopup(fp.position.x, fp.position.y, fp.plugin.score);
+                    createParticles(fp.position.x, fp.position.y, '#4a90d9');
+                    Composite.remove(world, fp);
+                }
+
                 // Spinner
                 const sp = bodyA.label === 'spinner' ? bodyA : bodyB.label === 'spinner' ? bodyB : null;
                 if (sp && sp.plugin && (bodyA.label === 'ball' || bodyB.label === 'ball')) {
@@ -1540,6 +1571,12 @@
                     if (!body.plugin.hit) {
                         ctx.shadowColor = '#ff6688'; ctx.shadowBlur = 5; ctx.fill(); ctx.shadowBlur = 0;
                     }
+                }
+
+                // Floor panel rendering
+                if (body.label === 'floor-panel' && body.plugin && !body.plugin.hit) {
+                    ctx.shadowColor = '#4a90d9'; ctx.shadowBlur = 8; ctx.fill(); ctx.shadowBlur = 0;
+                    ctx.strokeStyle = '#6ab0ff'; ctx.lineWidth = 1; ctx.stroke();
                 }
 
                 // Spinner rendering
