@@ -286,6 +286,8 @@
             ballSaveActive: false,
             ballSaveTimer: 0,
             ballSaveUsed: false,
+            ballSaveGate: null,
+            boostPads: [],
             spinners: [],
             iceBlocks: [],
             fireHazards: [],
@@ -770,6 +772,41 @@
             climbMode.kickbackRightActive = true;
         }
 
+        function createBallSaveGate() {
+            removeBallSaveGate();
+            const W = CONFIG.width, H = CONFIG.height;
+            const gate = Bodies.rectangle(W / 2 - 15, H - 30, 120, 8, {
+                isStatic: true, label: 'ball-save-gate',
+                restitution: 1.0,
+                render: { fillStyle: '#00ff88' },
+                collisionFilter: { category: CATEGORY.WALL }
+            });
+            Composite.add(world, gate);
+            climbMode.ballSaveGate = gate;
+        }
+
+        function removeBallSaveGate() {
+            if (climbMode.ballSaveGate) {
+                Composite.remove(world, climbMode.ballSaveGate);
+                climbMode.ballSaveGate = null;
+            }
+        }
+
+        function createBoostPad(floor) {
+            const W = CONFIG.width, H = CONFIG.height;
+            const baseY = floorY(floor);
+            const padY = baseY + 180;
+            const pad = Bodies.rectangle(W / 2 - 15, padY, 80, 10, {
+                isStatic: true, label: 'boost-pad',
+                restitution: 3.0,
+                render: { fillStyle: '#00ff88' },
+                collisionFilter: { category: CATEGORY.BUMPER },
+                plugin: { floor, score: 0, isFlashing: false }
+            });
+            Composite.add(world, pad);
+            climbMode.boostPads.push(pad);
+        }
+
         function createCustomFlipper(x, y, side) {
             const isLeft = side === 'left';
             const level = LEVELS[currentLevel];
@@ -946,6 +983,7 @@
                 climbMode.ballSaveActive = true;
                 climbMode.ballSaveTimer = Date.now();
                 climbMode.ballSaveUsed = false;
+                createBallSaveGate();
                 updateClimbHUD();
             }
             document.getElementById('launch-indicator').style.display = 'block';
@@ -1121,6 +1159,8 @@
                         gameState.score += 1000;
                         updateScoreDisplay();
                         createScorePopup(dt.position.x, dt.position.y - 30, 1000);
+                        // All targets cleared - create boost pad to help reach next floor
+                        createBoostPad(dt.plugin.floor);
                     }
                 }
 
@@ -1226,20 +1266,7 @@
 
                 // Drain
                 if ((bodyA.label === 'drain' || bodyB.label === 'drain') && (bodyA.label === 'ball' || bodyB.label === 'ball')) {
-                    // Ball save check for climb mode
-                    if (climbMode.active && climbMode.ballSaveActive && !climbMode.ballSaveUsed &&
-                        (Date.now() - climbMode.ballSaveTimer < 10000)) {
-                        // Ball save! Return ball to play
-                        climbMode.ballSaveUsed = true;
-                        climbMode.ballSaveActive = false;
-                        document.getElementById('ball-save-indicator').style.display = 'block';
-                        setTimeout(() => document.getElementById('ball-save-indicator').style.display = 'none', 2000);
-                        if (ball) {
-                            Body.setPosition(ball, { x: 150, y: CONFIG.height - 80 });
-                            Body.setVelocity(ball, { x: 2, y: -10 });
-                        }
-                        return;
-                    }
+                    if (climbMode.active) removeBallSaveGate();
                     gameState.ballInPlay = false; gameState.ballsRemaining--;
                     updateBallsDisplay();
                     if (gameState.ballsRemaining <= 0) endGame(); else setTimeout(createBall, 800);
@@ -1304,6 +1331,25 @@
                 gameState.score += 500 * actualFloor;
                 updateScoreDisplay();
                 createScorePopup(ball.position.x, ball.position.y, 500 * actualFloor);
+                // New floor reached - renew ball save
+                climbMode.ballSaveActive = true;
+                climbMode.ballSaveTimer = Date.now();
+                climbMode.ballSaveUsed = false;
+                createBallSaveGate();
+            }
+
+            // Remove ball save gate when timer expires
+            if (climbMode.ballSaveActive && !climbMode.ballSaveUsed &&
+                climbMode.ballSaveTimer > 0 && (Date.now() - climbMode.ballSaveTimer >= 10000)) {
+                climbMode.ballSaveActive = false;
+                removeBallSaveGate();
+            }
+            // Fade gate color as time runs out
+            if (climbMode.ballSaveGate && climbMode.ballSaveTimer > 0) {
+                const remaining = Math.max(0, 10000 - (Date.now() - climbMode.ballSaveTimer));
+                const alpha = remaining / 10000;
+                const g = Math.floor(255 * alpha);
+                climbMode.ballSaveGate.render.fillStyle = `rgb(0,${g},${Math.floor(136 * alpha)})`;
             }
 
             updateClimbHUD();
@@ -1501,6 +1547,20 @@
                     ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 5; ctx.fill(); ctx.shadowBlur = 0;
                 }
 
+                // Ball save gate glow
+                if (body.label === 'ball-save-gate') {
+                    ctx.shadowColor = '#00ff88'; ctx.shadowBlur = 12; ctx.fill(); ctx.shadowBlur = 0;
+                    ctx.fillStyle = '#fff'; ctx.font = 'bold 8px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillText('SAVE', body.position.x, body.position.y);
+                }
+
+                // Boost pad glow
+                if (body.label === 'boost-pad') {
+                    ctx.shadowColor = '#00ff88'; ctx.shadowBlur = 15; ctx.fill(); ctx.shadowBlur = 0;
+                    ctx.fillStyle = '#fff'; ctx.font = 'bold 8px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillText('BOOST', body.position.x, body.position.y);
+                }
+
                 // Power-up rendering
                 if (body.label === 'power-up' && body.plugin && !body.plugin.collected) {
                     const puColor = ELEMENT_COLORS[body.plugin.type].ball[1];
@@ -1619,10 +1679,12 @@
             if (currentLevel === 6) {
                 // Climb mode
                 climbMode.active = true;
-                climbMode.totalFloors = 5; // Start with 5, gets harder
+                climbMode.totalFloors = 5;
                 climbMode.highestFloor = 0;
                 climbMode.currentBallFloor = 0;
                 climbMode.elementalBall = 'normal';
+                climbMode.ballSaveGate = null;
+                climbMode.boostPads = [];
                 boardExtended = false;
                 cameraY = 0;
                 document.getElementById('climb-hud').style.display = 'block';
