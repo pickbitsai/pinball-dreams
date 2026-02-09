@@ -794,10 +794,10 @@
         function createBallSaveGate() {
             removeBallSaveGate();
             const H = CONFIG.height;
-            // Spans full drain gap: from left guide (x~75) to right guide (x~305), below flippers
-            const gate = Bodies.rectangle(190, H - 10, 240, 8, {
+            // Spans full drain: from left wall (x=27) to past right guide (x=320), below flippers
+            const gate = Bodies.rectangle(173, H - 10, 295, 8, {
                 isStatic: true, label: 'ball-save-gate',
-                restitution: 1.0,
+                restitution: 2.0,
                 render: { fillStyle: '#00ff88' },
                 collisionFilter: { category: CATEGORY.WALL }
             });
