@@ -527,9 +527,9 @@
             walls.push(Bodies.rectangle(W - 42, H - 55, 8, 110, wallOpts));
             walls.push(Bodies.rectangle(W - 25, H - 10, 40, 10, wallOpts));
 
-            // Bottom guides for floor 0
-            walls.push(...createCurvedWall([{ x: 50, y: 580 }, { x: 70, y: 600 }, { x: 85, y: 625 }], 12, wallOpts));
-            walls.push(...createCurvedWall([{ x: W - 75, y: 580 }, { x: W - 90, y: 600 }, { x: W - 105, y: 625 }], 12, wallOpts));
+            // Bottom guides for floor 0 - extend to flipper pivots to seal gaps
+            walls.push(...createCurvedWall([{ x: 50, y: 580 }, { x: 70, y: 600 }, { x: 95, y: 625 }, { x: 122, y: 638 }], 12, wallOpts));
+            walls.push(...createCurvedWall([{ x: W - 75, y: 580 }, { x: W - 90, y: 600 }, { x: W - 115, y: 625 }, { x: W - 148, y: 638 }], 12, wallOpts));
 
             // Floor 0 bumpers
             createBumper(150, 200, 24);
@@ -640,12 +640,12 @@
             const rf = createClimbFlipper(W - 150, flipperY, 'right', floor);
             climbMode.checkpointFlippers.push({ floor, left: lf, right: rf });
 
-            // Flipper guides for lower pair
+            // Flipper guides for lower pair - extend to flipper pivots
             walls.push(...createCurvedWall([
-                { x: 50, y: flipperY - 40 }, { x: 70, y: flipperY - 20 }, { x: 85, y: flipperY + 5 }
+                { x: 50, y: flipperY - 40 }, { x: 70, y: flipperY - 20 }, { x: 95, y: flipperY + 5 }, { x: 122, y: flipperY + 18 }
             ], 10, wallOpts));
             walls.push(...createCurvedWall([
-                { x: W - 75, y: flipperY - 40 }, { x: W - 90, y: flipperY - 20 }, { x: W - 105, y: flipperY + 5 }
+                { x: W - 75, y: flipperY - 40 }, { x: W - 90, y: flipperY - 20 }, { x: W - 115, y: flipperY + 5 }, { x: W - 148, y: flipperY + 18 }
             ], 10, wallOpts));
 
             // Upper paddles on this floor - mounted against side walls
@@ -800,8 +800,8 @@
 
         function createKickbacks(walls, wallOpts) {
             const W = CONFIG.width, H = CONFIG.height;
-            // Left kickback - small wall in outlane that bounces ball back
-            const kbL = Bodies.rectangle(35, H - 250, 8, 40, {
+            // Left kickback - above the upper paddles
+            const kbL = Bodies.rectangle(35, H - 380, 8, 40, {
                 ...wallOpts, label: 'kickback-left',
                 restitution: 2.0,
                 render: { fillStyle: '#00ff88' }
@@ -810,8 +810,8 @@
             climbMode.kickbackLeft = kbL;
             climbMode.kickbackLeftActive = true;
 
-            // Right kickback
-            const kbR = Bodies.rectangle(W - 65, H - 250, 8, 40, {
+            // Right kickback - above the upper paddles
+            const kbR = Bodies.rectangle(W - 65, H - 380, 8, 40, {
                 ...wallOpts, label: 'kickback-right',
                 restitution: 2.0,
                 render: { fillStyle: '#00ff88' }
@@ -1195,6 +1195,17 @@
                     bumper.plugin.isFlashing = true;
                     setTimeout(() => bumper.plugin.isFlashing = false, 80);
                     createParticles(bumper.position.x, bumper.position.y, LEVELS[currentLevel].theme.bumper);
+                    // Apply strong force push away from bumper center
+                    if (ball) {
+                        const dx = ball.position.x - bumper.position.x;
+                        const dy = ball.position.y - bumper.position.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                        const force = 0.012;
+                        Body.setVelocity(ball, {
+                            x: (dx / dist) * 15,
+                            y: (dy / dist) * 15
+                        });
+                    }
                 }
                 if (bodyA.label === 'slingshot' || bodyB.label === 'slingshot') {
                     gameState.score += 50; updateScoreDisplay();
