@@ -540,18 +540,11 @@
             walls.push(Bodies.polygon(75, H - 180, 3, 30, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: LEVELS[6].theme.accent } }));
             walls.push(Bodies.polygon(W - 95, H - 180, 3, 30, { ...wallOpts, angle: 0, restitution: 1.3, label: 'slingshot', render: { fillStyle: LEVELS[6].theme.accent } }));
 
-            // Second row of paddles on floor 0 (above slingshots)
+            // Second row of paddles on floor 0 - mounted against side walls
             const upperFlipperY = H - 280;
-            const ulf0 = createClimbFlipper(150, upperFlipperY, 'left', 0);
-            const urf0 = createClimbFlipper(W - 150, upperFlipperY, 'right', 0);
+            const ulf0 = createClimbFlipper(60, upperFlipperY, 'left', 0);
+            const urf0 = createClimbFlipper(W - 85, upperFlipperY, 'right', 0);
             climbMode.checkpointFlippers.push({ floor: 0, left: ulf0, right: urf0 });
-            // Guides for upper flippers
-            walls.push(...createCurvedWall([
-                { x: 50, y: upperFlipperY - 40 }, { x: 70, y: upperFlipperY - 20 }, { x: 85, y: upperFlipperY + 5 }
-            ], 10, wallOpts));
-            walls.push(...createCurvedWall([
-                { x: W - 75, y: upperFlipperY - 40 }, { x: W - 90, y: upperFlipperY - 20 }, { x: W - 105, y: upperFlipperY + 5 }
-            ], 10, wallOpts));
 
             // Kickbacks on floor 0 outlanes
             createKickbacks(walls, wallOpts);
@@ -655,19 +648,11 @@
                 { x: W - 75, y: flipperY - 40 }, { x: W - 90, y: flipperY - 20 }, { x: W - 105, y: flipperY + 5 }
             ], 10, wallOpts));
 
-            // Upper paddles on this floor (second row, higher up)
+            // Upper paddles on this floor - mounted against side walls
             const upperFlipY = baseY + H - 350;
-            const ulf = createClimbFlipper(150, upperFlipY, 'left', floor);
-            const urf = createClimbFlipper(W - 150, upperFlipY, 'right', floor);
+            const ulf = createClimbFlipper(60, upperFlipY, 'left', floor);
+            const urf = createClimbFlipper(W - 85, upperFlipY, 'right', floor);
             climbMode.checkpointFlippers.push({ floor, left: ulf, right: urf });
-
-            // Flipper guides for upper pair
-            walls.push(...createCurvedWall([
-                { x: 50, y: upperFlipY - 40 }, { x: 70, y: upperFlipY - 20 }, { x: 85, y: upperFlipY + 5 }
-            ], 10, wallOpts));
-            walls.push(...createCurvedWall([
-                { x: W - 75, y: upperFlipY - 40 }, { x: W - 90, y: upperFlipY - 20 }, { x: W - 105, y: upperFlipY + 5 }
-            ], 10, wallOpts));
 
             // Floor content based on difficulty
             const contentY = baseY + 100;
@@ -1015,7 +1000,7 @@
         function createBumper(x, y, radius) {
             const level = LEVELS[currentLevel];
             const bumper = Bodies.circle(x, y, radius, {
-                isStatic: true, label: 'bumper', restitution: 1.5,
+                isStatic: true, label: 'bumper', restitution: 3.0,
                 render: { fillStyle: level.theme.bumper },
                 collisionFilter: { category: CATEGORY.BUMPER },
                 plugin: { score: 100, isFlashing: false }
