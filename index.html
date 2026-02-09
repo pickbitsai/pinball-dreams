@@ -407,7 +407,7 @@
                 createBumper(160, 300, 22);
                 createBumper(240, 300, 22);
                 walls.push(Bodies.polygon(75, H - 180, 3, 30, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
-                walls.push(Bodies.polygon(W - 95, H - 180, 3, 30, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
+                walls.push(Bodies.polygon(W - 95, H - 180, 3, 30, { ...wallOpts, angle: 0, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
             }
             else if (currentLevel === 1) {
                 const cx = 170, cy = 280;
@@ -495,16 +495,16 @@
 
             // FLOOR 0 (base floor): standard pinball board with plunger
             // Y range: 0 to H (700)
-            // Left wall for floor 0 - open at top (y=50) so ball can pass upward
+            // Left wall for floor 0 - extends up to y=-40 to connect with floor 1 transition
             const leftWall0 = [
-                { x: 20, y: 50 }, { x: 20, y: 540 },
+                { x: 20, y: -40 }, { x: 20, y: 540 },
                 { x: 28, y: 560 }, { x: 50, y: 580 }
             ];
             walls.push(...createCurvedWall(leftWall0, 14, wallOpts));
 
-            // Right wall for floor 0 - open at y=100 for plunger exit
+            // Right wall for floor 0 - extends up to y=-40, with plunger exit gap at y=20-100
             const rightWall0 = [
-                { x: W - 50, y: 100 }, { x: W - 50, y: 545 },
+                { x: W - 50, y: -40 }, { x: W - 50, y: 545 },
                 { x: W - 60, y: 565 }, { x: W - 75, y: 580 }
             ];
             walls.push(...createCurvedWall(rightWall0, 14, wallOpts));
@@ -530,7 +530,7 @@
 
             // Slingshots on floor 0
             walls.push(Bodies.polygon(75, H - 180, 3, 30, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: LEVELS[6].theme.accent } }));
-            walls.push(Bodies.polygon(W - 95, H - 180, 3, 30, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: LEVELS[6].theme.accent } }));
+            walls.push(Bodies.polygon(W - 95, H - 180, 3, 30, { ...wallOpts, angle: 0, restitution: 1.3, label: 'slingshot', render: { fillStyle: LEVELS[6].theme.accent } }));
 
             // Kickbacks on floor 0 outlanes
             createKickbacks(walls, wallOpts);
@@ -557,32 +557,31 @@
             const bottomY = baseY + H; // bottom of this floor (= top of floor below)
             const difficulty = floor / (climbMode.totalFloors - 1); // 0 to 1
 
-            // Left wall for this floor - OPEN at bottom (no wall at bottomY) to allow ball passage
-            // Wall runs from top of floor down to ~100px above bottom, leaving gap
+            // Side walls run nearly full floor height, leaving a narrow funnel at bottom
             const wallTopY = baseY + 50;
-            const wallBottomY = bottomY - 80; // leave 80px gap at bottom for ball to pass through
+            const wallBottomY = bottomY - 40; // walls extend close to floor boundary
             walls.push(...createCurvedWall([
                 { x: 20, y: wallTopY },
                 { x: 20, y: wallBottomY }
             ], 14, wallOpts));
 
-            // Right wall - same open gap at bottom
+            // Right wall
             walls.push(...createCurvedWall([
                 { x: W - 50, y: wallTopY },
                 { x: W - 50, y: wallBottomY }
             ], 14, wallOpts));
 
-            // Funnel guides at the BOTTOM of this floor to guide ball toward the opening
-            // These guide the ball falling from this floor down to the floor below
+            // Funnel guides narrow toward a central opening (~120px wide)
+            // Extends past floor boundary to overlap with the floor below's walls
             walls.push(...createCurvedWall([
                 { x: 20, y: wallBottomY },
-                { x: 40, y: wallBottomY + 30 },
-                { x: 70, y: wallBottomY + 50 }
+                { x: 50, y: wallBottomY + 25 },
+                { x: 100, y: wallBottomY + 55 }
             ], 10, wallOpts));
             walls.push(...createCurvedWall([
                 { x: W - 50, y: wallBottomY },
-                { x: W - 70, y: wallBottomY + 30 },
-                { x: W - 100, y: wallBottomY + 50 }
+                { x: W - 80, y: wallBottomY + 25 },
+                { x: W - 130, y: wallBottomY + 55 }
             ], 10, wallOpts));
 
             // Checkpoint paddles on this floor
