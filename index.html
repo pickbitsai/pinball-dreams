@@ -293,8 +293,7 @@
             fireHazards: [],
             waterPools: [],
             powerUps: [],
-            destructWalls: [],
-            floorObstacles: []
+            destructWalls: []
         };
 
         let currentLevel = 0;
@@ -313,7 +312,7 @@
         const CATEGORY = { WALL: 0x0001, BALL: 0x0002, FLIPPER: 0x0004, BUMPER: 0x0008, SENSOR: 0x0020 };
 
         let ball = null, leftFlipper = null, rightFlipper = null;
-        let bumpers = [], obstacles = [], particles = [];
+        let bumpers = [], particles = [];
         let plunger = { power: 0, charging: false };
         let plungerGate = null;
         let ballLaunchTime = 0;
@@ -1200,7 +1199,6 @@
                         const dx = ball.position.x - bumper.position.x;
                         const dy = ball.position.y - bumper.position.y;
                         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-                        const force = 0.012;
                         Body.setVelocity(ball, {
                             x: (dx / dist) * 15,
                             y: (dy / dist) * 15
@@ -1520,8 +1518,6 @@
                 // Draw backgrounds for all floors
                 for (let f = climbMode.totalFloors - 1; f >= 0; f--) {
                     const fy = floorY(f);
-                    // Alternate slightly different bg colors per floor
-                    const brightness = f % 2 === 0 ? '' : '10';
                     ctx.fillStyle = level.theme.bg;
                     ctx.fillRect(0, fy, W, H);
                     // Floor divider line
@@ -1800,7 +1796,7 @@
                 if (currentLevel !== 5) { boardExtended = false; cameraY = 0; }
             }
 
-            Composite.clear(world, false); bumpers = []; obstacles = []; particles = [];
+            Composite.clear(world, false); bumpers = []; particles = [];
             createLevel();
             leftFlipper = createFlipper('left'); rightFlipper = createFlipper('right');
             createDrainSensor(); createBall();
