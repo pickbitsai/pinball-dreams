@@ -504,10 +504,11 @@
             ];
             walls.push(...createCurvedWall(leftWall0, 14, wallOpts));
 
-            // Right wall for floor 0 - split to preserve plunger exit gap (y=20 to y=100)
+            // Right wall for floor 0 - split to preserve plunger exit gap
             // Upper segment: closes gap between floors above the plunger entrance
+            // Ends at y=0 (not y=15) to avoid overlapping the plunger entrance curve
             walls.push(...createCurvedWall([
-                { x: W - 50, y: -40 }, { x: W - 50, y: 15 }
+                { x: W - 50, y: -40 }, { x: W - 50, y: 0 }
             ], 14, wallOpts));
             // Lower segment: main right wall from below plunger exit down to flipper guide
             const rightWall0 = [
