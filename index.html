@@ -1023,8 +1023,11 @@
         function createPlungerGate() {
             removePlungerGate();
             const W = CONFIG.width;
-            // Seal the gap between y=15 and y=100 at x=W-50
-            plungerGate = Bodies.rectangle(W - 50, 57, 14, 90, {
+            // Seal the gap BELOW the entrance curve (which ends ~y=28) down to
+            // the right wall (which starts ~y=93). Positioned so the gate does
+            // NOT overlap the entrance curve, preventing the ball from getting
+            // trapped between gate and curve.
+            plungerGate = Bodies.rectangle(W - 50, 70, 14, 50, {
                 isStatic: true, label: 'plunger-gate',
                 render: { fillStyle: '#4a4a6a' },
                 collisionFilter: { category: CATEGORY.WALL }
@@ -1191,14 +1194,14 @@
                     bumper.plugin.isFlashing = true;
                     setTimeout(() => bumper.plugin.isFlashing = false, 80);
                     createParticles(bumper.position.x, bumper.position.y, LEVELS[currentLevel].theme.bumper);
-                    // Apply strong force push away from bumper center
+                    // Apply force push away from bumper center
                     if (ball) {
                         const dx = ball.position.x - bumper.position.x;
                         const dy = ball.position.y - bumper.position.y;
                         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
                         Body.setVelocity(ball, {
-                            x: (dx / dist) * 15,
-                            y: (dy / dist) * 15
+                            x: (dx / dist) * 8,
+                            y: (dy / dist) * 8
                         });
                     }
                 }
@@ -1752,9 +1755,14 @@
         function gameLoop() {
             if (gameState.isPlaying) {
                 updateFlippers();
-                // Close plunger lane after ball exits well into playfield
-                if (ball && gameState.ballLaunched && !plungerGate && ball.position.x < CONFIG.width - 120 && ball.position.y > 80) {
+                // Close plunger lane as soon as ball exits into playfield
+                if (ball && gameState.ballLaunched && !plungerGate && ball.position.x < CONFIG.width - 55) {
                     createPlungerGate();
+                }
+                // Safety net: prevent ball from re-entering plunger lane after launch
+                if (ball && gameState.ballLaunched && plungerGate && ball.position.x > CONFIG.width - 55) {
+                    Body.setPosition(ball, { x: CONFIG.width - 55, y: ball.position.y });
+                    if (ball.velocity.x > 0) Body.setVelocity(ball, { x: -ball.velocity.x, y: ball.velocity.y });
                 }
                 if (climbMode.active) {
                     updateClimbMode();
