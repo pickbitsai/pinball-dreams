@@ -1023,11 +1023,10 @@
         function createPlungerGate() {
             removePlungerGate();
             const W = CONFIG.width;
-            // Seal the gap BELOW the entrance curve (which ends ~y=28) down to
-            // the right wall (which starts ~y=93). Positioned so the gate does
-            // NOT overlap the entrance curve, preventing the ball from getting
-            // trapped between gate and curve.
-            plungerGate = Bodies.rectangle(W - 50, 70, 14, 50, {
+            // Fully seal the right side at x=W-50 from y=0 to y=100.
+            // This overlaps the entrance curve - that's fine, both are static.
+            // The ball can't pass through at ANY y position.
+            plungerGate = Bodies.rectangle(W - 50, 50, 14, 100, {
                 isStatic: true, label: 'plunger-gate',
                 render: { fillStyle: '#4a4a6a' },
                 collisionFilter: { category: CATEGORY.WALL }
@@ -1758,11 +1757,6 @@
                 // Close plunger lane as soon as ball exits into playfield
                 if (ball && gameState.ballLaunched && !plungerGate && ball.position.x < CONFIG.width - 55) {
                     createPlungerGate();
-                }
-                // Safety net: prevent ball from re-entering plunger lane after launch
-                if (ball && gameState.ballLaunched && plungerGate && ball.position.x > CONFIG.width - 55) {
-                    Body.setPosition(ball, { x: CONFIG.width - 55, y: ball.position.y });
-                    if (ball.velocity.x > 0) Body.setVelocity(ball, { x: -ball.velocity.x, y: ball.velocity.y });
                 }
                 if (climbMode.active) {
                     updateClimbMode();
