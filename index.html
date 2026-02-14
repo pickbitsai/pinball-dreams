@@ -504,12 +504,9 @@
             ];
             walls.push(...createCurvedWall(leftWall0, 14, wallOpts));
 
-            // Right wall for floor 0 - upper segment connects to entrance curve,
-            // lower segment extends down to flipper guide
-            const rightWall0Upper = [
-                { x: W - 50, y: -40 }, { x: W - 50, y: 15 }
-            ];
-            walls.push(...createCurvedWall(rightWall0Upper, 14, wallOpts));
+            // Right wall for floor 0 - starts at y=100 (same as classic board)
+            // so ball can exit plunger lane through gap between top wall and right wall.
+            // Plunger gate seals this gap after ball exits.
             const rightWall0 = [
                 { x: W - 50, y: 100 }, { x: W - 50, y: 545 },
                 { x: W - 60, y: 565 }, { x: W - 75, y: 580 }
