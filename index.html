@@ -513,9 +513,15 @@
                 { x: W - 50, y: 20 }, { x: W - 20, y: 45 }, { x: W - 8, y: 70 }
             ], 16, wallOpts));
 
-            // Top wall - split for upward climb passage (gap x=130 to x=230)
-            walls.push(Bodies.rectangle(75, 30, 110, 14, wallOpts));
-            walls.push(Bodies.rectangle(290, 30, 120, 14, wallOpts));
+            // Top wall - ONE solid piece (split wall breaks plunger physics)
+            walls.push(Bodies.rectangle((20 + W - 50) / 2, 30, W - 70, 14, wallOpts));
+
+            // Climb exit sensor - ball hitting top wall hard enough gets sent to floor 1
+            Composite.add(world, Bodies.rectangle(W / 2 - 15, 45, 200, 20, {
+                isStatic: true, isSensor: true, label: 'climb-exit',
+                render: { fillStyle: 'rgba(0, 255, 136, 0.15)' },
+                collisionFilter: { category: CATEGORY.SENSOR }
+            }));
 
             // Plunger lane - EXACTLY classic
             walls.push(Bodies.rectangle(W - 8, H / 2 + 50, 10, H - 80, wallOpts));
@@ -1220,11 +1226,22 @@
                     enterUpperLevel(ramp.position.x);
                 }
 
-                // Top exit
+                // Top exit (non-climb modes)
                 if ((bodyA.label === 'top-exit' || bodyB.label === 'top-exit') &&
                     (bodyA.label === 'ball' || bodyB.label === 'ball') &&
                     !isInUpperLevel && !boardExtended && !climbMode.active && ball && ball.velocity.y < -1) {
                     triggerTopTransition();
+                }
+
+                // Climb exit - ball near top wall going up gets sent to floor 1
+                if ((bodyA.label === 'climb-exit' || bodyB.label === 'climb-exit') &&
+                    (bodyA.label === 'ball' || bodyB.label === 'ball') &&
+                    climbMode.active && ball && ball.velocity.y < -3) {
+                    Body.setPosition(ball, { x: CONFIG.width / 2, y: -350 });
+                    Body.setVelocity(ball, { x: (Math.random() - 0.5) * 4, y: 3 });
+                    gameState.score += 200;
+                    updateScoreDisplay();
+                    createScorePopup(CONFIG.width / 2, -350, 200);
                 }
 
                 // Drop targets
