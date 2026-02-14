@@ -495,92 +495,52 @@
             cm.powerUps = [];
             cm.destructWalls = [];
 
-            // FLOOR 0: Classic board base with climb modifications
-            // Left wall - extended up to y=-40 for floor 1 connection
+            // EXACT classic board (level 0) layout - proven to work
+            // Left wall
             walls.push(...createCurvedWall([
-                { x: 20, y: -40 }, { x: 20, y: 540 },
+                { x: 20, y: 50 }, { x: 20, y: 540 },
                 { x: 28, y: 560 }, { x: 50, y: 580 }
             ], 14, wallOpts));
 
-            // Right wall - EXACTLY classic (do NOT touch plunger area)
+            // Right wall
             walls.push(...createCurvedWall([
                 { x: W - 50, y: 100 }, { x: W - 50, y: 545 },
                 { x: W - 60, y: 565 }, { x: W - 75, y: 580 }
             ], 14, wallOpts));
 
-            // Plunger entrance curve - EXACTLY classic
+            // Plunger entrance curve
             walls.push(...createCurvedWall([
                 { x: W - 50, y: 20 }, { x: W - 20, y: 45 }, { x: W - 8, y: 70 }
             ], 16, wallOpts));
 
-            // Top wall - ONE solid piece (split wall breaks plunger physics)
+            // Top wall - ONE solid piece, exactly like classic
             walls.push(Bodies.rectangle((20 + W - 50) / 2, 30, W - 70, 14, wallOpts));
 
-            // Climb exit sensor - ball hitting top wall hard enough gets sent to floor 1
-            Composite.add(world, Bodies.rectangle(W / 2 - 15, 45, 200, 20, {
-                isStatic: true, isSensor: true, label: 'climb-exit',
-                render: { fillStyle: 'rgba(0, 255, 136, 0.15)' },
-                collisionFilter: { category: CATEGORY.SENSOR }
-            }));
-
-            // Plunger lane - EXACTLY classic
+            // Plunger lane
             walls.push(Bodies.rectangle(W - 8, H / 2 + 50, 10, H - 80, wallOpts));
             walls.push(Bodies.rectangle(W - 42, H - 55, 8, 110, wallOpts));
             walls.push(Bodies.rectangle(W - 25, H - 10, 40, 10, wallOpts));
 
-            // Bottom guides - EXACTLY classic
+            // Bottom guides
             walls.push(...createCurvedWall([{ x: 50, y: 580 }, { x: 70, y: 600 }, { x: 85, y: 625 }], 12, wallOpts));
             walls.push(...createCurvedWall([{ x: W - 75, y: 580 }, { x: W - 90, y: 600 }, { x: W - 105, y: 625 }], 12, wallOpts));
 
-            // Floor 0 bumpers
-            createBumper(150, 200, 24);
-            createBumper(250, 200, 24);
-            createBumper(200, 300, 26);
+            // Bumpers - same as level 0
+            createBumper(120, 180, 24);
+            createBumper(200, 130, 28);
+            createBumper(280, 180, 24);
+            createBumper(160, 300, 22);
+            createBumper(240, 300, 22);
 
-            // Slingshots
+            // Slingshots - same as level 0
             const level = LEVELS[6];
             walls.push(Bodies.polygon(90, H - 180, 3, 30, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
             walls.push(Bodies.polygon(W - 110, H - 180, 3, 30, { ...wallOpts, angle: 0, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
-
-            // Upper flippers on floor 0 (right one kept clear of right wall)
-            const upperFlipperY = H - 280;
-            const ulf0 = createClimbFlipper(60, upperFlipperY, 'left', 0);
-            const urf0 = createClimbFlipper(W - 110, upperFlipperY, 'right', 0);
-            cm.checkpointFlippers.push({ floor: 0, left: ulf0, right: urf0 });
-
-            // Kickbacks on floor 0 outlanes
-            createKickbacks(walls, wallOpts);
 
             // Ball save state
             cm.ballSaveActive = true;
             cm.ballSaveTimer = 0;
             cm.ballSaveUsed = false;
-
-            // Upper floors (1 through totalFloors-1)
-            for (let floor = 1; floor < cm.totalFloors; floor++) {
-                createClimbFloor(floor, walls, wallOpts);
-            }
-
-            // Breakable ceiling at highest floor
-            const topY = floorY(cm.totalFloors - 1);
-            const ceilY = topY + 30;
-            const ceilLeft = 27;
-            const ceilRight = W - 57;
-            const ceilWidth = ceilRight - ceilLeft;
-            const ceilPanelCount = 6;
-            const ceilPanelW = (ceilWidth / ceilPanelCount) - 4;
-            for (let i = 0; i < ceilPanelCount; i++) {
-                const cx = ceilLeft + (ceilWidth / ceilPanelCount) * (i + 0.5);
-                const ceilPanel = Bodies.rectangle(cx, ceilY, ceilPanelW, 14, {
-                    isStatic: true, label: 'floor-panel',
-                    restitution: 0.5,
-                    render: { fillStyle: '#ffcc00' },
-                    collisionFilter: { category: CATEGORY.BUMPER },
-                    plugin: { floor: cm.totalFloors, hit: false, score: 500 }
-                });
-                Composite.add(world, ceilPanel);
-                cm.dropTargets.push(ceilPanel);
-            }
         }
 
         function createClimbFloor(floor, walls, wallOpts) {
@@ -650,10 +610,10 @@
                 { x: W - 75, y: flipperY - 40 }, { x: W - 90, y: flipperY - 20 }, { x: W - 110, y: flipperY }, { x: W - 125, y: flipperY + 13 }
             ], 10, wallOpts));
 
-            // Upper paddles on this floor (right one kept clear of right wall)
+            // Upper paddles on this floor - mounted against side walls
             const upperFlipY = baseY + H - 350;
             const ulf = createClimbFlipper(60, upperFlipY, 'left', floor);
-            const urf = createClimbFlipper(W - 110, upperFlipY, 'right', floor);
+            const urf = createClimbFlipper(W - 85, upperFlipY, 'right', floor);
             climbMode.checkpointFlippers.push({ floor, left: ulf, right: urf });
 
             // Floor content based on difficulty
@@ -1226,22 +1186,11 @@
                     enterUpperLevel(ramp.position.x);
                 }
 
-                // Top exit (non-climb modes)
+                // Top exit
                 if ((bodyA.label === 'top-exit' || bodyB.label === 'top-exit') &&
                     (bodyA.label === 'ball' || bodyB.label === 'ball') &&
                     !isInUpperLevel && !boardExtended && !climbMode.active && ball && ball.velocity.y < -1) {
                     triggerTopTransition();
-                }
-
-                // Climb exit - ball near top wall going up gets sent to floor 1
-                if ((bodyA.label === 'climb-exit' || bodyB.label === 'climb-exit') &&
-                    (bodyA.label === 'ball' || bodyB.label === 'ball') &&
-                    climbMode.active && ball && ball.velocity.y < -3) {
-                    Body.setPosition(ball, { x: CONFIG.width / 2, y: -350 });
-                    Body.setVelocity(ball, { x: (Math.random() - 0.5) * 4, y: 3 });
-                    gameState.score += 200;
-                    updateScoreDisplay();
-                    createScorePopup(CONFIG.width / 2, -350, 200);
                 }
 
                 // Drop targets
