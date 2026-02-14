@@ -1758,6 +1758,13 @@
                 }
                 Engine.update(engine, 1000 / 60);
                 updateParticles();
+                // Fallback drain check: if ball falls below board, force drain
+                if (ball && gameState.ballInPlay && ball.position.y > CONFIG.height + 50) {
+                    if (climbMode.active) removeBallSaveGate();
+                    gameState.ballInPlay = false; gameState.ballsRemaining--;
+                    updateBallsDisplay();
+                    if (gameState.ballsRemaining <= 0) endGame(); else setTimeout(createBall, 800);
+                }
             }
             updateCamera();
             render();
