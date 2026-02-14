@@ -513,8 +513,7 @@
                 { x: W - 50, y: 20 }, { x: W - 20, y: 45 }, { x: W - 8, y: 70 }
             ], 16, wallOpts));
 
-            // Top wall - ONE solid piece, exactly like classic
-            walls.push(Bodies.rectangle((20 + W - 50) / 2, 30, W - 70, 14, wallOpts));
+            // Top wall removed - replaced by breakable ceiling tiles below
 
             // Plunger lane
             walls.push(Bodies.rectangle(W - 8, H / 2 + 50, 10, H - 80, wallOpts));
@@ -542,11 +541,10 @@
             cm.ballSaveTimer = 0;
             cm.ballSaveUsed = false;
 
-            // Breakable ceiling at highest floor
-            const topY = floorY(cm.totalFloors - 1);
-            const ceilY = topY + 30;
-            const ceilLeft = 27;
-            const ceilRight = W - 57;
+            // Breakable ceiling tiles replace the solid top wall
+            const ceilY = 30;
+            const ceilLeft = 20;
+            const ceilRight = W - 50;
             const ceilWidth = ceilRight - ceilLeft;
             const ceilPanelCount = 6;
             const ceilPanelW = (ceilWidth / ceilPanelCount) - 4;
