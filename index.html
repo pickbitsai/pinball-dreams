@@ -528,9 +528,9 @@
             walls.push(Bodies.rectangle(75, 30, 110, 14, wallOpts));   // left: x=20 to x=130
             walls.push(Bodies.rectangle(290, 30, 120, 14, wallOpts));  // right: x=230 to x=350
 
-            // Bottom guides for floor 0 - extend to flipper pivots to seal gaps
-            walls.push(...createCurvedWall([{ x: 50, y: 580 }, { x: 70, y: 600 }, { x: 95, y: 625 }, { x: 122, y: 638 }], 12, wallOpts));
-            walls.push(...createCurvedWall([{ x: W - 75, y: 580 }, { x: W - 90, y: 600 }, { x: W - 110, y: 620 }, { x: W - 125, y: 633 }], 12, wallOpts));
+            // Bottom guides for floor 0 - same as classic board
+            walls.push(...createCurvedWall([{ x: 50, y: 580 }, { x: 70, y: 600 }, { x: 85, y: 625 }], 12, wallOpts));
+            walls.push(...createCurvedWall([{ x: W - 75, y: 580 }, { x: W - 90, y: 600 }, { x: W - 105, y: 625 }], 12, wallOpts));
 
             // Floor 0 bumpers
             createBumper(150, 200, 24);
@@ -1051,10 +1051,9 @@
             gameState.ballInPlay = true;
             if (climbMode.active) {
                 climbMode.elementalBall = 'normal';
-                climbMode.ballSaveActive = true;
-                climbMode.ballSaveTimer = Date.now();
+                climbMode.ballSaveActive = false;
+                climbMode.ballSaveTimer = 0;
                 climbMode.ballSaveUsed = false;
-                createBallSaveGate();
                 updateClimbHUD();
             }
             document.getElementById('launch-indicator').style.display = 'block';
@@ -1158,6 +1157,11 @@
             gameState.ballLaunched = true; plunger.power = 0;
             ballLaunchTime = Date.now();
             document.getElementById('launch-indicator').style.display = 'none';
+            if (climbMode.active) {
+                climbMode.ballSaveActive = true;
+                climbMode.ballSaveTimer = Date.now();
+                createBallSaveGate();
+            }
         }
 
         function updateFlippers() {
@@ -1358,7 +1362,7 @@
                 }
 
                 // Drain
-                if ((bodyA.label === 'drain' || bodyB.label === 'drain') && (bodyA.label === 'ball' || bodyB.label === 'ball')) {
+                if ((bodyA.label === 'drain' || bodyB.label === 'drain') && (bodyA.label === 'ball' || bodyB.label === 'ball') && gameState.ballInPlay) {
                     if (climbMode.active) removeBallSaveGate();
                     gameState.ballInPlay = false; gameState.ballsRemaining--;
                     updateBallsDisplay();
