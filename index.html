@@ -541,6 +541,27 @@
             cm.ballSaveActive = true;
             cm.ballSaveTimer = 0;
             cm.ballSaveUsed = false;
+
+            // Breakable ceiling at highest floor
+            const topY = floorY(cm.totalFloors - 1);
+            const ceilY = topY + 30;
+            const ceilLeft = 27;
+            const ceilRight = W - 57;
+            const ceilWidth = ceilRight - ceilLeft;
+            const ceilPanelCount = 6;
+            const ceilPanelW = (ceilWidth / ceilPanelCount) - 4;
+            for (let i = 0; i < ceilPanelCount; i++) {
+                const cx = ceilLeft + (ceilWidth / ceilPanelCount) * (i + 0.5);
+                const ceilPanel = Bodies.rectangle(cx, ceilY, ceilPanelW, 14, {
+                    isStatic: true, label: 'floor-panel',
+                    restitution: 0.5,
+                    render: { fillStyle: '#ffcc00' },
+                    collisionFilter: { category: CATEGORY.BUMPER },
+                    plugin: { floor: cm.totalFloors, hit: false, score: 500 }
+                });
+                Composite.add(world, ceilPanel);
+                cm.dropTargets.push(ceilPanel);
+            }
         }
 
         function createClimbFloor(floor, walls, wallOpts) {
