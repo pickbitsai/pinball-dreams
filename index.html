@@ -293,8 +293,7 @@
             fireHazards: [],
             waterPools: [],
             powerUps: [],
-            destructWalls: [],
-            floorObstacles: []
+            destructWalls: []
         };
 
         let currentLevel = 0;
@@ -313,7 +312,7 @@
         const CATEGORY = { WALL: 0x0001, BALL: 0x0002, FLIPPER: 0x0004, BUMPER: 0x0008, SENSOR: 0x0020 };
 
         let ball = null, leftFlipper = null, rightFlipper = null;
-        let bumpers = [], obstacles = [], particles = [];
+        let bumpers = [], particles = [];
         let plunger = { power: 0, charging: false };
         let plungerGate = null;
         let ballLaunchTime = 0;
@@ -505,12 +504,12 @@
             ];
             walls.push(...createCurvedWall(leftWall0, 14, wallOpts));
 
-            // Right wall for floor 0 - split to preserve plunger exit gap (y=20 to y=100)
-            // Upper segment: closes gap between floors above the plunger entrance
-            walls.push(...createCurvedWall([
+            // Right wall for floor 0 - upper segment connects to entrance curve,
+            // lower segment extends down to flipper guide
+            const rightWall0Upper = [
                 { x: W - 50, y: -40 }, { x: W - 50, y: 15 }
-            ], 14, wallOpts));
-            // Lower segment: main right wall from below plunger exit down to flipper guide
+            ];
+            walls.push(...createCurvedWall(rightWall0Upper, 14, wallOpts));
             const rightWall0 = [
                 { x: W - 50, y: 100 }, { x: W - 50, y: 545 },
                 { x: W - 60, y: 565 }, { x: W - 75, y: 580 }
@@ -526,6 +525,11 @@
             walls.push(Bodies.rectangle(W - 8, H / 2 + 50, 10, H - 80, wallOpts));
             walls.push(Bodies.rectangle(W - 42, H - 55, 8, 110, wallOpts));
             walls.push(Bodies.rectangle(W - 25, H - 10, 40, 10, wallOpts));
+
+            // Top walls with central gap - same as classic board to redirect ball
+            // after exiting entrance curve, with gap for upward climb progression
+            walls.push(Bodies.rectangle(75, 30, 110, 14, wallOpts));   // left: x=20 to x=130
+            walls.push(Bodies.rectangle(290, 30, 120, 14, wallOpts));  // right: x=230 to x=350
 
             // Bottom guides for floor 0 - extend to flipper pivots to seal gaps
             walls.push(...createCurvedWall([{ x: 50, y: 580 }, { x: 70, y: 600 }, { x: 95, y: 625 }, { x: 122, y: 638 }], 12, wallOpts));
@@ -1195,12 +1199,11 @@
                     bumper.plugin.isFlashing = true;
                     setTimeout(() => bumper.plugin.isFlashing = false, 80);
                     createParticles(bumper.position.x, bumper.position.y, LEVELS[currentLevel].theme.bumper);
-                    // Apply strong force push away from bumper center
+                    // Apply force push away from bumper center
                     if (ball) {
                         const dx = ball.position.x - bumper.position.x;
                         const dy = ball.position.y - bumper.position.y;
                         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-                        const force = 0.012;
                         Body.setVelocity(ball, {
                             x: (dx / dist) * 15,
                             y: (dy / dist) * 15
@@ -1520,8 +1523,6 @@
                 // Draw backgrounds for all floors
                 for (let f = climbMode.totalFloors - 1; f >= 0; f--) {
                     const fy = floorY(f);
-                    // Alternate slightly different bg colors per floor
-                    const brightness = f % 2 === 0 ? '' : '10';
                     ctx.fillStyle = level.theme.bg;
                     ctx.fillRect(0, fy, W, H);
                     // Floor divider line
@@ -1759,8 +1760,8 @@
         function gameLoop() {
             if (gameState.isPlaying) {
                 updateFlippers();
-                // Close plunger lane after ball exits well into playfield
-                if (ball && gameState.ballLaunched && !plungerGate && ball.position.x < CONFIG.width - 120 && ball.position.y > 80) {
+                // Close plunger lane as soon as ball exits into playfield
+                if (ball && gameState.ballLaunched && !plungerGate && ball.position.x < CONFIG.width - 55) {
                     createPlungerGate();
                 }
                 if (climbMode.active) {
@@ -1800,7 +1801,7 @@
                 if (currentLevel !== 5) { boardExtended = false; cameraY = 0; }
             }
 
-            Composite.clear(world, false); bumpers = []; obstacles = []; particles = [];
+            Composite.clear(world, false); bumpers = []; particles = [];
             createLevel();
             leftFlipper = createFlipper('left'); rightFlipper = createFlipper('right');
             createDrainSensor(); createBall();
