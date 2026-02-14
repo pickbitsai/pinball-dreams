@@ -1134,9 +1134,12 @@
             if (isMenuVisible()) return;
             if (isEditing && editorMode !== 'play') { draggedBumper = null; draggedFlipper = null; draggedRamp = null; if (editorMode === 'wall') finishEditorDrawing(); }
             for (const t of e.changedTouches) {
-                if (t.identifier === launchTouchId && plunger.charging) {
-                    plunger.power = Math.max(0.6, Math.min((touchStartY - t.clientY) / 80, 1));
-                    launchBall(); plunger.charging = false; launchTouchId = null;
+                if (t.identifier === launchTouchId) {
+                    if (plunger.charging) {
+                        plunger.power = Math.max(0.6, Math.min((touchStartY - t.clientY) / 80, 1));
+                        launchBall();
+                    }
+                    plunger.charging = false; launchTouchId = null;
                 }
                 activeTouches.delete(t.identifier);
             }
@@ -1153,7 +1156,10 @@
         function launchBall() {
             if (!ball || gameState.ballLaunched) return;
             const power = Math.max(plunger.power, 0.7);
-            Body.applyForce(ball, ball.position, { x: 0, y: -0.055 * power });
+            // Climb mode: add leftward force to push ball out of plunger lane
+            // since the entrance curve alone isn't reliably deflecting it
+            const xForce = climbMode.active ? -0.02 * power : 0;
+            Body.applyForce(ball, ball.position, { x: xForce, y: -0.055 * power });
             gameState.ballLaunched = true; plunger.power = 0;
             ballLaunchTime = Date.now();
             document.getElementById('launch-indicator').style.display = 'none';
@@ -1761,9 +1767,10 @@
         function gameLoop() {
             if (gameState.isPlaying) {
                 updateFlippers();
-                // Close plunger lane as soon as ball exits into playfield
-                if (ball && gameState.ballLaunched && !plungerGate && ball.position.x < CONFIG.width - 55) {
-                    createPlungerGate();
+                // Close plunger lane once ball is in playfield
+                if (ball && gameState.ballLaunched && !plungerGate) {
+                    const exitX = climbMode.active ? CONFIG.width - 150 : CONFIG.width - 55;
+                    if (ball.position.x < exitX) createPlungerGate();
                 }
                 if (climbMode.active) {
                     updateClimbMode();
