@@ -112,6 +112,7 @@
         #level-name-display {
             position: absolute; top: 74px; left: 50%; transform: translateX(-50%);
             color: #ffcc00; font-size: 10px; font-weight: bold; opacity: 0.8;
+            font-family: 'Press Start 2P', monospace;
         }
         #climb-hud {
             position: absolute; top: 72px; right: 10px; display: none; z-index: 100;
@@ -246,7 +247,7 @@
         }
         #credits-modal .credits-value { color: #00ccff; }
         #credits-modal .credits-copy {
-            color: #4a4a6a; font-size: 10px; margin-top: 20px;
+            color: #4a4a6a; margin-top: 20px;
             font-family: 'Press Start 2P', monospace; font-size: 7px;
         }
         #credits-close {
@@ -259,9 +260,6 @@
 
         /* Apply arcade font to key UI elements */
         #level-select h2, #game-over h2 {
-            font-family: 'Press Start 2P', monospace;
-        }
-        #level-name-display {
             font-family: 'Press Start 2P', monospace;
         }
     </style>
@@ -446,22 +444,12 @@
             elementalBall: 'normal',
             checkpointFlippers: [],
             dropTargets: [],
-            kickbackLeft: null,
-            kickbackRight: null,
-            kickbackLeftActive: false,
-            kickbackRightActive: false,
             ballSaveActive: false,
             ballSaveTimer: 0,
             ballSaveUsed: false,
             ballSaveGate: null,
             ballSaveFloor: 0,
             boostPads: [],
-            spinners: [],
-            iceBlocks: [],
-            fireHazards: [],
-            waterPools: [],
-            powerUps: [],
-            destructWalls: [],
             spawnedFloors: new Set(),
             boardNames: {} // floor -> board name for HUD
         };
@@ -658,12 +646,6 @@
             const cm = climbMode;
             cm.checkpointFlippers = [];
             cm.dropTargets = [];
-            cm.spinners = [];
-            cm.iceBlocks = [];
-            cm.fireHazards = [];
-            cm.waterPools = [];
-            cm.powerUps = [];
-            cm.destructWalls = [];
             cm.spawnedFloors = new Set([0]);
             cm.boardNames = { 0: LEVELS[CLIMB_BOARDS[0]].name };
 
@@ -894,200 +876,6 @@
             Composite.add(world, walls);
         }
 
-        function createClimbFloor(floor, walls, wallOpts) {
-            const W = CONFIG.width, H = CONFIG.height;
-            const level = LEVELS[6];
-            const baseY = floorY(floor); // top of this floor
-            const bottomY = baseY + H; // bottom of this floor (= top of floor below)
-            const difficulty = floor / (climbMode.totalFloors - 1); // 0 to 1
-
-            // Side walls run nearly full floor height, leaving a narrow funnel at bottom
-            const wallTopY = baseY + 50;
-            const wallBottomY = bottomY - 40; // walls extend close to floor boundary
-            walls.push(...createCurvedWall([
-                { x: 20, y: wallTopY },
-                { x: 20, y: wallBottomY }
-            ], 14, wallOpts));
-
-            // Right wall
-            walls.push(...createCurvedWall([
-                { x: W - 50, y: wallTopY },
-                { x: W - 50, y: wallBottomY }
-            ], 14, wallOpts));
-
-            // Funnel guides narrow toward a central opening
-            walls.push(...createCurvedWall([
-                { x: 20, y: wallBottomY },
-                { x: 50, y: wallBottomY + 25 },
-                { x: 100, y: wallBottomY + 55 }
-            ], 10, wallOpts));
-            walls.push(...createCurvedWall([
-                { x: W - 50, y: wallBottomY },
-                { x: W - 80, y: wallBottomY + 25 },
-                { x: W - 130, y: wallBottomY + 55 }
-            ], 10, wallOpts));
-
-            // Breakable floor panels across the opening - hit them to open passage
-            const panelY = wallBottomY + 45;
-            const panelCount = 4;
-            const openLeft = 105;
-            const openRight = W - 135;
-            const openWidth = openRight - openLeft;
-            const panelW = (openWidth / panelCount) - 3;
-            for (let i = 0; i < panelCount; i++) {
-                const px = openLeft + (openWidth / panelCount) * (i + 0.5);
-                const panel = Bodies.rectangle(px, panelY, panelW, 10, {
-                    isStatic: true, label: 'floor-panel',
-                    restitution: 0.5,
-                    render: { fillStyle: '#4a90d9' },
-                    collisionFilter: { category: CATEGORY.BUMPER },
-                    plugin: { floor, hit: false, score: 150 }
-                });
-                Composite.add(world, panel);
-                climbMode.dropTargets.push(panel);
-            }
-
-            // Checkpoint paddles on this floor (lower pair)
-            const flipperY = baseY + H - 100;
-            const lf = createClimbFlipper(150, flipperY, 'left', floor);
-            const rf = createClimbFlipper(W - 150, flipperY, 'right', floor);
-            climbMode.checkpointFlippers.push({ floor, left: lf, right: rf });
-
-            // Flipper guides for lower pair - extend to flipper pivots
-            walls.push(...createCurvedWall([
-                { x: 50, y: flipperY - 40 }, { x: 70, y: flipperY - 20 }, { x: 95, y: flipperY + 5 }, { x: 122, y: flipperY + 18 }
-            ], 10, wallOpts));
-            walls.push(...createCurvedWall([
-                { x: W - 75, y: flipperY - 40 }, { x: W - 90, y: flipperY - 20 }, { x: W - 110, y: flipperY }, { x: W - 125, y: flipperY + 13 }
-            ], 10, wallOpts));
-
-            // Upper paddles on this floor - mounted against side walls
-            const upperFlipY = baseY + H - 350;
-            const ulf = createClimbFlipper(60, upperFlipY, 'left', floor);
-            const urf = createClimbFlipper(W - 85, upperFlipY, 'right', floor);
-            climbMode.checkpointFlippers.push({ floor, left: ulf, right: urf });
-
-            // Floor content based on difficulty
-            const contentY = baseY + 100;
-            const midX = W / 2 - 15;
-
-            // Bumpers - more on higher floors
-            const numBumpers = 2 + Math.floor(difficulty * 4);
-            const seed = floor * 137;
-            for (let i = 0; i < numBumpers; i++) {
-                const bx = 80 + ((seed + i * 97) % (W - 180));
-                const by = contentY + 50 + ((seed + i * 53) % (H - 350));
-                const br = 18 + (i % 3) * 4;
-                createBumper(bx, by, br);
-            }
-
-            // Drop targets - appear from floor 2+
-            if (floor >= 2) {
-                const dtY = contentY + 80;
-                const dtCount = 3 + Math.floor(difficulty * 2);
-                const dtStartX = midX - (dtCount * 25) / 2;
-                for (let i = 0; i < dtCount; i++) {
-                    const dt = Bodies.rectangle(dtStartX + i * 25, dtY, 8, 25, {
-                        isStatic: true, label: 'drop-target',
-                        restitution: 0.5,
-                        render: { fillStyle: '#ff6688' },
-                        collisionFilter: { category: CATEGORY.BUMPER },
-                        plugin: { hit: false, floor, index: i, score: 200 }
-                    });
-                    Composite.add(world, dt);
-                    climbMode.dropTargets.push(dt);
-                }
-            }
-
-            // Spinners - appear from floor 1+
-            if (floor >= 1) {
-                const spX = 80 + ((seed + 33) % (W - 180));
-                const spY = contentY + 200;
-                const spinner = Bodies.rectangle(spX, spY, 40, 4, {
-                    isStatic: true, label: 'spinner',
-                    restitution: 0.8,
-                    render: { fillStyle: '#fbbf24' },
-                    collisionFilter: { category: CATEGORY.BUMPER },
-                    plugin: { angle: 0, floor, score: 25 }
-                });
-                Composite.add(world, spinner);
-                climbMode.spinners.push(spinner);
-            }
-
-            // Elemental obstacles - appear from floor 2+
-            if (floor >= 2) {
-                const obstacleTypes = [];
-                if (floor >= 2) obstacleTypes.push('ice');
-                if (floor >= 4) obstacleTypes.push('fire');
-                if (floor >= 6) obstacleTypes.push('water');
-
-                obstacleTypes.forEach((type, idx) => {
-                    const ox = 80 + ((seed + idx * 71 + 200) % (W - 180));
-                    const oy = contentY + 150 + idx * 80;
-                    if (type === 'ice') {
-                        const ice = Bodies.rectangle(ox, oy, 50, 50, {
-                            isStatic: true, label: 'ice-block',
-                            render: { fillStyle: '#88ccff' },
-                            collisionFilter: { category: CATEGORY.WALL },
-                            plugin: { floor, type: 'ice' }
-                        });
-                        Composite.add(world, ice);
-                        climbMode.iceBlocks.push(ice);
-                    } else if (type === 'fire') {
-                        const fire = Bodies.circle(ox, oy, 20, {
-                            isStatic: true, label: 'fire-hazard',
-                            restitution: 2.0,
-                            render: { fillStyle: '#ff4422' },
-                            collisionFilter: { category: CATEGORY.BUMPER },
-                            plugin: { floor, type: 'fire', score: -50 }
-                        });
-                        Composite.add(world, fire);
-                        climbMode.fireHazards.push(fire);
-                    } else if (type === 'water') {
-                        const water = Bodies.rectangle(ox, oy, 60, 15, {
-                            isStatic: true, label: 'water-pool', isSensor: true,
-                            render: { fillStyle: '#4488ff' },
-                            collisionFilter: { category: CATEGORY.SENSOR },
-                            plugin: { floor, type: 'water' }
-                        });
-                        Composite.add(world, water);
-                        climbMode.waterPools.push(water);
-                    }
-                });
-            }
-
-            // Power-ups: elemental ball pickups (sometimes behind destructible walls)
-            if (floor >= 1) {
-                const puTypes = ['hot'];
-                if (floor >= 3) puTypes.push('water');
-                if (floor >= 5) puTypes.push('grass');
-                const puType = puTypes[(seed + floor) % puTypes.length];
-                const puX = 80 + ((seed + 500) % (W - 180));
-                const puY = contentY + 300;
-
-                // Sometimes behind a destructible wall
-                if (floor >= 3 && floor % 2 === 0) {
-                    const dw = Bodies.rectangle(puX, puY - 20, 50, 12, {
-                        isStatic: true, label: 'destruct-wall',
-                        render: { fillStyle: '#8B6914' },
-                        collisionFilter: { category: CATEGORY.WALL },
-                        plugin: { health: 3, floor }
-                    });
-                    Composite.add(world, dw);
-                    climbMode.destructWalls.push(dw);
-                }
-
-                const pu = Bodies.circle(puX, puY, 12, {
-                    isStatic: true, isSensor: true, label: 'power-up',
-                    render: { fillStyle: ELEMENT_COLORS[puType].ball[1] },
-                    collisionFilter: { category: CATEGORY.SENSOR },
-                    plugin: { type: puType, floor, collected: false }
-                });
-                Composite.add(world, pu);
-                climbMode.powerUps.push(pu);
-            }
-        }
-
         function createClimbFlipper(x, y, side, floor, color) {
             const isLeft = side === 'left';
             const pivotX = isLeft ? x - 25 : x + 25;
@@ -1109,29 +897,6 @@
             Composite.add(world, [flipper, pivot, constraint]);
             Body.setAngle(flipper, isLeft ? CONFIG.flipper.restAngle : -CONFIG.flipper.restAngle);
             return { flipper, pivot, constraint };
-        }
-
-        function createKickbacks(walls, wallOpts) {
-            const W = CONFIG.width, H = CONFIG.height;
-            // Left kickback - above the upper paddles
-            const kbL = Bodies.rectangle(35, H - 380, 8, 40, {
-                ...wallOpts, label: 'kickback-left',
-                restitution: 2.0,
-                render: { fillStyle: '#00ff88' }
-            });
-            walls.push(kbL);
-            climbMode.kickbackLeft = kbL;
-            climbMode.kickbackLeftActive = true;
-
-            // Right kickback - above the upper paddles
-            const kbR = Bodies.rectangle(W - 65, H - 380, 8, 40, {
-                ...wallOpts, label: 'kickback-right',
-                restitution: 2.0,
-                render: { fillStyle: '#00ff88' }
-            });
-            walls.push(kbR);
-            climbMode.kickbackRight = kbR;
-            climbMode.kickbackRightActive = true;
         }
 
         function createBallSaveGate(floor) {
@@ -1597,98 +1362,6 @@
                     sp.plugin.angle += 3;
                 }
 
-                // Fire hazard
-                const fire = bodyA.label === 'fire-hazard' ? bodyA : bodyB.label === 'fire-hazard' ? bodyB : null;
-                if (fire && (bodyA.label === 'ball' || bodyB.label === 'ball') && climbMode.active) {
-                    if (climbMode.elementalBall === 'water') {
-                        // Water extinguishes fire
-                        Composite.remove(world, fire);
-                        climbMode.fireHazards = climbMode.fireHazards.filter(f => f !== fire);
-                        gameState.score += 500;
-                        updateScoreDisplay();
-                        createScorePopup(fire.position.x, fire.position.y, 500);
-                        createParticles(fire.position.x, fire.position.y, '#4488ff');
-                    } else {
-                        // Fire damages - deflect ball downward
-                        if (ball) Body.setVelocity(ball, { x: ball.velocity.x, y: Math.abs(ball.velocity.y) + 3 });
-                        gameState.score = Math.max(0, gameState.score - 50);
-                        updateScoreDisplay();
-                    }
-                }
-
-                // Ice block
-                const ice = bodyA.label === 'ice-block' ? bodyA : bodyB.label === 'ice-block' ? bodyB : null;
-                if (ice && (bodyA.label === 'ball' || bodyB.label === 'ball') && climbMode.active) {
-                    if (climbMode.elementalBall === 'hot') {
-                        // Hot ball melts ice
-                        Composite.remove(world, ice);
-                        climbMode.iceBlocks = climbMode.iceBlocks.filter(b => b !== ice);
-                        gameState.score += 300;
-                        updateScoreDisplay();
-                        createScorePopup(ice.position.x, ice.position.y, 300);
-                        createParticles(ice.position.x, ice.position.y, '#ff6644');
-                    }
-                }
-
-                // Water pool
-                const wp = bodyA.label === 'water-pool' ? bodyA : bodyB.label === 'water-pool' ? bodyB : null;
-                if (wp && (bodyA.label === 'ball' || bodyB.label === 'ball') && climbMode.active) {
-                    if (climbMode.elementalBall === 'grass') {
-                        // Grass soaks up water
-                        Composite.remove(world, wp);
-                        climbMode.waterPools = climbMode.waterPools.filter(w => w !== wp);
-                        gameState.score += 300;
-                        updateScoreDisplay();
-                        createScorePopup(wp.position.x, wp.position.y, 300);
-                        createParticles(wp.position.x, wp.position.y, '#44ff66');
-                    } else {
-                        // Water slows ball
-                        if (ball) Body.setVelocity(ball, { x: ball.velocity.x * 0.5, y: ball.velocity.y * 0.5 });
-                    }
-                }
-
-                // Power-up pickup
-                const pu = bodyA.label === 'power-up' ? bodyA : bodyB.label === 'power-up' ? bodyB : null;
-                if (pu && pu.plugin && !pu.plugin.collected && (bodyA.label === 'ball' || bodyB.label === 'ball') && climbMode.active) {
-                    pu.plugin.collected = true;
-                    climbMode.elementalBall = pu.plugin.type;
-                    Composite.remove(world, pu);
-                    climbMode.powerUps = climbMode.powerUps.filter(p => p !== pu);
-                    gameState.score += 100;
-                    updateScoreDisplay();
-                    createScorePopup(pu.position.x, pu.position.y, 100);
-                    createParticles(pu.position.x, pu.position.y, ELEMENT_COLORS[pu.plugin.type].ball[1]);
-                    updateClimbHUD();
-                }
-
-                // Destructible wall
-                const dw = bodyA.label === 'destruct-wall' ? bodyA : bodyB.label === 'destruct-wall' ? bodyB : null;
-                if (dw && dw.plugin && (bodyA.label === 'ball' || bodyB.label === 'ball')) {
-                    dw.plugin.health--;
-                    if (dw.plugin.health <= 0) {
-                        Composite.remove(world, dw);
-                        climbMode.destructWalls = climbMode.destructWalls.filter(w => w !== dw);
-                        createParticles(dw.position.x, dw.position.y, '#8B6914');
-                    } else {
-                        const alpha = Math.floor((dw.plugin.health / 3) * 255).toString(16).padStart(2, '0');
-                        dw.render.fillStyle = '#8B6914' + alpha;
-                    }
-                }
-
-                // Kickback deactivation
-                if (climbMode.active) {
-                    if ((bodyA === climbMode.kickbackLeft || bodyB === climbMode.kickbackLeft) &&
-                        (bodyA.label === 'ball' || bodyB.label === 'ball') && climbMode.kickbackLeftActive) {
-                        climbMode.kickbackLeftActive = false;
-                        if (climbMode.kickbackLeft) climbMode.kickbackLeft.render.fillStyle = '#444';
-                    }
-                    if ((bodyA === climbMode.kickbackRight || bodyB === climbMode.kickbackRight) &&
-                        (bodyA.label === 'ball' || bodyB.label === 'ball') && climbMode.kickbackRightActive) {
-                        climbMode.kickbackRightActive = false;
-                        if (climbMode.kickbackRight) climbMode.kickbackRight.render.fillStyle = '#444';
-                    }
-                }
-
                 // Ball save gate: teleport ball back to this floor's plunger lane
                 if ((bodyA.label === 'ball-save-gate' || bodyB.label === 'ball-save-gate') &&
                     (bodyA.label === 'ball' || bodyB.label === 'ball') && ball && gameState.ballInPlay) {
@@ -1800,14 +1473,6 @@
             }
 
             updateClimbHUD();
-
-            // Animate spinners
-            climbMode.spinners.forEach(sp => {
-                if (sp.plugin) {
-                    sp.plugin.angle += 0.02;
-                    Body.setAngle(sp, sp.plugin.angle);
-                }
-            });
         }
 
         function updateClimbHUD() {
@@ -1954,39 +1619,6 @@
                     g.addColorStop(0, colors[0]); g.addColorStop(0.4, colors[1]); g.addColorStop(1, colors[2]);
                     ctx.fillStyle = g; ctx.fill();
                     ctx.strokeStyle = '#444'; ctx.lineWidth = 1.5; ctx.stroke();
-                    // Elemental glow
-                    if (climbMode.active && climbMode.elementalBall !== 'normal') {
-                        ctx.shadowColor = colors[1]; ctx.shadowBlur = 15;
-                        ctx.beginPath();
-                        ctx.arc(body.position.x, body.position.y, body.circleRadius + 2, 0, Math.PI * 2);
-                        ctx.strokeStyle = colors[1] + '80'; ctx.lineWidth = 2; ctx.stroke();
-                        ctx.shadowBlur = 0;
-                    }
-                }
-
-                // Ice block special rendering
-                if (body.label === 'ice-block') {
-                    ctx.shadowColor = '#88ccff'; ctx.shadowBlur = 8; ctx.fill(); ctx.shadowBlur = 0;
-                    ctx.strokeStyle = '#aaddff'; ctx.lineWidth = 2; ctx.stroke();
-                    ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                    ctx.fillText('ICE', body.position.x, body.position.y);
-                }
-
-                // Fire hazard special rendering
-                if (body.label === 'fire-hazard') {
-                    ctx.shadowColor = '#ff4422'; ctx.shadowBlur = 15; ctx.fill(); ctx.shadowBlur = 0;
-                    ctx.fillStyle = '#ffaa00'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                    ctx.fillText('🔥', body.position.x, body.position.y);
-                }
-
-                // Water pool rendering
-                if (body.label === 'water-pool') {
-                    ctx.fillStyle = '#4488ff40';
-                    ctx.fillRect(body.position.x - 30, body.position.y - 7, 60, 15);
-                    ctx.strokeStyle = '#4488ff'; ctx.lineWidth = 1;
-                    ctx.strokeRect(body.position.x - 30, body.position.y - 7, 60, 15);
-                    ctx.fillStyle = '#fff'; ctx.font = 'bold 8px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                    ctx.fillText('WATER', body.position.x, body.position.y);
                 }
 
                 // Drop target rendering
@@ -2005,11 +1637,6 @@
                     ctx.lineWidth = isCeiling ? 2 : 1; ctx.stroke();
                 }
 
-                // Spinner rendering
-                if (body.label === 'spinner') {
-                    ctx.shadowColor = '#fbbf24'; ctx.shadowBlur = 5; ctx.fill(); ctx.shadowBlur = 0;
-                }
-
                 // Ball save gate glow
                 if (body.label === 'ball-save-gate') {
                     ctx.shadowColor = '#00ff88'; ctx.shadowBlur = 12; ctx.fill(); ctx.shadowBlur = 0;
@@ -2024,17 +1651,6 @@
                     ctx.fillText('BOOST', body.position.x, body.position.y);
                 }
 
-                // Power-up rendering
-                if (body.label === 'power-up' && body.plugin && !body.plugin.collected) {
-                    const puColor = ELEMENT_COLORS[body.plugin.type].ball[1];
-                    ctx.shadowColor = puColor; ctx.shadowBlur = 12;
-                    ctx.beginPath();
-                    ctx.arc(body.position.x, body.position.y, 12, 0, Math.PI * 2);
-                    ctx.fillStyle = puColor; ctx.fill();
-                    ctx.shadowBlur = 0;
-                    ctx.fillStyle = '#fff'; ctx.font = 'bold 14px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                    ctx.fillText(ELEMENT_COLORS[body.plugin.type].icon, body.position.x, body.position.y);
-                }
             });
 
             // Flipper pivots
