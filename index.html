@@ -1922,6 +1922,14 @@
                 if (ball && gameState.ballLaunched && !plungerGate && ball.position.x < CONFIG.width - 55) {
                     createPlungerGate();
                 }
+                // Detect ball re-entering plunger lane (e.g. bounced back) - allow re-launch
+                if (ball && gameState.ballLaunched && gameState.ballInPlay &&
+                    ball.position.x > CONFIG.width - 40 && ball.position.y > CONFIG.height - 120 &&
+                    Math.abs(ball.velocity.x) < 1 && Math.abs(ball.velocity.y) < 1) {
+                    gameState.ballLaunched = false;
+                    removePlungerGate();
+                    document.getElementById('launch-indicator').style.display = 'block';
+                }
                 if (climbMode.active) {
                     updateClimbMode();
                 } else if (!boardExtended) {
