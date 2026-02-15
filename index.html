@@ -207,6 +207,20 @@
             font-family: 'Press Start 2P', monospace; letter-spacing: 1px;
         }
         #start-btn:hover { transform: scale(1.1); box-shadow: 0 0 20px rgba(0, 255, 136, 0.4); }
+        #climb-btn {
+            background: linear-gradient(180deg, #22d3ee 0%, #0891b2 100%);
+            border: none; padding: 10px 32px; font-size: 12px; font-weight: bold;
+            color: #1a1a2e; border-radius: 10px; cursor: pointer; transition: all 0.3s ease;
+            font-family: 'Press Start 2P', monospace; letter-spacing: 1px; margin-top: 10px;
+        }
+        #climb-btn:hover { transform: scale(1.1); box-shadow: 0 0 20px rgba(34, 211, 238, 0.4); }
+        #levels-btn {
+            background: none; border: 2px solid #00ff88; padding: 8px 28px;
+            font-size: 10px; font-weight: bold; color: #00ff88; border-radius: 10px;
+            cursor: pointer; transition: all 0.3s ease;
+            font-family: 'Press Start 2P', monospace; letter-spacing: 1px; margin-top: 8px;
+        }
+        #levels-btn:hover { background: rgba(0, 255, 136, 0.15); transform: scale(1.1); }
         #title-screen .title-version {
             font-family: 'Press Start 2P', monospace; font-size: 6px; color: #4a4a6a;
             margin-top: 18px;
@@ -309,6 +323,8 @@
             <div class="title-ball">&#127936;</div>
             <div class="tagline">FLIP IT. DREAM IT. SCORE IT.</div>
             <button id="start-btn">START</button><br>
+            <button id="climb-btn">CLIMB MODE</button><br>
+            <button id="levels-btn">LEVELS</button><br>
             <button id="credits-btn">CREDITS</button>
             <div class="title-version">v1.0</div>
         </div>
@@ -2294,8 +2310,22 @@
             document.getElementById('credits-modal').style.display = 'none';
         }
 
-        // Title screen -> Level select
+        // Title screen -> Quick start (Classic)
         document.getElementById('start-btn').addEventListener('click', () => {
+            document.getElementById('title-screen').style.display = 'none';
+            currentLevel = 0;
+            startGame();
+        });
+
+        // Title screen -> Climb mode direct launch
+        document.getElementById('climb-btn').addEventListener('click', () => {
+            document.getElementById('title-screen').style.display = 'none';
+            currentLevel = 6;
+            startGame();
+        });
+
+        // Title screen -> Level select
+        document.getElementById('levels-btn').addEventListener('click', () => {
             document.getElementById('title-screen').style.display = 'none';
             document.getElementById('level-select').style.display = 'block';
         });
