@@ -201,27 +201,20 @@
             font-family: 'Press Start 2P', monospace; font-size: 7px; color: #8888aa;
             letter-spacing: 2px; margin-bottom: 25px;
         }
-        #start-btn {
-            background: linear-gradient(180deg, #00ff88 0%, #00cc66 100%);
+        #climb-btn {
+            background: linear-gradient(180deg, #22d3ee 0%, #0891b2 100%);
             border: none; padding: 14px 40px; font-size: 16px; font-weight: bold;
             color: #1a1a2e; border-radius: 10px; cursor: pointer; transition: all 0.3s ease;
             font-family: 'Press Start 2P', monospace; letter-spacing: 1px;
         }
-        #start-btn:hover { transform: scale(1.1); box-shadow: 0 0 20px rgba(0, 255, 136, 0.4); }
-        #climb-btn {
-            background: linear-gradient(180deg, #22d3ee 0%, #0891b2 100%);
-            border: none; padding: 10px 32px; font-size: 12px; font-weight: bold;
-            color: #1a1a2e; border-radius: 10px; cursor: pointer; transition: all 0.3s ease;
-            font-family: 'Press Start 2P', monospace; letter-spacing: 1px; margin-top: 10px;
-        }
         #climb-btn:hover { transform: scale(1.1); box-shadow: 0 0 20px rgba(34, 211, 238, 0.4); }
         #levels-btn {
-            background: none; border: 2px solid #00ff88; padding: 8px 28px;
-            font-size: 10px; font-weight: bold; color: #00ff88; border-radius: 10px;
+            background: none; border: 2px solid #22d3ee; padding: 10px 32px;
+            font-size: 12px; font-weight: bold; color: #22d3ee; border-radius: 10px;
             cursor: pointer; transition: all 0.3s ease;
-            font-family: 'Press Start 2P', monospace; letter-spacing: 1px; margin-top: 8px;
+            font-family: 'Press Start 2P', monospace; letter-spacing: 1px; margin-top: 10px;
         }
-        #levels-btn:hover { background: rgba(0, 255, 136, 0.15); transform: scale(1.1); }
+        #levels-btn:hover { background: rgba(34, 211, 238, 0.15); transform: scale(1.1); }
         #title-screen .title-version {
             font-family: 'Press Start 2P', monospace; font-size: 6px; color: #4a4a6a;
             margin-top: 18px;
@@ -323,7 +316,6 @@
             <div class="game-title">PINBALL<span class="dreams">DREAMS</span></div>
             <div class="title-ball">&#127936;</div>
             <div class="tagline">FLIP IT. DREAM IT. SCORE IT.</div>
-            <button id="start-btn">START</button><br>
             <button id="climb-btn">CLIMB MODE</button><br>
             <button id="levels-btn">LEVELS</button><br>
             <button id="credits-btn">CREDITS</button>
@@ -2344,14 +2336,7 @@
             document.getElementById('credits-modal').style.display = 'none';
         }
 
-        // Title screen -> Quick start (Classic)
-        document.getElementById('start-btn').addEventListener('click', () => {
-            document.getElementById('title-screen').style.display = 'none';
-            currentLevel = 0;
-            startGame();
-        });
-
-        // Title screen -> Climb mode direct launch
+        // Title screen -> Climb mode (main CTA)
         document.getElementById('climb-btn').addEventListener('click', () => {
             document.getElementById('title-screen').style.display = 'none';
             currentLevel = 6;
