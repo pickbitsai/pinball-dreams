@@ -454,6 +454,7 @@
             ballSaveTimer: 0,
             ballSaveUsed: false,
             ballSaveGate: null,
+            ballSaveFloor: 0,
             boostPads: [],
             spinners: [],
             iceBlocks: [],
@@ -771,11 +772,21 @@
                 { x: 28, y: baseY + 560 }, { x: 50, y: baseY + 580 }
             ], 14, wallOpts));
 
-            // Right wall - extends from ceiling level
+            // Right wall - starts lower to leave room for plunger entrance
             walls.push(...createCurvedWall([
-                { x: W - 50, y: baseY + 30 }, { x: W - 50, y: baseY + 545 },
+                { x: W - 50, y: baseY + 100 }, { x: W - 50, y: baseY + 545 },
                 { x: W - 60, y: baseY + 565 }, { x: W - 75, y: baseY + 580 }
             ], 14, wallOpts));
+
+            // Plunger entrance curve
+            walls.push(...createCurvedWall([
+                { x: W - 50, y: baseY + 20 }, { x: W - 20, y: baseY + 45 }, { x: W - 8, y: baseY + 70 }
+            ], 16, wallOpts));
+
+            // Plunger lane
+            walls.push(Bodies.rectangle(W - 8, baseY + H / 2 + 50, 10, H - 80, wallOpts));
+            walls.push(Bodies.rectangle(W - 42, baseY + H - 55, 8, 110, wallOpts));
+            walls.push(Bodies.rectangle(W - 25, baseY + H - 10, 40, 10, wallOpts));
 
             // Solid transition walls between this board and the one below
             walls.push(...createCurvedWall([
@@ -1123,20 +1134,24 @@
             climbMode.kickbackRightActive = true;
         }
 
-        function createBallSaveGate() {
+        function createBallSaveGate(floor) {
             removeBallSaveGate();
             const W = CONFIG.width, H = CONFIG.height;
+            const f = floor !== undefined ? floor : 0;
+            const baseY = floorY(f);
             // Full-width gate from left wall to right outer wall, tilted so ball rolls into plunger lane
-            const gate = Bodies.rectangle(W / 2, H - 10, W - 16, 8, {
+            const gate = Bodies.rectangle(W / 2, baseY + H - 10, W - 16, 8, {
                 isStatic: true, label: 'ball-save-gate',
                 angle: 0.15,
                 restitution: 0.1,
                 friction: 0.0005,
                 render: { fillStyle: '#00ff88' },
-                collisionFilter: { category: CATEGORY.WALL }
+                collisionFilter: { category: CATEGORY.WALL },
+                plugin: { floor: f }
             });
             Composite.add(world, gate);
             climbMode.ballSaveGate = gate;
+            climbMode.ballSaveFloor = f;
         }
 
         function removeBallSaveGate() {
@@ -1328,11 +1343,13 @@
             }
         }
 
-        function createPlungerGate() {
+        function createPlungerGate(floor) {
             removePlungerGate();
             const W = CONFIG.width;
-            // Seal the gap between y=15 and y=100 at x=W-50
-            plungerGate = Bodies.rectangle(W - 50, 57, 14, 90, {
+            const f = floor !== undefined ? floor : 0;
+            const baseY = floorY(f);
+            // Seal the gap between the plunger entrance curve and the right wall
+            plungerGate = Bodies.rectangle(W - 50, baseY + 57, 14, 90, {
                 isStatic: true, label: 'plunger-gate',
                 render: { fillStyle: '#4a4a6a' },
                 collisionFilter: { category: CATEGORY.WALL }
@@ -1357,6 +1374,7 @@
                 climbMode.ballSaveActive = false;
                 climbMode.ballSaveTimer = 0;
                 climbMode.ballSaveUsed = false;
+                climbMode.ballSaveFloor = 0;
                 updateClimbHUD();
             }
             document.getElementById('launch-indicator').style.display = 'block';
@@ -1466,7 +1484,7 @@
             if (climbMode.active) {
                 climbMode.ballSaveActive = true;
                 climbMode.ballSaveTimer = Date.now();
-                createBallSaveGate();
+                createBallSaveGate(climbMode.ballSaveFloor || 0);
             }
         }
 
@@ -1671,10 +1689,12 @@
                     }
                 }
 
-                // Ball save gate: teleport ball back to plunger lane
+                // Ball save gate: teleport ball back to this floor's plunger lane
                 if ((bodyA.label === 'ball-save-gate' || bodyB.label === 'ball-save-gate') &&
                     (bodyA.label === 'ball' || bodyB.label === 'ball') && ball && gameState.ballInPlay) {
-                    Body.setPosition(ball, { x: CONFIG.width - 25, y: CONFIG.height - 50 });
+                    const saveFloor = climbMode.ballSaveFloor || 0;
+                    const saveBaseY = floorY(saveFloor);
+                    Body.setPosition(ball, { x: CONFIG.width - 25, y: saveBaseY + CONFIG.height - 50 });
                     Body.setVelocity(ball, { x: 0, y: 0 });
                     Body.setAngularVelocity(ball, 0);
                     gameState.ballLaunched = false;
@@ -1762,7 +1782,7 @@
                 climbMode.ballSaveActive = true;
                 climbMode.ballSaveTimer = Date.now();
                 climbMode.ballSaveUsed = false;
-                createBallSaveGate();
+                createBallSaveGate(actualFloor);
             }
 
             // Remove ball save gate when timer expires
@@ -2044,20 +2064,22 @@
                 ctx.fillStyle = p.color; ctx.globalAlpha = p.life; ctx.fill(); ctx.globalAlpha = 1;
             });
 
-            // Plunger lane visual
+            // Plunger lane visual — render at the floor where the ball currently is
+            const plungerFloorBase = climbMode.active ? floorY(climbMode.ballSaveFloor || 0) : 0;
+            const pH = CONFIG.height;
             ctx.fillStyle = level.theme.wall + '80';
-            ctx.fillRect(CONFIG.width - 38, CONFIG.height - 110, 26, 100);
+            ctx.fillRect(CONFIG.width - 38, plungerFloorBase + pH - 110, 26, 100);
             const offset = plunger.charging ? plunger.power * 20 : 0;
             ctx.fillStyle = level.theme.accent;
-            ctx.beginPath(); ctx.arc(CONFIG.width - 25, CONFIG.height - 20 + offset, 10, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(CONFIG.width - 25, plungerFloorBase + pH - 20 + offset, 10, 0, Math.PI * 2); ctx.fill();
             if (plunger.charging) {
                 plunger.power = Math.min(plunger.power + 0.03, 1);
                 ctx.fillStyle = `rgba(0,255,136,${plunger.power})`;
-                ctx.fillRect(CONFIG.width - 36, CONFIG.height - 105, 22 * plunger.power, 5);
+                ctx.fillRect(CONFIG.width - 36, plungerFloorBase + pH - 105, 22 * plunger.power, 5);
             }
             if (!gameState.ballLaunched && gameState.ballInPlay) {
                 ctx.fillStyle = 'rgba(0,255,136,0.15)';
-                ctx.fillRect(CONFIG.width - 38, CONFIG.height - 110, 26, 90);
+                ctx.fillRect(CONFIG.width - 38, plungerFloorBase + pH - 110, 26, 90);
             }
 
             // Editor drawing
@@ -2102,12 +2124,16 @@
             if (gameState.isPlaying) {
                 updateFlippers();
                 // Close plunger lane once ball exits into playfield
+                const plungerCheckFloor = climbMode.active ? (climbMode.ballSaveFloor || 0) : 0;
+                const plungerBaseY = floorY(plungerCheckFloor);
                 if (ball && gameState.ballLaunched && !plungerGate && ball.position.x < CONFIG.width - 55) {
-                    createPlungerGate();
+                    createPlungerGate(plungerCheckFloor);
                 }
                 // Detect ball re-entering plunger lane (e.g. bounced back) - allow re-launch
                 if (ball && gameState.ballLaunched && gameState.ballInPlay &&
-                    ball.position.x > CONFIG.width - 40 && ball.position.y > CONFIG.height - 120 &&
+                    ball.position.x > CONFIG.width - 40 &&
+                    ball.position.y > plungerBaseY + CONFIG.height - 120 &&
+                    ball.position.y < plungerBaseY + CONFIG.height &&
                     Math.abs(ball.velocity.x) < 1 && Math.abs(ball.velocity.y) < 1) {
                     gameState.ballLaunched = false;
                     removePlungerGate();
