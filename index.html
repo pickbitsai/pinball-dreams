@@ -66,6 +66,7 @@
             text-align: center; z-index: 200; border: 3px solid #4a4a6a;
         }
         #game-over { display: none; border-color: #ff6688; }
+        #level-select { display: none; }
         #game-over h2 { color: #ff6688; font-size: 32px; margin-bottom: 15px; }
         #final-score { color: #00ff88; font-size: 28px; font-weight: bold; margin: 15px 0; }
         #final-floor { color: #22d3ee; font-size: 18px; margin-bottom: 10px; display: none; }
@@ -2109,8 +2110,24 @@
                     updateUpperLevel();
                     checkTopTransition();
                 }
+                // Clamp ball velocity to prevent tunneling through walls
+                if (ball) {
+                    const maxSpeed = 12;
+                    const speed = Math.sqrt(ball.velocity.x * ball.velocity.x + ball.velocity.y * ball.velocity.y);
+                    if (speed > maxSpeed) {
+                        const scale = maxSpeed / speed;
+                        Body.setVelocity(ball, { x: ball.velocity.x * scale, y: ball.velocity.y * scale });
+                    }
+                }
                 Engine.update(engine, 1000 / 60);
                 updateParticles();
+                // Out-of-bounds check: if ball escapes through walls, treat as drain
+                if (ball && gameState.ballInPlay && (ball.position.x < -10 || ball.position.x > CONFIG.width + 30)) {
+                    if (climbMode.active) removeBallSaveGate();
+                    gameState.ballInPlay = false; gameState.ballsRemaining--;
+                    updateBallsDisplay();
+                    if (gameState.ballsRemaining <= 0) endGame(); else setTimeout(createBall, 800);
+                }
                 // Fallback drain check: if ball falls below board, force drain
                 if (ball && gameState.ballInPlay && ball.position.y > CONFIG.height + 50) {
                     if (climbMode.active) removeBallSaveGate();
