@@ -1778,11 +1778,11 @@
                 createScorePopup(ball.position.x, ball.position.y, 500 * actualFloor);
                 // Spawn this floor's board if not already there
                 spawnClimbBoard(actualFloor);
-                // New floor reached - renew ball save
+                // New floor reached - renew ball save on the floor below
                 climbMode.ballSaveActive = true;
                 climbMode.ballSaveTimer = Date.now();
                 climbMode.ballSaveUsed = false;
-                createBallSaveGate(actualFloor);
+                createBallSaveGate(Math.max(0, actualFloor - 1));
             }
 
             // Remove ball save gate when timer expires
