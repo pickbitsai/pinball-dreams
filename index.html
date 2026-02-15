@@ -2112,7 +2112,7 @@
                 }
                 // Clamp ball velocity to prevent tunneling through walls
                 if (ball) {
-                    const maxSpeed = 12;
+                    const maxSpeed = 22;
                     const speed = Math.sqrt(ball.velocity.x * ball.velocity.x + ball.velocity.y * ball.velocity.y);
                     if (speed > maxSpeed) {
                         const scale = maxSpeed / speed;
