@@ -1679,6 +1679,23 @@
                     }
                 }
 
+                // Ball save gate: teleport ball back to plunger lane
+                if ((bodyA.label === 'ball-save-gate' || bodyB.label === 'ball-save-gate') &&
+                    (bodyA.label === 'ball' || bodyB.label === 'ball') && ball && gameState.ballInPlay) {
+                    Body.setPosition(ball, { x: CONFIG.width - 25, y: CONFIG.height - 50 });
+                    Body.setVelocity(ball, { x: 0, y: 0 });
+                    Body.setAngularVelocity(ball, 0);
+                    gameState.ballLaunched = false;
+                    removePlungerGate();
+                    removeBallSaveGate();
+                    climbMode.ballSaveUsed = true;
+                    climbMode.ballSaveActive = false;
+                    document.getElementById('launch-indicator').style.display = 'block';
+                    const saveInd = document.getElementById('ball-save-indicator');
+                    saveInd.style.display = 'block';
+                    setTimeout(() => saveInd.style.display = 'none', 2000);
+                }
+
                 // Drain
                 if ((bodyA.label === 'drain' || bodyB.label === 'drain') && (bodyA.label === 'ball' || bodyB.label === 'ball') && gameState.ballInPlay) {
                     if (climbMode.active) removeBallSaveGate();
