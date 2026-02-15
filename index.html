@@ -503,9 +503,9 @@
             cm.boardNames = { 0: LEVELS[CLIMB_BOARDS[0]].name };
 
             // EXACT classic board (level 0) layout - proven to work
-            // Left wall
+            // Left wall - extends from ceiling to flipper area
             walls.push(...createCurvedWall([
-                { x: 20, y: 50 }, { x: 20, y: 540 },
+                { x: 20, y: 30 }, { x: 20, y: 540 },
                 { x: 28, y: 560 }, { x: 50, y: 580 }
             ], 14, wallOpts));
 
@@ -527,8 +527,8 @@
             walls.push(Bodies.rectangle(W - 42, H - 55, 8, 110, wallOpts));
             walls.push(Bodies.rectangle(W - 25, H - 10, 40, 10, wallOpts));
 
-            // Bottom guides
-            walls.push(...createCurvedWall([{ x: 50, y: 580 }, { x: 70, y: 600 }, { x: 85, y: 625 }], 12, wallOpts));
+            // Bottom guides - left guide extended toward flipper pivot
+            walls.push(...createCurvedWall([{ x: 50, y: 580 }, { x: 70, y: 600 }, { x: 90, y: 618 }, { x: 108, y: 632 }], 12, wallOpts));
             walls.push(...createCurvedWall([{ x: W - 75, y: 580 }, { x: W - 90, y: 600 }, { x: W - 105, y: 625 }], 12, wallOpts));
 
             // Bumpers - same as level 0
@@ -601,21 +601,29 @@
                 bumpers.push(bumper);
             }
 
-            // Left wall
+            // Left wall - extends from ceiling level
             walls.push(...createCurvedWall([
-                { x: 20, y: baseY + 50 }, { x: 20, y: baseY + 540 },
+                { x: 20, y: baseY + 30 }, { x: 20, y: baseY + 540 },
                 { x: 28, y: baseY + 560 }, { x: 50, y: baseY + 580 }
             ], 14, wallOpts));
 
-            // Right wall (no plunger lane on upper floors)
+            // Right wall - extends from ceiling level
             walls.push(...createCurvedWall([
-                { x: W - 50, y: baseY + 50 }, { x: W - 50, y: baseY + 545 },
+                { x: W - 50, y: baseY + 30 }, { x: W - 50, y: baseY + 545 },
                 { x: W - 60, y: baseY + 565 }, { x: W - 75, y: baseY + 580 }
             ], 14, wallOpts));
 
-            // Bottom guides
+            // Solid transition walls between this board and the one below
             walls.push(...createCurvedWall([
-                { x: 50, y: baseY + 580 }, { x: 70, y: baseY + 600 }, { x: 85, y: baseY + 625 }
+                { x: 20, y: baseY + 580 }, { x: 20, y: baseY + H }
+            ], 14, wallOpts));
+            walls.push(...createCurvedWall([
+                { x: W - 50, y: baseY + 580 }, { x: W - 50, y: baseY + H }
+            ], 14, wallOpts));
+
+            // Bottom guides - left guide extended toward flipper pivot
+            walls.push(...createCurvedWall([
+                { x: 50, y: baseY + 580 }, { x: 70, y: baseY + 600 }, { x: 90, y: baseY + 618 }, { x: 108, y: baseY + 632 }
             ], 12, wallOpts));
             walls.push(...createCurvedWall([
                 { x: W - 75, y: baseY + 580 }, { x: W - 90, y: baseY + 600 }, { x: W - 105, y: baseY + 625 }
