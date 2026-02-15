@@ -1745,15 +1745,22 @@
                 if (ball && gameState.ballLaunched && !plungerGate && ball.position.x < CONFIG.width - 55) {
                     createPlungerGate(plungerCheckFloor);
                 }
-                // Detect ball re-entering plunger lane (e.g. bounced back) - allow re-launch
+                // Detect ball in plunger lane - allow re-launch
                 if (ball && gameState.ballLaunched && gameState.ballInPlay &&
                     ball.position.x > CONFIG.width - 40 &&
-                    ball.position.y > plungerBaseY + CONFIG.height - 120 &&
-                    ball.position.y < plungerBaseY + CONFIG.height &&
                     Math.abs(ball.velocity.x) < 1 && Math.abs(ball.velocity.y) < 1) {
-                    gameState.ballLaunched = false;
-                    removePlungerGate();
-                    document.getElementById('launch-indicator').style.display = 'block';
+                    // In climb mode, check the plunger lane of whichever floor the ball is on
+                    const checkFloor = climbMode.active
+                        ? Math.max(0, ball.position.y > 0 ? 0 : Math.floor(-ball.position.y / CONFIG.height + 1))
+                        : 0;
+                    const checkBaseY = floorY(checkFloor);
+                    if (ball.position.y > checkBaseY + CONFIG.height - 120 &&
+                        ball.position.y < checkBaseY + CONFIG.height) {
+                        gameState.ballLaunched = false;
+                        removePlungerGate();
+                        if (climbMode.active) climbMode.ballSaveFloor = checkFloor;
+                        document.getElementById('launch-indicator').style.display = 'block';
+                    }
                 }
                 if (climbMode.active) {
                     updateClimbMode();
