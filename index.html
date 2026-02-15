@@ -1116,11 +1116,13 @@
 
         function createBallSaveGate() {
             removeBallSaveGate();
-            const H = CONFIG.height;
-            // Spans full drain: from left wall (x=27) to past right guide (x=320), below flippers
-            const gate = Bodies.rectangle(173, H - 10, 295, 8, {
+            const W = CONFIG.width, H = CONFIG.height;
+            // Full-width gate from left wall to right outer wall, tilted so ball rolls into plunger lane
+            const gate = Bodies.rectangle(W / 2, H - 10, W - 16, 8, {
                 isStatic: true, label: 'ball-save-gate',
-                restitution: 2.0,
+                angle: 0.06,
+                restitution: 0.8,
+                friction: 0.001,
                 render: { fillStyle: '#00ff88' },
                 collisionFilter: { category: CATEGORY.WALL }
             });
