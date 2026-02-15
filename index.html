@@ -1120,9 +1120,9 @@
             // Full-width gate from left wall to right outer wall, tilted so ball rolls into plunger lane
             const gate = Bodies.rectangle(W / 2, H - 10, W - 16, 8, {
                 isStatic: true, label: 'ball-save-gate',
-                angle: 0.06,
-                restitution: 0.8,
-                friction: 0.001,
+                angle: 0.15,
+                restitution: 0.1,
+                friction: 0.0005,
                 render: { fillStyle: '#00ff88' },
                 collisionFilter: { category: CATEGORY.WALL }
             });
