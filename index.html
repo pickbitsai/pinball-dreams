@@ -2110,10 +2110,16 @@
                     updateUpperLevel();
                     checkTopTransition();
                 }
-                // Use substeps to prevent ball tunneling through thin walls
-                const substeps = 3;
-                const subDt = (1000 / 60) / substeps;
-                for (let i = 0; i < substeps; i++) Engine.update(engine, subDt);
+                Engine.update(engine, 1000 / 60);
+                // Anti-tunneling: if ball clips past a side wall, push it back in
+                if (ball) {
+                    const r = CONFIG.ball.radius;
+                    const leftBound = 27 + r;   // left wall inner edge (x=20, thickness 14)
+                    if (ball.position.x < leftBound) {
+                        Body.setPosition(ball, { x: leftBound, y: ball.position.y });
+                        Body.setVelocity(ball, { x: Math.abs(ball.velocity.x), y: ball.velocity.y });
+                    }
+                }
                 updateParticles();
                 // Out-of-bounds safety net: if ball escapes through walls, treat as drain
                 if (ball && gameState.ballInPlay && (ball.position.x < -10 || ball.position.x > CONFIG.width + 30)) {
