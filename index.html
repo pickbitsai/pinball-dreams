@@ -536,14 +536,14 @@
                 { x: 20, y: 50 }, { x: 20, y: 540 },
                 { x: 28, y: 560 }, { x: 50, y: 580 }
             ];
-            walls.push(...createCurvedWall(leftWall, 30, wallOpts));
+            walls.push(...createCurvedWall(leftWall, 14, wallOpts));
 
             // Right wall
             const rightWall = [
                 { x: W - 50, y: 100 }, { x: W - 50, y: 545 },
                 { x: W - 60, y: 565 }, { x: W - 75, y: 580 }
             ];
-            walls.push(...createCurvedWall(rightWall, 30, wallOpts));
+            walls.push(...createCurvedWall(rightWall, 14, wallOpts));
 
             // Plunger entrance curve
             const plungerEntrance = [
@@ -554,10 +554,10 @@
 
             if (boardExtended) {
                 const extLeft = [{ x: 20, y: -650 }, { x: 20, y: 50 }];
-                walls.push(...createCurvedWall(extLeft, 30, wallOpts));
+                walls.push(...createCurvedWall(extLeft, 14, wallOpts));
                 const extRight = [{ x: W - 50, y: -650 }, { x: W - 50, y: 100 }];
-                walls.push(...createCurvedWall(extRight, 30, wallOpts));
-                walls.push(Bodies.rectangle((20 + W - 50) / 2, -650, W - 70, 30, wallOpts));
+                walls.push(...createCurvedWall(extRight, 14, wallOpts));
+                walls.push(Bodies.rectangle((20 + W - 50) / 2, -650, W - 70, 14, wallOpts));
             } else {
                 walls.push(Bodies.rectangle((20 + W - 50) / 2, 30, W - 70, 14, wallOpts));
                 Composite.add(world, Bodies.rectangle(W / 2 - 15, 10, W - 80, 16, {
@@ -568,7 +568,7 @@
             }
 
             // Plunger lane
-            walls.push(Bodies.rectangle(W - 8, H / 2 + 50, 24, H - 80, wallOpts));
+            walls.push(Bodies.rectangle(W - 8, H / 2 + 50, 10, H - 80, wallOpts));
             walls.push(Bodies.rectangle(W - 42, H - 55, 8, 110, wallOpts));
             walls.push(Bodies.rectangle(W - 25, H - 10, 40, 10, wallOpts));
 
@@ -679,13 +679,13 @@
             walls.push(...createCurvedWall([
                 { x: 20, y: 30 }, { x: 20, y: 540 },
                 { x: 28, y: 560 }, { x: 50, y: 580 }
-            ], 30, wallOpts));
+            ], 14, wallOpts));
 
             // Right wall
             walls.push(...createCurvedWall([
                 { x: W - 50, y: 100 }, { x: W - 50, y: 545 },
                 { x: W - 60, y: 565 }, { x: W - 75, y: 580 }
-            ], 30, wallOpts));
+            ], 14, wallOpts));
 
             // Plunger entrance curve
             walls.push(...createCurvedWall([
@@ -695,7 +695,7 @@
             // Top wall removed - replaced by breakable ceiling tiles below
 
             // Plunger lane
-            walls.push(Bodies.rectangle(W - 8, H / 2 + 50, 24, H - 80, wallOpts));
+            walls.push(Bodies.rectangle(W - 8, H / 2 + 50, 10, H - 80, wallOpts));
             walls.push(Bodies.rectangle(W - 42, H - 55, 8, 110, wallOpts));
             walls.push(Bodies.rectangle(W - 25, H - 10, 40, 10, wallOpts));
 
@@ -777,21 +777,21 @@
             walls.push(...createCurvedWall([
                 { x: 20, y: baseY + 30 }, { x: 20, y: baseY + 540 },
                 { x: 28, y: baseY + 560 }, { x: 50, y: baseY + 580 }
-            ], 30, wallOpts));
+            ], 14, wallOpts));
 
             // Right wall - extends from ceiling level
             walls.push(...createCurvedWall([
                 { x: W - 50, y: baseY + 30 }, { x: W - 50, y: baseY + 545 },
                 { x: W - 60, y: baseY + 565 }, { x: W - 75, y: baseY + 580 }
-            ], 30, wallOpts));
+            ], 14, wallOpts));
 
             // Solid transition walls between this board and the one below
             walls.push(...createCurvedWall([
                 { x: 20, y: baseY + 580 }, { x: 20, y: baseY + H }
-            ], 30, wallOpts));
+            ], 14, wallOpts));
             walls.push(...createCurvedWall([
                 { x: W - 50, y: baseY + 580 }, { x: W - 50, y: baseY + H }
-            ], 30, wallOpts));
+            ], 14, wallOpts));
 
             // Bottom guides - left guide extended toward flipper pivot
             walls.push(...createCurvedWall([
@@ -2110,7 +2110,10 @@
                     updateUpperLevel();
                     checkTopTransition();
                 }
-                Engine.update(engine, 1000 / 60);
+                // Use substeps to prevent ball tunneling through thin walls
+                const substeps = 3;
+                const subDt = (1000 / 60) / substeps;
+                for (let i = 0; i < substeps; i++) Engine.update(engine, subDt);
                 updateParticles();
                 // Out-of-bounds safety net: if ball escapes through walls, treat as drain
                 if (ball && gameState.ballInPlay && (ball.position.x < -10 || ball.position.x > CONFIG.width + 30)) {
