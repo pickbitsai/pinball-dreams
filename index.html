@@ -3,7 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Pinball Alley</title>
+    <title>Pinball Dreams</title>
+    <meta name="description" content="Pinball Dreams — A retro-inspired HTML5 pinball game with multiple tables, a custom level editor, and an epic Climb mode.">
+    <meta name="author" content="Pinball Dreams">
+    <meta name="theme-color" content="#1a1a2e">
+    <meta property="og:title" content="Pinball Dreams">
+    <meta property="og:description" content="A retro-inspired HTML5 pinball game with multiple tables, a custom level editor, and Climb mode.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='30' fill='%231a1a2e' stroke='%2300ff88' stroke-width='3'/><circle cx='32' cy='28' r='12' fill='%2300ccff'/><circle cx='32' cy='28' r='6' fill='%23fff'/><rect x='24' y='46' width='16' height='4' rx='2' fill='%2300ff88'/></svg>">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="Pinball Dreams">
+    <meta name="twitter:description" content="A retro-inspired HTML5 pinball game with multiple tables, a custom level editor, and Climb mode.">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='30' fill='%231a1a2e' stroke='%2300ff88' stroke-width='3'/><circle cx='32' cy='28' r='12' fill='%2300ccff'/><circle cx='32' cy='28' r='6' fill='%23fff'/><rect x='24' y='46' width='16' height='4' rx='2' fill='%2300ff88'/></svg>">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; touch-action: manipulation; }
@@ -129,9 +143,129 @@
             color: #ffcc00; font-size: 11px; text-align: center; display: none;
             background: rgba(0,0,0,0.7); padding: 8px 12px; border-radius: 8px;
         }
+
+        /* Loading Screen */
+        #loading-screen {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: opacity 0.6s ease;
+        }
+        #loading-screen.fade-out { opacity: 0; pointer-events: none; }
+        #loading-logo {
+            font-family: 'Press Start 2P', monospace; font-size: 28px; color: #00ff88;
+            text-shadow: 0 0 20px rgba(0, 255, 136, 0.6), 0 0 40px rgba(0, 255, 136, 0.3);
+            margin-bottom: 10px; text-align: center; line-height: 1.6;
+        }
+        #loading-logo .dreams { color: #00ccff; text-shadow: 0 0 20px rgba(0, 204, 255, 0.6), 0 0 40px rgba(0, 204, 255, 0.3); }
+        #loading-bar-container {
+            width: 220px; height: 8px; background: #2d2d44; border: 2px solid #4a4a6a;
+            border-radius: 4px; margin-top: 30px; overflow: hidden;
+        }
+        #loading-bar {
+            width: 0%; height: 100%;
+            background: linear-gradient(90deg, #00ff88, #00ccff);
+            transition: width 0.3s ease;
+        }
+        #loading-text {
+            font-family: 'Press Start 2P', monospace; font-size: 8px; color: #8888aa;
+            margin-top: 12px; letter-spacing: 2px;
+        }
+
+        /* Title Screen */
+        #title-screen {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.95); padding: 30px 35px; border-radius: 20px;
+            text-align: center; z-index: 200; border: 3px solid #4a4a6a;
+            display: none; min-width: 300px;
+        }
+        #title-screen .game-title {
+            font-family: 'Press Start 2P', monospace; font-size: 22px; color: #00ff88;
+            text-shadow: 0 0 15px rgba(0, 255, 136, 0.5), 0 4px 8px rgba(0, 0, 0, 0.5);
+            margin-bottom: 5px; line-height: 1.5;
+        }
+        #title-screen .game-title .dreams {
+            color: #00ccff; display: block; font-size: 26px;
+            text-shadow: 0 0 15px rgba(0, 204, 255, 0.5), 0 4px 8px rgba(0, 0, 0, 0.5);
+        }
+        #title-screen .title-ball {
+            font-size: 40px; margin: 15px 0;
+            animation: titleBounce 2s ease-in-out infinite;
+        }
+        @keyframes titleBounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        #title-screen .tagline {
+            font-family: 'Press Start 2P', monospace; font-size: 7px; color: #8888aa;
+            letter-spacing: 2px; margin-bottom: 25px;
+        }
+        #start-btn {
+            background: linear-gradient(180deg, #00ff88 0%, #00cc66 100%);
+            border: none; padding: 14px 40px; font-size: 16px; font-weight: bold;
+            color: #1a1a2e; border-radius: 10px; cursor: pointer; transition: all 0.3s ease;
+            font-family: 'Press Start 2P', monospace; letter-spacing: 1px;
+        }
+        #start-btn:hover { transform: scale(1.1); box-shadow: 0 0 20px rgba(0, 255, 136, 0.4); }
+        #title-screen .title-version {
+            font-family: 'Press Start 2P', monospace; font-size: 6px; color: #4a4a6a;
+            margin-top: 18px;
+        }
+
+        /* Credits Button & Modal */
+        #credits-btn {
+            background: none; border: 1px solid #4a4a6a; padding: 8px 20px;
+            font-size: 10px; color: #8888aa; border-radius: 8px; cursor: pointer;
+            transition: all 0.3s ease; margin-top: 12px;
+            font-family: 'Press Start 2P', monospace;
+        }
+        #credits-btn:hover { border-color: #00ff88; color: #00ff88; }
+        #credits-modal {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.97); padding: 25px 30px; border-radius: 20px;
+            text-align: center; z-index: 300; border: 3px solid #4a4a6a;
+            display: none; min-width: 280px;
+        }
+        #credits-modal h2 {
+            font-family: 'Press Start 2P', monospace; font-size: 14px;
+            color: #00ff88; margin-bottom: 20px;
+        }
+        #credits-modal .credits-line {
+            color: #ccc; font-size: 12px; margin: 8px 0; line-height: 1.6;
+        }
+        #credits-modal .credits-label {
+            color: #8888aa; font-size: 10px; text-transform: uppercase; letter-spacing: 1px;
+        }
+        #credits-modal .credits-value { color: #00ccff; }
+        #credits-modal .credits-copy {
+            color: #4a4a6a; font-size: 10px; margin-top: 20px;
+            font-family: 'Press Start 2P', monospace; font-size: 7px;
+        }
+        #credits-close {
+            background: linear-gradient(180deg, #ff6688 0%, #cc4466 100%);
+            border: none; padding: 10px 25px; font-size: 12px; font-weight: bold;
+            color: #fff; border-radius: 8px; cursor: pointer; margin-top: 18px;
+            transition: all 0.3s ease;
+        }
+        #credits-close:hover { transform: scale(1.1); }
+
+        /* Apply arcade font to key UI elements */
+        #level-select h2, #game-over h2 {
+            font-family: 'Press Start 2P', monospace;
+        }
+        #level-name-display {
+            font-family: 'Press Start 2P', monospace;
+        }
     </style>
 </head>
 <body>
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+        <div id="loading-logo">PINBALL<br><span class="dreams">DREAMS</span></div>
+        <div id="loading-bar-container"><div id="loading-bar"></div></div>
+        <div id="loading-text">LOADING...</div>
+    </div>
+
     <div id="game-container">
         <div id="score-display">
             <div class="score-item" id="high-score">
@@ -169,8 +303,29 @@
         </div>
         <div id="editor-instructions">Tap to place bumpers | Draw to create walls</div>
 
+        <!-- Title Screen -->
+        <div id="title-screen">
+            <div class="game-title">PINBALL<span class="dreams">DREAMS</span></div>
+            <div class="title-ball">&#127936;</div>
+            <div class="tagline">FLIP IT. DREAM IT. SCORE IT.</div>
+            <button id="start-btn">START</button><br>
+            <button id="credits-btn">CREDITS</button>
+            <div class="title-version">v1.0</div>
+        </div>
+
+        <!-- Credits Modal -->
+        <div id="credits-modal">
+            <h2>CREDITS</h2>
+            <div class="credits-line"><span class="credits-label">Game</span><br><span class="credits-value">Pinball Dreams</span></div>
+            <div class="credits-line"><span class="credits-label">Engine</span><br><span class="credits-value">Matter.js</span></div>
+            <div class="credits-line"><span class="credits-label">Font</span><br><span class="credits-value">Press Start 2P</span></div>
+            <div class="credits-line"><span class="credits-label">Built With</span><br><span class="credits-value">HTML5 Canvas + JavaScript</span></div>
+            <div class="credits-copy">&copy; 2026 Pinball Dreams</div>
+            <button id="credits-close">BACK</button>
+        </div>
+
         <div id="level-select">
-            <h2>SELECT LEVEL</h2>
+            <h2 style="font-size: 16px;">SELECT TABLE</h2>
             <div class="level-grid">
                 <button class="level-btn selected" data-level="0">
                     <div class="level-icon">🎯</div>
@@ -303,7 +458,7 @@
 
         let currentLevel = 0;
         let gameState = {
-            score: 0, highScore: parseInt(localStorage.getItem('pinballHighScore')) || 0,
+            score: 0, highScore: parseInt(localStorage.getItem('pinballDreamsHighScore')) || 0,
             ballsRemaining: CONFIG.totalBalls, isPlaying: false, ballInPlay: false, ballLaunched: false
         };
 
@@ -1623,7 +1778,7 @@
         function updateScoreDisplay() { document.querySelector('#current-score .score-value').textContent = gameState.score.toLocaleString(); }
         function updateBallsDisplay() { document.querySelector('#balls-left .score-value').textContent = gameState.ballsRemaining; }
         function updateHighScore() {
-            if (gameState.score > gameState.highScore) { gameState.highScore = gameState.score; localStorage.setItem('pinballHighScore', gameState.highScore); }
+            if (gameState.score > gameState.highScore) { gameState.highScore = gameState.score; localStorage.setItem('pinballDreamsHighScore', gameState.highScore); }
             document.querySelector('#high-score .score-value').textContent = gameState.highScore.toLocaleString();
         }
 
@@ -2009,12 +2164,14 @@
             boardExtended = false; cameraY = 0;
             climbMode.active = false;
             Composite.clear(world, false);
-            document.getElementById('level-select').style.display = 'block';
+            document.getElementById('level-select').style.display = 'none';
             document.getElementById('game-over').style.display = 'none';
             document.getElementById('menu-btn').style.display = 'none';
             document.getElementById('editor-controls').style.display = 'none';
             document.getElementById('climb-hud').style.display = 'none';
             document.getElementById('ball-save-indicator').style.display = 'none';
+            document.getElementById('credits-modal').style.display = 'none';
+            showTitleScreen();
         }
 
         document.querySelectorAll('.level-btn').forEach(btn => {
@@ -2095,7 +2252,63 @@
         }
         window.addEventListener('resize', handleResize); handleResize();
 
-        window.onload = () => { updateHighScore(); document.getElementById('level-select').style.display = 'block'; gameLoop(); };
+        // Loading screen animation
+        function runLoadingScreen() {
+            const bar = document.getElementById('loading-bar');
+            const text = document.getElementById('loading-text');
+            let progress = 0;
+            const steps = [
+                { target: 30, label: 'LOADING PHYSICS...' },
+                { target: 60, label: 'BUILDING TABLES...' },
+                { target: 85, label: 'POLISHING BUMPERS...' },
+                { target: 100, label: 'READY!' }
+            ];
+            let step = 0;
+
+            const interval = setInterval(() => {
+                if (step < steps.length) {
+                    progress += 3;
+                    bar.style.width = Math.min(progress, steps[step].target) + '%';
+                    text.textContent = steps[step].label;
+                    if (progress >= steps[step].target) step++;
+                }
+                if (progress >= 100) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        document.getElementById('loading-screen').classList.add('fade-out');
+                        setTimeout(() => {
+                            document.getElementById('loading-screen').style.display = 'none';
+                            showTitleScreen();
+                        }, 600);
+                    }, 400);
+                }
+            }, 60);
+        }
+
+        function showTitleScreen() {
+            document.getElementById('title-screen').style.display = 'block';
+            document.getElementById('level-select').style.display = 'none';
+            document.getElementById('game-over').style.display = 'none';
+            document.getElementById('credits-modal').style.display = 'none';
+        }
+
+        // Title screen -> Level select
+        document.getElementById('start-btn').addEventListener('click', () => {
+            document.getElementById('title-screen').style.display = 'none';
+            document.getElementById('level-select').style.display = 'block';
+        });
+
+        // Credits
+        document.getElementById('credits-btn').addEventListener('click', () => {
+            document.getElementById('title-screen').style.display = 'none';
+            document.getElementById('credits-modal').style.display = 'block';
+        });
+        document.getElementById('credits-close').addEventListener('click', () => {
+            document.getElementById('credits-modal').style.display = 'none';
+            document.getElementById('title-screen').style.display = 'block';
+        });
+
+        window.onload = () => { updateHighScore(); runLoadingScreen(); gameLoop(); };
     </script>
 </body>
 </html>
