@@ -761,6 +761,9 @@
             walls.push(Bodies.rectangle(W - 42, baseY + H - 55, 8, 110, wallOpts));
             walls.push(Bodies.rectangle(W - 25, baseY + H - 10, 40, 10, wallOpts));
 
+            // Seal the plunger entrance on upper floors so the ball can't fall in
+            walls.push(Bodies.rectangle(W - 50, baseY + 57, 14, 90, wallOpts));
+
             // Solid transition walls between this board and the one below
             walls.push(...createCurvedWall([
                 { x: 20, y: baseY + 580 }, { x: 20, y: baseY + H }
