@@ -190,14 +190,6 @@
             color: #00ccff; display: block; font-size: 26px;
             text-shadow: 0 0 15px rgba(0, 204, 255, 0.5), 0 4px 8px rgba(0, 0, 0, 0.5);
         }
-        #title-screen .title-ball {
-            font-size: 40px; margin: 15px 0;
-            animation: titleBounce 2s ease-in-out infinite;
-        }
-        @keyframes titleBounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-        }
         #title-screen .tagline {
             font-family: 'Press Start 2P', monospace; font-size: 7px; color: #8888aa;
             letter-spacing: 2px; margin-bottom: 25px;
@@ -312,7 +304,6 @@
         <!-- Title Screen -->
         <div id="title-screen">
             <div class="game-title">PINBALL<span class="dreams">DREAMS</span></div>
-            <div class="title-ball">&#127936;</div>
             <div class="tagline">FLIP IT. DREAM IT. SCORE IT.</div>
             <button id="climb-btn">CLIMB MODE</button><br>
             <button id="levels-btn">LEVELS</button><br>
