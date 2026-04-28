@@ -254,7 +254,38 @@
         #level-select h2, #game-over h2 {
             font-family: 'Press Start 2P', monospace;
         }
+
+        #mute-btn {
+            position: absolute; top: 72px; right: 10px; padding: 5px 9px; font-size: 15px;
+            background: rgba(26,26,46,0.92); border: 1px solid #4a4a6a; border-radius: 6px;
+            cursor: pointer; z-index: 100; display: none; line-height: 1; color: #fff;
+            transition: border-color 0.2s;
+        }
+        #mute-btn:hover { border-color: #00ff88; }
+        #multiplier-hud {
+            position: absolute; top: 73px; left: 50%; transform: translateX(-50%);
+            font-family: 'Press Start 2P', monospace; font-size: 9px;
+            text-align: center; display: none; z-index: 100; pointer-events: none;
+            white-space: nowrap;
+        }
+        #new-high-score-msg {
+            color: #ffcc00; font-size: 12px; font-family: 'Press Start 2P', monospace;
+            animation: pulse 0.5s infinite; margin: 6px 0 0 0; display: none;
+            text-shadow: 0 0 12px rgba(255,204,0,0.9);
+        }
+        #game-over-buttons { display: flex; gap: 10px; justify-content: center; margin-top: 12px; }
+        #restart-btn { margin-top: 0; }
+        #menu-from-over-btn {
+            background: linear-gradient(180deg, #ff6688 0%, #cc4466 100%);
+            border: none; padding: 12px 20px; font-size: 14px; font-weight: bold;
+            color: #fff; border-radius: 10px; cursor: pointer; transition: all 0.3s ease;
+        }
+        #menu-from-over-btn:hover { transform: scale(1.1); }
     </style>
+    <!-- PostHog Analytics -->
+    <script>!function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.async=!0,p.src=s.api_host+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+" (stub)"},o="capture identify alias people.set people.set_once set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled onFeatureFlags getFeatureFlag getFeatureFlagPayload reloadFeatureFlags group updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures getActiveMatchingSurveys getSurveys onSessionId".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);posthog.init("phc_yvcBpCFdgfv12kjHY1fnN1LNJSBfFUB8uvXrVw1pCY2",{api_host:"https://us.i.posthog.com",person_profiles:"identified_only",capture_pageview:true});posthog.register({"$product":"arcade","surface":"pinballdreams"});</script>
+    <!-- Sentry Error Tracking (no-op until PIC-21 DSN lands) -->
+    <script>(function(){var d="https://0b7ca7e91e69b1ffbe2e7d8e5aecc021@o4510785475051520.ingest.us.sentry.io/4511284184350720";if(!d)return;var s=document.createElement("script");s.src="https://browser.sentry-cdn.com/7.100.0/bundle.min.js";s.crossOrigin="anonymous";s.onload=function(){Sentry.init({dsn:d,environment:location.hostname==="localhost"?"development":"production",initialScope:{tags:{surface:"pinballdreams","$product":"arcade"}}});};document.head.appendChild(s);})();</script>
 </head>
 <body>
     <!-- Loading Screen -->
@@ -278,6 +309,10 @@
                 <div class="score-label">Balls</div>
                 <div class="score-value">3</div>
             </div>
+            <div class="score-item" id="multiplier-score" style="min-width:38px">
+                <div class="score-label">Multi</div>
+                <div class="score-value" style="color:#00ccff;font-size:20px">1×</div>
+            </div>
         </div>
         <canvas id="game-canvas"></canvas>
         <button id="menu-btn">MENU</button>
@@ -290,6 +325,8 @@
             <div class="element-display" id="element-display"></div>
         </div>
         <div id="ball-save-indicator">BALL SAVE!</div>
+        <button id="mute-btn">🔊</button>
+        <div id="multiplier-hud"></div>
         <div id="editor-controls">
             <button class="editor-btn active" id="bumper-mode-btn">Bumper</button>
             <button class="editor-btn" id="flipper-mode-btn">Flipper</button>
@@ -297,6 +334,8 @@
             <button class="editor-btn" id="wall-mode-btn">Wall</button>
             <button class="editor-btn extend" id="extend-btn">Extend</button>
             <button class="editor-btn" id="play-test-btn">Test</button>
+            <button class="editor-btn" id="save-level-btn">Save</button>
+            <button class="editor-btn" id="load-level-btn">Load</button>
             <button class="editor-btn danger" id="clear-btn">Clear</button>
         </div>
         <div id="editor-instructions">Tap to place bumpers | Draw to create walls</div>
@@ -318,6 +357,8 @@
             <div class="credits-line"><span class="credits-label">Engine</span><br><span class="credits-value">Matter.js</span></div>
             <div class="credits-line"><span class="credits-label">Font</span><br><span class="credits-value">Press Start 2P</span></div>
             <div class="credits-line"><span class="credits-label">Built With</span><br><span class="credits-value">HTML5 Canvas + JavaScript</span></div>
+            <div class="credits-line"><span class="credits-label">Music</span><br><span class="credits-value">30 Crimson / 49 Arpeggios / 53 Flight</span></div>
+            <div class="credits-line"><span class="credits-label">License</span><br><span class="credits-value">Royalty-Free</span></div>
             <div class="credits-copy">&copy; 2026 Pinball Dreams</div>
             <button id="credits-close">BACK</button>
         </div>
@@ -366,10 +407,14 @@
 
         <div id="game-over">
             <h2>GAME OVER</h2>
+            <div id="new-high-score-msg">★ NEW HIGH SCORE! ★</div>
             <p style="color:#fff">Final Score:</p>
             <div id="final-score">0</div>
             <div id="final-floor">Reached Floor: <span id="final-floor-num">1</span></div>
-            <button id="restart-btn">PLAY AGAIN</button>
+            <div id="game-over-buttons">
+                <button id="restart-btn">PLAY AGAIN</button>
+                <button id="menu-from-over-btn">MENU</button>
+            </div>
         </div>
     </div>
     <div id="instructions">
@@ -433,6 +478,7 @@
             highestFloor: 0,
             currentBallFloor: 0,
             elementalBall: 'normal',
+            elementalBallTimer: 0,
             checkpointFlippers: [],
             dropTargets: [],
             ballSaveActive: false,
@@ -468,6 +514,193 @@
         let boardExtended = false;
         let cameraY = 0;
         const keys = { left: false, right: false };
+        let prevKeysLeft = false, prevKeysRight = false;
+
+        // ====== SCORE MULTIPLIER & COMBO ======
+        let scoreMultiplier = 1, comboHits = 0, comboTimer = 0;
+        const COMBO_TIMEOUT = 3500;
+
+        // ====== PAUSE ======
+        let paused = false;
+
+        // ====== AUDIO SYSTEM ======
+        let audioCtx = null, musicAudio = null, sfxMuted = false, currentMusicTrack = 'menu';
+
+        function ensureAudio() {
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (audioCtx.state === 'suspended') audioCtx.resume();
+            return audioCtx;
+        }
+
+        function playMusic(track) {
+            currentMusicTrack = track;
+            if (sfxMuted) return;
+            stopMusic();
+            musicAudio = new Audio('assets/music/' + track + '.mp3');
+            musicAudio.loop = true; musicAudio.volume = 0.3;
+            musicAudio.play().catch(() => {});
+        }
+
+        function stopMusic() {
+            if (musicAudio) { musicAudio.pause(); musicAudio.currentTime = 0; musicAudio = null; }
+        }
+
+        function toggleMute() {
+            sfxMuted = !sfxMuted;
+            document.getElementById('mute-btn').textContent = sfxMuted ? '🔇' : '🔊';
+            if (sfxMuted) stopMusic();
+            else playMusic(currentMusicTrack);
+        }
+
+        function _beep(freq, type, vol, dur, startOffset) {
+            const ac = ensureAudio();
+            const t = ac.currentTime + (startOffset || 0);
+            const osc = ac.createOscillator(), gain = ac.createGain();
+            osc.connect(gain); gain.connect(ac.destination);
+            osc.type = type; osc.frequency.value = freq;
+            gain.gain.setValueAtTime(vol, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+            osc.start(t); osc.stop(t + dur);
+        }
+
+        function sfxBumper(score) {
+            if (sfxMuted) return;
+            const ac = ensureAudio(), t = ac.currentTime;
+            const osc = ac.createOscillator(), gain = ac.createGain();
+            osc.connect(gain); gain.connect(ac.destination);
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(score >= 300 ? 900 : 520, t);
+            osc.frequency.exponentialRampToValueAtTime(240, t + 0.1);
+            gain.gain.setValueAtTime(0.14, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.12);
+            osc.start(t); osc.stop(t + 0.12);
+        }
+
+        function sfxFlipper() {
+            if (sfxMuted) return;
+            _beep(100, 'sine', 0.18, 0.06);
+            _beep(60, 'sine', 0.1, 0.04, 0.02);
+        }
+
+        function sfxSlingshot() {
+            if (sfxMuted) return;
+            const ac = ensureAudio(), t = ac.currentTime;
+            const osc = ac.createOscillator(), gain = ac.createGain();
+            osc.connect(gain); gain.connect(ac.destination);
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(320, t);
+            osc.frequency.exponentialRampToValueAtTime(80, t + 0.08);
+            gain.gain.setValueAtTime(0.22, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+            osc.start(t); osc.stop(t + 0.09);
+        }
+
+        function sfxDrain() {
+            if (sfxMuted) return;
+            [380, 280, 180, 90].forEach((f, i) => _beep(f, 'sawtooth', 0.18, 0.1, i * 0.12));
+        }
+
+        function sfxBallSave() {
+            if (sfxMuted) return;
+            [523, 659, 784, 1047].forEach((f, i) => _beep(f, 'sine', 0.14, 0.13, i * 0.1));
+        }
+
+        function sfxFloorClear() {
+            if (sfxMuted) return;
+            [523, 659, 784, 1047, 1319].forEach((f, i) => _beep(f, 'square', 0.11, 0.15, i * 0.08));
+        }
+
+        function sfxHighScore() {
+            if (sfxMuted) return;
+            [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => _beep(f, 'square', 0.12, 0.18, i * 0.1));
+        }
+
+        function sfxLaunch() {
+            if (sfxMuted) return;
+            const ac = ensureAudio(), t = ac.currentTime;
+            const osc = ac.createOscillator(), gain = ac.createGain();
+            osc.connect(gain); gain.connect(ac.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(180, t);
+            osc.frequency.exponentialRampToValueAtTime(620, t + 0.18);
+            gain.gain.setValueAtTime(0.2, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.22);
+            osc.start(t); osc.stop(t + 0.22);
+        }
+
+        function sfxElementPickup(elem) {
+            if (sfxMuted) return;
+            const seqs = { hot:[523,659,880], water:[440,554,659], grass:[392,494,587] };
+            (seqs[elem] || [523,659,784]).forEach((f, i) => _beep(f, 'sine', 0.14, 0.15, i * 0.07));
+        }
+
+        function sfxMultiplierUp() {
+            if (sfxMuted) return;
+            const ac = ensureAudio(), t = ac.currentTime;
+            const osc = ac.createOscillator(), gain = ac.createGain();
+            osc.connect(gain); gain.connect(ac.destination);
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(440, t);
+            osc.frequency.exponentialRampToValueAtTime(880, t + 0.14);
+            gain.gain.setValueAtTime(0.14, t);
+            gain.gain.exponentialRampToValueAtTime(0.001, t + 0.18);
+            osc.start(t); osc.stop(t + 0.18);
+        }
+
+        function sfxSpinner() {
+            if (sfxMuted) return;
+            _beep(660, 'sine', 0.07, 0.05);
+        }
+
+        // ====== MULTIPLIER / COMBO ======
+        function addComboHit() {
+            comboHits++; comboTimer = Date.now();
+            const prev = scoreMultiplier;
+            if (comboHits >= 15) scoreMultiplier = 5;
+            else if (comboHits >= 10) scoreMultiplier = 3;
+            else if (comboHits >= 5)  scoreMultiplier = 2;
+            else scoreMultiplier = 1;
+            if (scoreMultiplier > prev) sfxMultiplierUp();
+            updateMultiplierDisplay();
+        }
+
+        function resetCombo() {
+            comboHits = 0; scoreMultiplier = 1; updateMultiplierDisplay();
+        }
+
+        function checkComboTimeout() {
+            if (comboHits > 0 && comboTimer > 0 && Date.now() - comboTimer > COMBO_TIMEOUT) resetCombo();
+        }
+
+        function updateMultiplierDisplay() {
+            const el = document.querySelector('#multiplier-score .score-value');
+            if (el) { el.textContent = scoreMultiplier + '×'; el.style.color = scoreMultiplier > 1 ? '#ffcc00' : '#00ccff'; }
+        }
+
+        // ====== ELEMENTAL BALL ======
+        // Effects applied in game loop
+        function applyElementalEffects() {
+            if (!climbMode.active) return;
+            const elem = climbMode.elementalBall;
+            if (elem !== 'normal' && climbMode.elementalBallTimer > 0) {
+                if (Date.now() - climbMode.elementalBallTimer > 15000) {
+                    climbMode.elementalBall = 'normal';
+                    climbMode.elementalBallTimer = 0;
+                    engine.gravity.y = 0.8;
+                    updateClimbHUD();
+                } else if (elem === 'water') {
+                    engine.gravity.y = 0.5;
+                }
+            }
+        }
+
+        // ====== PAUSE ======
+        function togglePause() {
+            if (!gameState.isPlaying) return;
+            paused = !paused;
+            if (paused) stopMusic();
+            else playMusic(currentMusicTrack);
+        }
 
         function createCurvedWall(points, thickness, options) {
             const bodies = [];
@@ -567,7 +800,11 @@
                     const r = 50 + i * 18;
                     createBumper(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 18 + (i % 2) * 6);
                 }
-                walls.push(Bodies.rectangle(170, 280, 70, 10, { ...wallOpts, restitution: 0.8, render: { fillStyle: level.theme.accent } }));
+                // Spinner at vortex center
+                walls.push(Bodies.circle(170, 280, 14, { isStatic: true, isSensor: true, label: 'spinner',
+                    render: { fillStyle: level.theme.accent },
+                    collisionFilter: { category: CATEGORY.BUMPER },
+                    plugin: { score: 75, angle: 0 } }));
             }
             else if (currentLevel === 2) {
                 createBumper(180, 120, 24);
@@ -594,6 +831,17 @@
                     walls.push(Bodies.rectangle(210 + i * 40, 230, 25, 10, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
                 }
                 walls.push(Bodies.rectangle(180, 200, 12, 45, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
+                // Castle battlement drop targets
+                [100, 160, 220, 280].forEach((dtX, i) => {
+                    const dt = Bodies.rectangle(dtX, 480, 20, 36, {
+                        isStatic: true, label: 'drop-target', restitution: 0.2,
+                        render: { fillStyle: level.theme.accent },
+                        collisionFilter: { category: CATEGORY.BUMPER },
+                        plugin: { floor: -1, hit: false, score: 300, idx: i }
+                    });
+                    Composite.add(world, dt);
+                    bumpers.push(dt);
+                });
             }
             else if (currentLevel === 4) {
                 createBumper(90, 180, 22);
@@ -605,6 +853,13 @@
                 walls.push(...createCurvedWall(w1, 8, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
                 const w2 = [{ x: 140, y: 430 }, { x: 180, y: 410 }, { x: 220, y: 430 }, { x: 260, y: 410 }, { x: 300, y: 430 }];
                 walls.push(...createCurvedWall(w2, 8, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
+                // Wave spinners along the curves
+                Composite.add(world, Bodies.circle(150, 268, 13, { isStatic: true, isSensor: true, label: 'spinner',
+                    render: { fillStyle: level.theme.accent }, collisionFilter: { category: CATEGORY.BUMPER },
+                    plugin: { score: 75, angle: 0 } }));
+                Composite.add(world, Bodies.circle(220, 428, 13, { isStatic: true, isSensor: true, label: 'spinner',
+                    render: { fillStyle: level.theme.accent }, collisionFilter: { category: CATEGORY.BUMPER },
+                    plugin: { score: 75, angle: 0 } }));
             }
             else if (currentLevel === 5) {
                 customBumpers.forEach(b => createBumper(b.x, b.y, b.radius));
@@ -680,6 +935,19 @@
             const level = LEVELS[6];
             walls.push(Bodies.polygon(90, H - 180, 3, 30, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
             walls.push(Bodies.polygon(W - 110, H - 180, 3, 30, { ...wallOpts, angle: 0, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
+
+            // Drop targets - floor 0
+            const dt0Positions = [W/2 - 55, W/2, W/2 + 55];
+            dt0Positions.forEach((dtX, i) => {
+                const dt = Bodies.rectangle(dtX, 390, 18, 32, {
+                    isStatic: true, label: 'drop-target', restitution: 0.2,
+                    render: { fillStyle: level.theme.accent },
+                    collisionFilter: { category: CATEGORY.BUMPER },
+                    plugin: { floor: 0, hit: false, score: 250, idx: i }
+                });
+                Composite.add(world, dt);
+                cm.dropTargets.push(dt);
+            });
 
             // Ball save state
             cm.ballSaveActive = true;
@@ -839,6 +1107,35 @@
                     { x: 140, y: baseY + 430 }, { x: 180, y: baseY + 410 }, { x: 220, y: baseY + 430 },
                     { x: 260, y: baseY + 410 }, { x: 300, y: baseY + 430 }
                 ], 8, { ...wallOpts, render: { fillStyle: theme.accent } }));
+            }
+
+            // Drop targets - 3 per floor
+            const dtY = baseY + 390;
+            const dtPositions = [W/2 - 55, W/2, W/2 + 55];
+            dtPositions.forEach((dtX, i) => {
+                const dt = Bodies.rectangle(dtX, dtY, 18, 32, {
+                    isStatic: true, label: 'drop-target', restitution: 0.2,
+                    render: { fillStyle: theme.accent },
+                    collisionFilter: { category: CATEGORY.BUMPER },
+                    plugin: { floor, hit: false, score: 250, idx: i }
+                });
+                Composite.add(world, dt);
+                cm.dropTargets.push(dt);
+            });
+
+            // Element orb pickup (floors 1+)
+            if (floor > 0) {
+                const elems = ['hot', 'water', 'grass'];
+                const elemType = elems[(floor - 1) % 3];
+                const elemClr = { hot: '#ff6644', water: '#4499ff', grass: '#44ee66' };
+                const orbX = 70 + Math.floor(Math.random() * 3) * 95 + 30;
+                const orbY = baseY + 240;
+                const orb = Bodies.circle(orbX, orbY, 13, {
+                    isStatic: true, isSensor: true, label: 'elem-' + elemType,
+                    render: { fillStyle: elemClr[elemType] },
+                    collisionFilter: { category: CATEGORY.BUMPER }
+                });
+                Composite.add(world, orb);
             }
 
             // Flippers for this floor
@@ -1032,6 +1329,28 @@
         }
         function clearCustomLevel() { customBumpers = []; customFlippers = []; customRamps = []; customWalls = []; rebuildCustomLevel(); }
 
+        function saveCustomLevel() {
+            const data = { bumpers: customBumpers, flippers: customFlippers, ramps: customRamps, walls: customWalls };
+            localStorage.setItem('pinballDreamsCustomLevel', JSON.stringify(data));
+            const btn = document.getElementById('save-level-btn');
+            const prev = btn.textContent; btn.textContent = 'Saved!';
+            setTimeout(() => btn.textContent = prev, 1200);
+        }
+
+        function loadCustomLevel() {
+            const raw = localStorage.getItem('pinballDreamsCustomLevel');
+            if (!raw) return;
+            try {
+                const data = JSON.parse(raw);
+                customBumpers = data.bumpers || []; customFlippers = data.flippers || [];
+                customRamps = data.ramps || []; customWalls = data.walls || [];
+                rebuildCustomLevel();
+                const btn = document.getElementById('load-level-btn');
+                const prev = btn.textContent; btn.textContent = 'Loaded!';
+                setTimeout(() => btn.textContent = prev, 1200);
+            } catch(e) {}
+        }
+
         function setEditorMode(mode) {
             editorMode = mode;
             document.getElementById('bumper-mode-btn').classList.toggle('active', mode === 'bumper');
@@ -1143,7 +1462,8 @@
         document.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') { keys.left = true; e.preventDefault(); }
             if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') { keys.right = true; e.preventDefault(); }
-            if (e.key === ' ') { if (!gameState.ballLaunched && gameState.ballInPlay) plunger.charging = true; e.preventDefault(); }
+            if (e.key === ' ') { if (!gameState.ballLaunched && gameState.ballInPlay && !paused) plunger.charging = true; e.preventDefault(); }
+            if ((e.key === 'Escape' || e.key.toLowerCase() === 'p') && gameState.isPlaying) { togglePause(); e.preventDefault(); }
         });
         document.addEventListener('keyup', (e) => {
             if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') keys.left = false;
@@ -1235,7 +1555,8 @@
 
         function launchBall() {
             if (!ball || gameState.ballLaunched) return;
-            const power = Math.max(plunger.power, 0.7);
+            sfxLaunch();
+            const power = Math.max(plunger.power, 0.35);
             Body.applyForce(ball, ball.position, { x: 0, y: -0.055 * power });
             gameState.ballLaunched = true; plunger.power = 0;
             ballLaunchTime = Date.now();
@@ -1249,6 +1570,9 @@
 
         function updateFlippers() {
             if (!leftFlipper || !rightFlipper) return;
+            if (keys.left && !prevKeysLeft) sfxFlipper();
+            if (keys.right && !prevKeysRight) sfxFlipper();
+            prevKeysLeft = keys.left; prevKeysRight = keys.right;
             const lTarget = keys.left ? CONFIG.flipper.activeAngle : CONFIG.flipper.restAngle;
             const rTarget = keys.right ? -CONFIG.flipper.activeAngle : -CONFIG.flipper.restAngle;
             Body.setAngularVelocity(leftFlipper.flipper, (lTarget - leftFlipper.flipper.angle) * 0.35);
@@ -1275,13 +1599,40 @@
         // Collisions
         Events.on(engine, 'collisionStart', (event) => {
             event.pairs.forEach(({ bodyA, bodyB }) => {
+                const isBall = bodyA.label === 'ball' || bodyB.label === 'ball';
+
+                // Element orb pickups
+                if (isBall && climbMode.active) {
+                    const orb = ['hot','water','grass'].reduce((found, e) => {
+                        const lbl = 'elem-' + e;
+                        return found || (bodyA.label === lbl ? bodyA : bodyB.label === lbl ? bodyB : null);
+                    }, null);
+                    if (orb && !orb._collected) {
+                        orb._collected = true;
+                        const elemType = orb.label.replace('elem-', '');
+                        climbMode.elementalBall = elemType;
+                        climbMode.elementalBallTimer = Date.now();
+                        if (elemType === 'water') engine.gravity.y = 0.5;
+                        sfxElementPickup(elemType);
+                        createParticles(orb.position.x, orb.position.y, orb.render.fillStyle);
+                        const elemNames = { hot: '🔥 HOT!', water: '💧 WATER!', grass: '🌿 GRASS!' };
+                        createScorePopup(orb.position.x, orb.position.y - 20, elemNames[elemType] || elemType);
+                        setTimeout(() => { if (Composite.get(world, orb.id, 'body')) Composite.remove(world, orb); }, 0);
+                        updateClimbHUD();
+                    }
+                }
+
                 const bumper = bodyA.label === 'bumper' ? bodyA : bodyB.label === 'bumper' ? bodyB : null;
                 if (bumper && bumper.plugin) {
-                    gameState.score += bumper.plugin.score;
+                    const elemBonus = climbMode.active && climbMode.elementalBall === 'hot' ? 2 : 1;
+                    const pts = bumper.plugin.score * scoreMultiplier * elemBonus;
+                    addComboHit();
+                    gameState.score += pts;
                     updateScoreDisplay();
-                    createScorePopup(bumper.position.x, bumper.position.y, bumper.plugin.score);
+                    createScorePopup(bumper.position.x, bumper.position.y, pts);
                     bumper.plugin.isFlashing = true;
                     setTimeout(() => bumper.plugin.isFlashing = false, 80);
+                    sfxBumper(pts);
                     createParticles(bumper.position.x, bumper.position.y, LEVELS[currentLevel].theme.bumper);
                     // Apply force push away from bumper center
                     if (ball) {
@@ -1295,7 +1646,10 @@
                     }
                 }
                 if (bodyA.label === 'slingshot' || bodyB.label === 'slingshot') {
-                    gameState.score += 50; updateScoreDisplay();
+                    const slingPts = 50 * scoreMultiplier;
+                    gameState.score += slingPts; updateScoreDisplay();
+                    sfxSlingshot();
+                    if (isBall && ball) createParticles(ball.position.x, ball.position.y, LEVELS[currentLevel].theme.accent);
                 }
 
                 // Ramp collision
@@ -1314,51 +1668,58 @@
 
                 // Drop targets
                 const dt = bodyA.label === 'drop-target' ? bodyA : bodyB.label === 'drop-target' ? bodyB : null;
-                if (dt && dt.plugin && !dt.plugin.hit && (bodyA.label === 'ball' || bodyB.label === 'ball')) {
+                if (dt && dt.plugin && !dt.plugin.hit && isBall) {
                     dt.plugin.hit = true;
-                    dt.render.fillStyle = '#444';
-                    Body.setPosition(dt, { x: dt.position.x, y: dt.position.y + 15 });
-                    gameState.score += dt.plugin.score;
+                    dt.render.fillStyle = '#333';
+                    Body.setPosition(dt, { x: dt.position.x, y: dt.position.y + 14 });
+                    const dtPts = dt.plugin.score * scoreMultiplier;
+                    gameState.score += dtPts;
                     updateScoreDisplay();
-                    createScorePopup(dt.position.x, dt.position.y, dt.plugin.score);
-                    // Check if all targets on this floor are hit
-                    const floorTargets = climbMode.dropTargets.filter(t => t.plugin.floor === dt.plugin.floor);
-                    if (floorTargets.every(t => t.plugin.hit)) {
-                        gameState.score += 1000;
-                        updateScoreDisplay();
-                        createScorePopup(dt.position.x, dt.position.y - 30, 1000);
-                        // All targets cleared - create boost pad to help reach next floor
-                        createBoostPad(dt.plugin.floor);
+                    createScorePopup(dt.position.x, dt.position.y, dtPts);
+                    sfxBumper(dtPts);
+                    if (climbMode.active) {
+                        const floorTargets = climbMode.dropTargets.filter(t => t.plugin.floor === dt.plugin.floor);
+                        if (floorTargets.every(t => t.plugin.hit)) {
+                            const bonus = 1000 * scoreMultiplier;
+                            gameState.score += bonus;
+                            updateScoreDisplay();
+                            createScorePopup(dt.position.x, dt.position.y - 30, bonus);
+                            sfxFloorClear();
+                            createBoostPad(dt.plugin.floor);
+                        }
                     }
                 }
 
                 // Floor panels - breakable ceiling panels at floor transitions
                 const fp = bodyA.label === 'floor-panel' ? bodyA : bodyB.label === 'floor-panel' ? bodyB : null;
-                if (fp && fp.plugin && !fp.plugin.hit && (bodyA.label === 'ball' || bodyB.label === 'ball')) {
+                if (fp && fp.plugin && !fp.plugin.hit && isBall) {
                     fp.plugin.hit = true;
-                    gameState.score += fp.plugin.score;
+                    const grassBonus = climbMode.active && climbMode.elementalBall === 'grass' ? 2 : 1;
+                    const fpPts = fp.plugin.score * scoreMultiplier * grassBonus;
+                    gameState.score += fpPts;
                     updateScoreDisplay();
-                    createScorePopup(fp.position.x, fp.position.y, fp.plugin.score);
+                    createScorePopup(fp.position.x, fp.position.y, fpPts);
                     const panelColor = fp.plugin.score >= 500 ? '#ffcc00' : '#4a90d9';
                     createParticles(fp.position.x, fp.position.y, panelColor);
+                    sfxBumper(fpPts);
                     Composite.remove(world, fp);
-                    // Pre-spawn the next board above when a ceiling tile breaks
-                    if (climbMode.active) {
-                        spawnClimbBoard(fp.plugin.floor + 1);
-                    }
+                    if (climbMode.active) spawnClimbBoard(fp.plugin.floor + 1);
                 }
 
                 // Spinner
                 const sp = bodyA.label === 'spinner' ? bodyA : bodyB.label === 'spinner' ? bodyB : null;
-                if (sp && sp.plugin && (bodyA.label === 'ball' || bodyB.label === 'ball')) {
-                    gameState.score += sp.plugin.score;
+                if (sp && sp.plugin && isBall) {
+                    const spPts = sp.plugin.score * scoreMultiplier;
+                    gameState.score += spPts;
                     updateScoreDisplay();
-                    sp.plugin.angle += 3;
+                    createScorePopup(sp.position.x, sp.position.y, spPts);
+                    sp.plugin.angle += Math.PI;
+                    sfxSpinner();
                 }
 
                 // Ball save gate: teleport ball back to this floor's plunger lane
                 if ((bodyA.label === 'ball-save-gate' || bodyB.label === 'ball-save-gate') &&
-                    (bodyA.label === 'ball' || bodyB.label === 'ball') && ball && gameState.ballInPlay) {
+                    isBall && ball && gameState.ballInPlay) {
                     const saveFloor = climbMode.ballSaveFloor || 0;
                     const saveBaseY = floorY(saveFloor);
                     Body.setPosition(ball, { x: CONFIG.width - 25, y: saveBaseY + CONFIG.height - 50 });
@@ -1369,6 +1730,7 @@
                     removeBallSaveGate();
                     climbMode.ballSaveUsed = true;
                     climbMode.ballSaveActive = false;
+                    sfxBallSave();
                     document.getElementById('launch-indicator').style.display = 'block';
                     const saveInd = document.getElementById('ball-save-indicator');
                     saveInd.style.display = 'block';
@@ -1376,8 +1738,10 @@
                 }
 
                 // Drain
-                if ((bodyA.label === 'drain' || bodyB.label === 'drain') && (bodyA.label === 'ball' || bodyB.label === 'ball') && gameState.ballInPlay) {
-                    if (climbMode.active) removeBallSaveGate();
+                if ((bodyA.label === 'drain' || bodyB.label === 'drain') && isBall && gameState.ballInPlay) {
+                    if (climbMode.active) { removeBallSaveGate(); engine.gravity.y = 0.8; }
+                    resetCombo();
+                    sfxDrain();
                     gameState.ballInPlay = false; gameState.ballsRemaining--;
                     updateBallsDisplay();
                     if (gameState.ballsRemaining <= 0) endGame(); else setTimeout(createBall, 800);
@@ -1477,9 +1841,14 @@
             document.getElementById('floor-board-name').textContent = boardName;
             const elem = climbMode.elementalBall;
             const elemInfo = ELEMENT_COLORS[elem];
-            document.getElementById('element-display').innerHTML =
-                elem === 'normal' ? '<span style="color:#888">Normal Ball</span>' :
-                `<span style="color:${elemInfo.ball[1]}">${elemInfo.icon} ${elemInfo.name} Ball</span>`;
+            let elemHtml;
+            if (elem === 'normal') {
+                elemHtml = '<span style="color:#888">Normal Ball</span>';
+            } else {
+                const remaining = Math.max(0, Math.ceil((15000 - (Date.now() - climbMode.elementalBallTimer)) / 1000));
+                elemHtml = `<span style="color:${elemInfo.ball[1]}">${elemInfo.icon} ${elemInfo.name} Ball (${remaining}s)</span>`;
+            }
+            document.getElementById('element-display').innerHTML = elemHtml;
         }
 
         function updateScoreDisplay() { document.querySelector('#current-score .score-value').textContent = gameState.score.toLocaleString(); }
@@ -1490,7 +1859,8 @@
         }
 
         function createScorePopup(x, y, pts) {
-            const p = document.createElement('div'); p.className = 'score-popup'; p.textContent = '+' + pts;
+            const p = document.createElement('div'); p.className = 'score-popup';
+            p.textContent = typeof pts === 'string' ? pts : '+' + pts;
             const r = canvas.getBoundingClientRect();
             const s = r.width / CONFIG.width;
             p.style.left = (r.left + x * s) + 'px'; p.style.top = (r.top + (y + cameraY) * s) + 'px';
@@ -1603,7 +1973,7 @@
                     ctx.arc(body.position.x, body.position.y, body.circleRadius * 0.45, 0, Math.PI * 2);
                     ctx.fillStyle = body.plugin?.isFlashing ? '#fff' : level.theme.bg; ctx.fill();
                     ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                    ctx.fillText('100', body.position.x, body.position.y);
+                    ctx.fillText(body.plugin?.score || 100, body.position.x, body.position.y);
                 }
 
                 // Elemental ball rendering
@@ -1629,6 +1999,33 @@
                     ctx.shadowBlur = isCeiling ? 12 : 8; ctx.fill(); ctx.shadowBlur = 0;
                     ctx.strokeStyle = isCeiling ? '#ffe066' : '#6ab0ff';
                     ctx.lineWidth = isCeiling ? 2 : 1; ctx.stroke();
+                }
+
+                // Spinner rendering - rotating blades
+                if (body.label === 'spinner' && body.plugin) {
+                    body.plugin.angle = (body.plugin.angle || 0) + 0.04;
+                    const sa = body.plugin.angle;
+                    const sr = body.circleRadius;
+                    ctx.save();
+                    ctx.translate(body.position.x, body.position.y);
+                    ctx.rotate(sa);
+                    ctx.strokeStyle = '#fff'; ctx.lineWidth = 2.5;
+                    ctx.beginPath(); ctx.moveTo(-sr, 0); ctx.lineTo(sr, 0); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(0, -sr); ctx.lineTo(0, sr); ctx.stroke();
+                    ctx.shadowColor = body.render.fillStyle; ctx.shadowBlur = 8;
+                    ctx.strokeStyle = body.render.fillStyle; ctx.lineWidth = 2;
+                    ctx.beginPath(); ctx.moveTo(-sr*0.7, -sr*0.7); ctx.lineTo(sr*0.7, sr*0.7); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(sr*0.7, -sr*0.7); ctx.lineTo(-sr*0.7, sr*0.7); ctx.stroke();
+                    ctx.shadowBlur = 0;
+                    ctx.restore();
+                }
+
+                // Element orb glow
+                if (body.label && body.label.startsWith('elem-')) {
+                    ctx.shadowColor = body.render.fillStyle; ctx.shadowBlur = 18; ctx.fill(); ctx.shadowBlur = 0;
+                    const elemIcon = { 'elem-hot': '🔥', 'elem-water': '💧', 'elem-grass': '🌿' }[body.label] || '★';
+                    ctx.font = '11px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.fillText(elemIcon, body.position.x, body.position.y);
                 }
 
                 // Ball save gate glow
@@ -1731,7 +2128,25 @@
         }
 
         function gameLoop() {
+            if (paused) {
+                // Draw pause overlay on top of last rendered frame
+                ctx.save();
+                ctx.fillStyle = 'rgba(0,0,0,0.55)';
+                ctx.fillRect(0, 0, CONFIG.width, CONFIG.height);
+                ctx.fillStyle = '#00ff88';
+                ctx.font = 'bold 20px "Press Start 2P", monospace';
+                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillText('PAUSED', CONFIG.width / 2, CONFIG.height / 2 - 14);
+                ctx.font = '9px "Press Start 2P", monospace';
+                ctx.fillStyle = '#8888aa';
+                ctx.fillText('PRESS P TO RESUME', CONFIG.width / 2, CONFIG.height / 2 + 18);
+                ctx.restore();
+                requestAnimationFrame(gameLoop);
+                return;
+            }
             if (gameState.isPlaying) {
+                checkComboTimeout();
+                applyElementalEffects();
                 updateFlippers();
                 // Close plunger lane once ball exits into playfield
                 const plungerCheckFloor = climbMode.active ? (climbMode.ballSaveFloor || 0) : 0;
@@ -1773,16 +2188,18 @@
                     }
                 }
                 updateParticles();
-                // Out-of-bounds safety net: if ball escapes through walls, treat as drain
+                // Out-of-bounds safety net
                 if (ball && gameState.ballInPlay && (ball.position.x < -10 || ball.position.x > CONFIG.width + 30)) {
-                    if (climbMode.active) removeBallSaveGate();
+                    if (climbMode.active) { removeBallSaveGate(); engine.gravity.y = 0.8; }
+                    resetCombo(); sfxDrain();
                     gameState.ballInPlay = false; gameState.ballsRemaining--;
                     updateBallsDisplay();
                     if (gameState.ballsRemaining <= 0) endGame(); else setTimeout(createBall, 800);
                 }
-                // Fallback drain check: if ball falls below board, force drain
+                // Fallback drain check
                 if (ball && gameState.ballInPlay && ball.position.y > CONFIG.height + 50) {
-                    if (climbMode.active) removeBallSaveGate();
+                    if (climbMode.active) { removeBallSaveGate(); engine.gravity.y = 0.8; }
+                    resetCombo(); sfxDrain();
                     gameState.ballInPlay = false; gameState.ballsRemaining--;
                     updateBallsDisplay();
                     if (gameState.ballsRemaining <= 0) endGame(); else setTimeout(createBall, 800);
@@ -1796,15 +2213,18 @@
         function startGame() {
             gameState.score = 0; gameState.ballsRemaining = CONFIG.totalBalls;
             gameState.isPlaying = true; gameState.ballInPlay = false;
-            isInUpperLevel = false;
+            isInUpperLevel = false; paused = false;
+            resetCombo(); engine.gravity.y = 0.8;
 
             if (currentLevel === 6) {
+                playMusic('climb');
                 // Climb mode
                 climbMode.active = true;
                 climbMode.totalFloors = 1;
                 climbMode.highestFloor = 0;
                 climbMode.currentBallFloor = 0;
                 climbMode.elementalBall = 'normal';
+                climbMode.elementalBallTimer = 0;
                 climbMode.ballSaveGate = null;
                 climbMode.boostPads = [];
                 climbMode.spawnedFloors = new Set();
@@ -1816,6 +2236,7 @@
                 climbMode.active = false;
                 document.getElementById('climb-hud').style.display = 'none';
                 if (currentLevel !== 5) { boardExtended = false; cameraY = 0; }
+                playMusic('game');
             }
 
             Composite.clear(world, false); bumpers = []; particles = [];
@@ -1826,15 +2247,22 @@
             document.getElementById('game-over').style.display = 'none';
             document.getElementById('level-select').style.display = 'none';
             document.getElementById('menu-btn').style.display = 'block';
+            document.getElementById('mute-btn').style.display = 'block';
             document.getElementById('level-name-display').textContent = LEVELS[currentLevel].name;
             document.getElementById('ball-save-indicator').style.display = 'none';
         }
 
         function endGame() {
-            gameState.isPlaying = false; updateHighScore();
+            const isNewHS = gameState.score > gameState.highScore;
+            gameState.isPlaying = false; paused = false;
+            updateHighScore();
+            resetCombo(); engine.gravity.y = 0.8;
             document.getElementById('final-score').textContent = gameState.score.toLocaleString();
+            document.getElementById('new-high-score-msg').style.display = isNewHS ? 'block' : 'none';
+            if (isNewHS) sfxHighScore();
             document.getElementById('game-over').style.display = 'block';
             document.getElementById('menu-btn').style.display = 'none';
+            document.getElementById('mute-btn').style.display = 'none';
             document.getElementById('climb-hud').style.display = 'none';
             document.getElementById('ball-save-indicator').style.display = 'none';
             if (climbMode.active) {
@@ -1844,20 +2272,24 @@
                 document.getElementById('final-floor').style.display = 'none';
             }
             climbMode.active = false;
+            playMusic('gameover');
         }
 
         function showLevelSelect() {
-            gameState.isPlaying = false;
+            gameState.isPlaying = false; paused = false;
             boardExtended = false; cameraY = 0;
-            climbMode.active = false;
+            climbMode.active = false; engine.gravity.y = 0.8;
+            resetCombo();
             Composite.clear(world, false);
             document.getElementById('level-select').style.display = 'none';
             document.getElementById('game-over').style.display = 'none';
             document.getElementById('menu-btn').style.display = 'none';
+            document.getElementById('mute-btn').style.display = 'none';
             document.getElementById('editor-controls').style.display = 'none';
             document.getElementById('climb-hud').style.display = 'none';
             document.getElementById('ball-save-indicator').style.display = 'none';
             document.getElementById('credits-modal').style.display = 'none';
+            playMusic('menu');
             showTitleScreen();
         }
 
@@ -1871,7 +2303,8 @@
             if (currentLevel === 5) startCustomEditor();
             else startGame();
         });
-        document.getElementById('restart-btn').addEventListener('click', showLevelSelect);
+        document.getElementById('restart-btn').addEventListener('click', startGame);
+        document.getElementById('menu-from-over-btn').addEventListener('click', showLevelSelect);
         document.getElementById('menu-btn').addEventListener('click', () => {
             isEditing = false;
             document.getElementById('editor-controls').style.display = 'none';
@@ -1886,6 +2319,8 @@
         document.getElementById('wall-mode-btn').addEventListener('click', () => setEditorMode('wall'));
         document.getElementById('play-test-btn').addEventListener('click', () => setEditorMode('play'));
         document.getElementById('clear-btn').addEventListener('click', clearCustomLevel);
+        document.getElementById('save-level-btn').addEventListener('click', saveCustomLevel);
+        document.getElementById('load-level-btn').addEventListener('click', loadCustomLevel);
         document.getElementById('extend-btn').addEventListener('click', () => {
             boardExtended = !boardExtended;
             document.getElementById('extend-btn').classList.toggle('active', boardExtended);
@@ -1977,6 +2412,7 @@
             document.getElementById('level-select').style.display = 'none';
             document.getElementById('game-over').style.display = 'none';
             document.getElementById('credits-modal').style.display = 'none';
+            playMusic('menu');
         }
 
         // Title screen -> Climb mode (main CTA)
@@ -2001,6 +2437,8 @@
             document.getElementById('credits-modal').style.display = 'none';
             document.getElementById('title-screen').style.display = 'block';
         });
+
+        document.getElementById('mute-btn').addEventListener('click', toggleMute);
 
         window.onload = () => { updateHighScore(); runLoadingScreen(); gameLoop(); };
     </script>
