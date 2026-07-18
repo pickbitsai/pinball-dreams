@@ -1717,21 +1717,29 @@
                     sfxSpinner();
                 }
 
-                // Ball save gate: teleport ball back to this floor's plunger lane
+                // Ball save gate: return ball to play on this floor
                 if ((bodyA.label === 'ball-save-gate' || bodyB.label === 'ball-save-gate') &&
                     isBall && ball && gameState.ballInPlay) {
                     const saveFloor = climbMode.ballSaveFloor || 0;
                     const saveBaseY = floorY(saveFloor);
-                    Body.setPosition(ball, { x: CONFIG.width - 25, y: saveBaseY + CONFIG.height - 50 });
-                    Body.setVelocity(ball, { x: 0, y: 0 });
-                    Body.setAngularVelocity(ball, 0);
-                    gameState.ballLaunched = false;
-                    removePlungerGate();
+                    if (saveFloor === 0) {
+                        // Floor 0's plunger lane is the only functional one — return to plunger
+                        Body.setPosition(ball, { x: CONFIG.width - 25, y: saveBaseY + CONFIG.height - 50 });
+                        Body.setVelocity(ball, { x: 0, y: 0 });
+                        Body.setAngularVelocity(ball, 0);
+                        gameState.ballLaunched = false;
+                        removePlungerGate();
+                        document.getElementById('launch-indicator').style.display = 'block';
+                    } else {
+                        // Upper floors' plunger lanes are sealed — drop the ball back into the playfield
+                        Body.setPosition(ball, { x: CONFIG.width / 2, y: saveBaseY + 80 });
+                        Body.setVelocity(ball, { x: 0, y: 2 });
+                        Body.setAngularVelocity(ball, 0);
+                    }
                     removeBallSaveGate();
                     climbMode.ballSaveUsed = true;
                     climbMode.ballSaveActive = false;
                     sfxBallSave();
-                    document.getElementById('launch-indicator').style.display = 'block';
                     const saveInd = document.getElementById('ball-save-indicator');
                     saveInd.style.display = 'block';
                     setTimeout(() => saveInd.style.display = 'none', 2000);
