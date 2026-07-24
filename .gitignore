@@ -4,3 +4,11 @@ Thumbs.db
 node_modules/
 dist/
 .env
+
+# Build inputs for the 3D kit, not runtime assets. The game only ever loads
+# assets/3d/neon-pinball-kit.glb (see assets/3d/manifest.json for how the
+# per-part exports are regenerated via scripts/blender/).
+*.blend
+*.blend[0-9]*
+assets/3d/roblox/
+assets/3d/neon-pinball-kit-preview.png

@@ -1,0 +1,46 @@
+{
+  "name": "PickBits Neon Pinball Kit",
+  "version": 1,
+  "source": "assets/3d/neon-pinball-kit.blend",
+  "browser": "assets/3d/neon-pinball-kit.glb",
+  "coordinateSystem": "Blender Z-up source; glTF/FBX exported Y-up",
+  "units": "meters; browser uses 1 model unit per 50 Matter.js pixels",
+  "assets": [
+    {
+      "name": "Bumper",
+      "node": "Bumper",
+      "glb": "assets/3d/bumper.glb",
+      "fbx": "assets/3d/roblox/bumper.fbx"
+    },
+    {
+      "name": "Flipper",
+      "node": "Flipper",
+      "glb": "assets/3d/flipper.glb",
+      "fbx": "assets/3d/roblox/flipper.fbx"
+    },
+    {
+      "name": "RailPost",
+      "node": "RailPost",
+      "glb": "assets/3d/railpost.glb",
+      "fbx": "assets/3d/roblox/railpost.fbx"
+    },
+    {
+      "name": "Reactor",
+      "node": "Reactor",
+      "glb": "assets/3d/reactor.glb",
+      "fbx": "assets/3d/roblox/reactor.fbx"
+    },
+    {
+      "name": "Ramp",
+      "node": "Ramp",
+      "glb": "assets/3d/ramp.glb",
+      "fbx": "assets/3d/roblox/ramp.fbx"
+    },
+    {
+      "name": "Spinner",
+      "node": "Spinner",
+      "glb": "assets/3d/spinner.glb",
+      "fbx": "assets/3d/roblox/spinner.fbx"
+    }
+  ]
+}

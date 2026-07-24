@@ -1,0 +1,57 @@
+# Pinball Dreams
+
+Physics pinball for the PickBits arcade. Live at **https://pinballdreams.pickbits.ai**.
+
+## Build & run
+
+There is **no build system** — no `package.json`, no bundler, no dev server, no ES modules. It is a static site of plain `<script>` tags and globals.
+
+- Run it: open `index.html`, or `python -m http.server 8777` and hit `http://localhost:8777/index.html`.
+- Matter.js 0.19 comes from cdnjs; Three.js is vendored in `assets/vendor/three/`.
+
+## Layout
+
+| Path | What |
+|---|---|
+| `index.html` | **The whole game.** CSS, DOM, and a single ~2700-line inline `<script>` holding every system. |
+| `src/pinball-progress.js` | `PinballCareer` (lifetime stats) + `PinballAchievements` (catalog, unlock seam, toast). Local-first. |
+| `src/pickbits.js` | `PickBitsClient` — the PickBits SSO bridge (auth, leaderboard, cloud saves). |
+| `src/neon-pinball-3d.js` | Optional Three.js renderer layered over the Canvas2D playfield. Purely visual, holds no game state. |
+| `assets/3d/` | `neon-pinball-kit.glb` is the only file loaded at runtime. The `.blend`, per-part `.glb`s, `roblox/*.fbx` and preview are build inputs — see `manifest.json` and `scripts/blender/`. |
+
+**Load order matters.** Both `src/` modules are script-tagged immediately *before* the inline game script and expose globals it calls into. Adding a module means inserting it in that same block, not in `<head>`.
+
+## Key systems (all in `index.html`)
+
+- `gameState` — score, balls, flags. `CONFIG` — dimensions, ball/flipper physics.
+- `LEVELS` — 7 tables, each with `theme`, `zone` (`fire`/`ice`/`rock`) and a `mission` (`{action, goal, reward, instruction}`).
+- `climbMode` — the 20-floor ascent. Floors spawn lazily via `spawnClimbBoard(floor)`, rotating `CLIMB_BOARDS`. Breaking a `floor-panel` ceiling tile spawns the next floor.
+- `powerSystem` — timed `fire`/`ice`/`rock` ball powers from `rollPowerCapsule()` → `activatePower()`. `powerScoreMultiplier(action)` maps each power to the actions it boosts.
+- `missionSystem` — light 3 lanes → shoot the ramp → complete the board's mission.
+- `loseBall()` — **the single drain seam.** All three drain paths (sensor, out-of-bounds, fallback) funnel through it. Put per-ball logic here, not in the collision handler.
+- Screens are DOM overlays toggled by `display`. Any new overlay must be added to the hide-lists in `showTitleScreen()`, `showLevelSelect()`, `startGame()` **and** `endGame()`, or it bleeds across screens.
+
+## PickBits SSO — the 3-place contract
+
+Game slug is **`pinball`**. Wiring only works when three places agree, and two of them are outside this repo:
+
+1. **Here** — `src/pickbits.js` emits `submitScore` / `saveProgress` / `unlockAchievement`.
+2. **Supabase** (`vbfwzpztnvfktydozgir`, `achievements` table) — rows must be **pre-seeded** with `game_slug='pinball'`. **`unlockAchievement` silently no-ops for slugs that don't exist there.** The `ACHIEVEMENTS` array in `src/pinball-progress.js` is a 1:1 contract with those rows: local id `foo` → slug `pinball-foo`. Adding one here without seeding it does nothing for signed-in players.
+3. **pickbits.ai** — `arcade.html` (`connected:true`) and `dashboard-redesign.js` (`saveDetail()` branch for `pinball`, which reads whatever you nest under `save_data.summary`).
+
+Playbook: `C:\new\pickbits.ai\.claude\skills\arcade-sso-wiring.skill\SKILL.md`. Vanilla-JS reference: `C:\new\shmup\js\pickbits.js`.
+
+### Testing sign-in
+Auth activates **only** on a `*.pickbits.ai` origin — the edge functions enforce that CORS allowlist. Append **`?pb=1`** to force-activate locally; the SDK loads and the anonymous UI works, but the token exchange still needs the real origin. Everything must degrade silently: guard every call with `typeof PickBitsClient !== 'undefined'`, `.catch(() => {})` every promise, and always write to localStorage first so the game is whole signed-out.
+
+## Persistence
+
+`pinballDreamsCareer_v1`, `pinballDreamsAchievements_v1`, `pinballDreamsCustomLevel`, `pinballDreamsSettings_v1` — all four are mirrored to PickBits cloud saves by a debounced `localStorage.setItem` intercept in `src/pickbits.js`. `pinballDreamsHighScore` is the legacy key, kept in sync by `PinballCareer.save()` because the HUD still reads it.
+
+On login the bridge **merges** cloud into local (max of bests, union of sets, earliest achievement timestamps) — never clobbers — then fires `pickbits:cloud_hydrated` so the game re-reads.
+
+## Gotchas
+
+- `endGame()` clears `climbMode.active` — read the climb floor *before* that line.
+- A hidden browser tab freezes CSS transitions at `currentTime: 0`, so the achievement toast looks stuck under headless/automated checks. Not a bug; call `el.getAnimations().forEach(a => a.finish())` to step past it.
+- PostHog is configured `person_profiles: 'identified_only'`; `src/pickbits.js` supplies the `identify()` on sign-in.

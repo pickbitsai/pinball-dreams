@@ -6,7 +6,7 @@
     <title>Pinball Dreams</title>
     <meta name="description" content="Pinball Dreams — A retro-inspired HTML5 pinball game with multiple tables, a custom level editor, and an epic Climb mode.">
     <meta name="author" content="Pinball Dreams">
-    <meta name="theme-color" content="#1a1a2e">
+    <meta name="theme-color" content="#03050d">
     <meta property="og:title" content="Pinball Dreams">
     <meta property="og:description" content="A retro-inspired HTML5 pinball game with multiple tables, a custom level editor, and Climb mode.">
     <meta property="og:type" content="website">
@@ -17,8 +17,11 @@
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><circle cx='32' cy='32' r='30' fill='%231a1a2e' stroke='%2300ff88' stroke-width='3'/><circle cx='32' cy='28' r='12' fill='%2300ccff'/><circle cx='32' cy='28' r='6' fill='%23fff'/><rect x='24' y='46' width='16' height='4' rx='2' fill='%2300ff88'/></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700;800;900&family=Rajdhani:wght@400;500;600;700&display=swap">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+    <script src="assets/vendor/three/three.min.js"></script>
+    <script src="assets/vendor/three/GLTFLoader.js"></script>
+    <script src="src/neon-pinball-3d.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; touch-action: manipulation; }
         body {
@@ -120,6 +123,23 @@
         }
         #climb-hud .floor-display { color: #22d3ee; font-size: 11px; font-weight: bold; }
         #climb-hud .element-display { font-size: 10px; margin-top: 1px; }
+        #rule-hud {
+            position: absolute; top: 92px; left: 50%; transform: translateX(-50%);
+            z-index: 95; display: none; width: min(360px, calc(100% - 36px));
+            padding: 7px 10px 8px; color: #d8f7ff;
+            background: linear-gradient(110deg, rgba(4, 12, 28, 0.9), rgba(8, 4, 20, 0.9));
+            border: 1px solid var(--table-wall, #1ac8ff);
+            border-radius: 9px; box-shadow: 0 0 18px color-mix(in srgb, var(--table-wall, #1ac8ff) 24%, transparent);
+            backdrop-filter: blur(9px); pointer-events: none;
+            font-family: 'Orbitron', sans-serif; text-transform: uppercase;
+        }
+        #rule-hud .rule-row { display: flex; align-items: center; gap: 8px; min-height: 17px; }
+        #rule-hud .rule-label { width: 54px; color: var(--table-accent, #ff8a33); font-size: 6px; letter-spacing: 0.16em; }
+        #rule-hud .rule-value { flex: 1; font-size: 7px; letter-spacing: 0.08em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        #rule-hud .rule-pips { color: var(--table-bumper, #ff2fba); letter-spacing: 0.22em; }
+        #rule-hud[data-power="fire"] { border-color: #ff5a24; box-shadow: 0 0 24px rgba(255, 74, 28, 0.32); }
+        #rule-hud[data-power="ice"] { border-color: #5ee7ff; box-shadow: 0 0 24px rgba(80, 220, 255, 0.32); }
+        #rule-hud[data-power="rock"] { border-color: #ffc15a; box-shadow: 0 0 24px rgba(255, 178, 72, 0.3); }
         #ball-save-indicator {
             position: absolute; bottom: 45px; left: 50%; transform: translateX(-50%);
             color: #00ff88; font-size: 14px; font-weight: bold; display: none;
@@ -281,6 +301,973 @@
             color: #fff; border-radius: 10px; cursor: pointer; transition: all 0.3s ease;
         }
         #menu-from-over-btn:hover { transform: scale(1.1); }
+
+        /* Neon Dreams redesign */
+        :root {
+            --void: #03050d;
+            --panel: rgba(4, 8, 20, 0.88);
+            --panel-solid: #060b18;
+            --cyan: #1ac8ff;
+            --cyan-soft: #8ae6ff;
+            --pink: #ff2fba;
+            --pink-soft: #ff91de;
+            --amber: #ff8a33;
+            --ink: #dff7ff;
+            --muted: #7c9db4;
+        }
+        * { scrollbar-width: thin; scrollbar-color: var(--cyan) var(--void); }
+        body {
+            position: relative;
+            isolation: isolate;
+            min-height: 100svh;
+            color: var(--ink);
+            font-family: 'Rajdhani', 'Arial Narrow', sans-serif;
+            background:
+                radial-gradient(circle at 50% 48%, rgba(12, 28, 63, 0.18), rgba(3, 5, 13, 0.92) 68%),
+                linear-gradient(rgba(3, 5, 13, 0.28), rgba(3, 5, 13, 0.76)),
+                url('assets/neon-city-background.png') center / cover fixed,
+                var(--void);
+        }
+        body::before {
+            content: '';
+            position: fixed;
+            inset: 14px;
+            z-index: 10000;
+            pointer-events: none;
+            border: 1px solid rgba(100, 220, 255, 0.88);
+            border-radius: 26px;
+            box-shadow: inset 0 0 10px rgba(26, 200, 255, 0.35), 0 0 7px rgba(26, 200, 255, 0.5), 0 0 24px rgba(26, 200, 255, 0.16);
+        }
+        body::after {
+            content: '';
+            position: fixed;
+            inset: 0;
+            z-index: -1;
+            pointer-events: none;
+            background:
+                linear-gradient(90deg, transparent 49.92%, rgba(26, 200, 255, 0.05) 50%, transparent 50.08%),
+                linear-gradient(0deg, transparent 49.92%, rgba(26, 200, 255, 0.035) 50%, transparent 50.08%);
+            background-size: 80px 80px;
+            mask-image: linear-gradient(to bottom, transparent, black 55%, transparent);
+        }
+        button {
+            font-family: 'Orbitron', sans-serif;
+            letter-spacing: 0.08em;
+        }
+        button:focus-visible { outline: 2px solid white; outline-offset: 4px; }
+        #game-container { filter: none; }
+        #score-display {
+            position: relative;
+            min-height: 72px;
+            padding: 11px 18px 9px;
+            background: linear-gradient(110deg, rgba(10, 24, 48, 0.96), rgba(3, 6, 16, 0.98));
+            border: 1px solid rgba(26, 200, 255, 0.74);
+            border-bottom: 1px solid rgba(255, 47, 186, 0.55);
+            border-radius: 18px 18px 0 0;
+            box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08), 0 0 14px rgba(26, 200, 255, 0.28);
+            overflow: hidden;
+        }
+        #score-display::before {
+            content: 'PICKBITS / NEON DREAMS';
+            position: absolute;
+            top: 4px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(126, 221, 255, 0.38);
+            font: 600 6px/1 'Orbitron', sans-serif;
+            letter-spacing: 0.32em;
+            white-space: nowrap;
+        }
+        #score-display::after {
+            content: '';
+            position: absolute;
+            left: 12px;
+            right: 12px;
+            bottom: 3px;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--pink), var(--cyan), transparent);
+            box-shadow: 0 0 8px var(--cyan);
+        }
+        .score-item { min-width: 58px; position: relative; }
+        .score-item + .score-item::before {
+            content: '';
+            position: absolute;
+            left: -9px;
+            top: 4px;
+            width: 1px;
+            height: 35px;
+            background: linear-gradient(transparent, rgba(26, 200, 255, 0.32), transparent);
+        }
+        .score-label {
+            color: var(--muted);
+            font: 600 8px/1.2 'Orbitron', sans-serif;
+            letter-spacing: 0.14em;
+        }
+        .score-value,
+        #multiplier-score .score-value {
+            margin-top: 4px;
+            color: var(--cyan);
+            font: 700 21px/1 'Orbitron', monospace !important;
+            letter-spacing: 0.02em;
+            text-shadow: 0 0 8px rgba(26, 200, 255, 0.78);
+        }
+        #high-score .score-value { color: #ffb75e; text-shadow: 0 0 8px rgba(255, 138, 51, 0.62); }
+        #balls-left .score-value { color: var(--pink); text-shadow: 0 0 8px rgba(255, 47, 186, 0.75); }
+        #game-canvas,
+        #game-3d-canvas {
+            display: block;
+            width: 400px;
+            height: 860px;
+            background: #040815;
+            border: 1px solid rgba(26, 200, 255, 0.74);
+            border-top: none;
+            border-radius: 0 0 22px 22px;
+            box-shadow: inset 0 0 28px rgba(26, 200, 255, 0.12), 0 0 22px rgba(26, 200, 255, 0.28), 0 0 54px rgba(255, 47, 186, 0.12);
+        }
+        #game-3d-canvas {
+            position: relative;
+            z-index: 1;
+        }
+        #game-canvas {
+            position: absolute;
+            top: 72px;
+            left: 0;
+            z-index: 8;
+            opacity: 0;
+            pointer-events: auto;
+            background: transparent;
+            border-color: transparent;
+            box-shadow: none;
+        }
+        body.game-active {
+            display: block;
+            overflow: hidden;
+        }
+        body.game-active #game-container {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100svh;
+            display: block;
+        }
+        body.game-active #game-3d-canvas {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100svh;
+            border: 0;
+            border-radius: 0;
+            box-shadow: none;
+            transform: none !important;
+        }
+        body.game-active #game-canvas {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100svh;
+            transform: none !important;
+        }
+        body.game-active #score-display {
+            position: fixed;
+            top: 22px;
+            left: 50%;
+            z-index: 80;
+            width: min(520px, calc(100vw - 180px));
+            max-width: none;
+            transform: translateX(-50%);
+            border: 1px solid rgba(26, 200, 255, 0.58);
+            border-radius: 14px;
+            background: linear-gradient(110deg, rgba(8, 20, 42, 0.88), rgba(2, 5, 14, 0.92));
+            backdrop-filter: blur(10px);
+        }
+        body.game-active #menu-btn,
+        body.game-active #mute-btn {
+            position: fixed;
+            top: 30px;
+        }
+        body.game-active #menu-btn { left: 30px; }
+        body.game-active #mute-btn { right: 30px; }
+        body.game-active #level-name-display {
+            position: fixed;
+            top: 105px;
+        }
+        body.game-active #climb-hud {
+            position: fixed;
+            top: 105px;
+            right: 30px;
+        }
+        body.game-active #rule-hud {
+            position: fixed;
+            display: block;
+            top: 104px;
+        }
+        body.game-active #launch-indicator {
+            position: fixed;
+            right: 32px;
+            bottom: 34px;
+        }
+        body.game-active #ball-save-indicator {
+            position: fixed;
+            bottom: 42px;
+        }
+        body.game-active #pause-overlay {
+            position: fixed;
+            inset: 0;
+        }
+        body.game-active #editor-controls {
+            position: fixed;
+            left: 50%;
+            bottom: 24px;
+            z-index: 100;
+            width: min(680px, calc(100vw - 40px));
+            max-width: none;
+            transform: translateX(-50%);
+            border: 1px solid rgba(26, 200, 255, 0.6);
+            border-radius: 8px;
+        }
+        #menu-btn,
+        #mute-btn {
+            top: 84px;
+            height: 28px;
+            color: var(--cyan-soft);
+            font: 600 8px/1 'Orbitron', sans-serif;
+            background: rgba(3, 7, 18, 0.88);
+            border: 1px solid rgba(26, 200, 255, 0.52);
+            border-radius: 5px;
+            box-shadow: inset 0 0 8px rgba(26, 200, 255, 0.1);
+        }
+        #menu-btn { left: 12px; padding: 0 11px; }
+        #mute-btn { right: 12px; padding: 0 8px; }
+        #level-name-display {
+            top: 86px;
+            color: rgba(223, 247, 255, 0.72);
+            font: 600 8px/1 'Orbitron', sans-serif;
+            letter-spacing: 0.18em;
+        }
+        #instructions {
+            position: fixed;
+            left: 50%;
+            bottom: 19px;
+            z-index: 120;
+            transform: translateX(-50%);
+            margin: 0;
+            color: rgba(174, 205, 222, 0.7);
+            font: 600 10px/1.2 'Rajdhani', sans-serif;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        #instructions span { color: var(--cyan); }
+        #launch-indicator,
+        #ball-save-indicator {
+            color: var(--pink);
+            font-family: 'Orbitron', sans-serif;
+            text-shadow: 0 0 10px var(--pink);
+        }
+        #pause-overlay {
+            position: absolute;
+            inset: 72px 0 0;
+            z-index: 40;
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: var(--pink);
+            font: 800 22px/1.2 'Orbitron', sans-serif;
+            letter-spacing: 0.16em;
+            text-shadow: 0 0 16px var(--pink);
+            background: radial-gradient(circle, rgba(6, 12, 29, 0.72), rgba(2, 4, 11, 0.9));
+            backdrop-filter: blur(4px);
+        }
+        #pause-overlay small {
+            margin-top: 16px;
+            color: var(--cyan-soft);
+            font: 600 8px/1 'Orbitron', sans-serif;
+            letter-spacing: 0.12em;
+            text-shadow: none;
+        }
+        #loading-screen {
+            overflow: hidden;
+            background:
+                linear-gradient(90deg, rgba(3, 5, 13, 0.96), rgba(3, 5, 13, 0.76) 52%, rgba(3, 5, 13, 0.52)),
+                url('assets/neon-city-background.png') center / cover,
+                var(--void);
+        }
+        #loading-screen::before {
+            content: 'PICKBITS  ARCADE';
+            margin-bottom: 30px;
+            color: var(--cyan);
+            font: 600 11px/1 'Orbitron', sans-serif;
+            letter-spacing: 0.55em;
+            text-shadow: 0 0 12px rgba(26, 200, 255, 0.68);
+        }
+        #loading-screen::after {
+            content: '';
+            position: absolute;
+            inset: 15px;
+            border: 1px solid rgba(26, 200, 255, 0.72);
+            border-radius: 25px;
+            box-shadow: inset 0 0 18px rgba(26, 200, 255, 0.18);
+        }
+        #loading-logo {
+            position: relative;
+            z-index: 1;
+            color: transparent;
+            font: 800 clamp(42px, 7vw, 88px)/0.88 'Orbitron', sans-serif;
+            letter-spacing: -0.05em;
+            -webkit-text-stroke: 2px var(--pink);
+            text-shadow: 0 0 9px var(--pink), 0 0 24px rgba(255, 47, 186, 0.72);
+        }
+        #loading-logo .dreams {
+            color: transparent;
+            -webkit-text-stroke: 2px var(--cyan);
+            text-shadow: 0 0 9px var(--cyan), 0 0 24px rgba(26, 200, 255, 0.72);
+        }
+        #loading-bar-container {
+            z-index: 1;
+            width: min(320px, 70vw);
+            height: 4px;
+            margin-top: 34px;
+            background: rgba(26, 200, 255, 0.12);
+            border: none;
+            border-radius: 0;
+            overflow: visible;
+        }
+        #loading-bar { background: linear-gradient(90deg, var(--pink), var(--cyan)); box-shadow: 0 0 10px var(--cyan); }
+        #loading-text { z-index: 1; color: var(--muted); font: 600 8px/1 'Orbitron', sans-serif; }
+        #title-screen {
+            position: fixed;
+            inset: 0;
+            width: 100vw;
+            height: 100svh;
+            min-width: 0;
+            padding: clamp(48px, 7vw, 100px);
+            transform: none;
+            overflow: hidden;
+            text-align: left;
+            color: var(--ink);
+            border: 0;
+            border-radius: 0;
+            background:
+                linear-gradient(90deg, rgba(3, 5, 13, 0.98) 0%, rgba(3, 5, 13, 0.93) 38%, rgba(3, 5, 13, 0.58) 67%, rgba(3, 5, 13, 0.3)),
+                linear-gradient(0deg, rgba(3, 5, 13, 0.92), transparent 55%),
+                url('assets/neon-city-background.png') center / cover,
+                var(--void);
+        }
+        #title-screen::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background:
+                radial-gradient(circle at 76% 50%, rgba(255, 47, 186, 0.13), transparent 25%),
+                repeating-radial-gradient(circle at 20% 50%, transparent 0 74px, rgba(26, 200, 255, 0.055) 75px 76px);
+        }
+        .title-shell {
+            position: relative;
+            z-index: 2;
+            width: min(1480px, 100%);
+            height: 100%;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: minmax(380px, 0.86fr) minmax(420px, 1.14fr);
+            align-items: center;
+            gap: clamp(28px, 5vw, 90px);
+        }
+        .title-copy { width: min(620px, 100%); }
+        .arcade-kicker {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: clamp(22px, 4vh, 42px);
+            color: var(--cyan);
+            font: 600 clamp(9px, 1vw, 13px)/1 'Orbitron', sans-serif;
+            letter-spacing: 0.5em;
+            white-space: nowrap;
+        }
+        .arcade-kicker::before,
+        .arcade-kicker::after {
+            content: '';
+            height: 1px;
+            flex: 1;
+            max-width: 68px;
+            background: var(--cyan);
+            box-shadow: 0 0 7px var(--cyan);
+        }
+        #title-screen .game-title {
+            margin: 0;
+            color: transparent;
+            font: 800 clamp(56px, 7.2vw, 118px)/0.79 'Orbitron', sans-serif;
+            letter-spacing: -0.07em;
+            -webkit-text-stroke: 2px var(--pink);
+            text-shadow: 0 0 6px #fff, 0 0 10px var(--pink), 0 0 24px rgba(255, 47, 186, 0.78);
+        }
+        #title-screen .game-title .dreams {
+            display: block;
+            margin-top: 0.16em;
+            color: transparent;
+            font-size: 0.86em;
+            letter-spacing: -0.05em;
+            -webkit-text-stroke: 2px var(--cyan);
+            text-shadow: 0 0 5px #fff, 0 0 10px var(--cyan), 0 0 24px rgba(26, 200, 255, 0.72);
+        }
+        #title-screen .tagline {
+            margin: clamp(30px, 5vh, 54px) 0 0;
+            color: white;
+            font: 500 clamp(17px, 1.55vw, 25px)/1.25 'Rajdhani', sans-serif;
+            letter-spacing: 0.04em;
+            text-transform: none;
+        }
+        #title-screen .tagline span { display: block; color: var(--muted); }
+        .title-actions {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 26px;
+        }
+        #climb-btn,
+        #levels-btn {
+            position: relative;
+            min-width: 0;
+            margin: 0;
+            border-radius: 4px;
+            font: 700 10px/1 'Orbitron', sans-serif;
+            transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+        }
+        #climb-btn {
+            padding: 15px 20px;
+            color: #190516;
+            background: linear-gradient(105deg, var(--pink), #ff78d5);
+            box-shadow: 0 0 16px rgba(255, 47, 186, 0.42);
+        }
+        #levels-btn {
+            padding: 13px 20px;
+            color: var(--cyan-soft);
+            border: 1px solid var(--cyan);
+            background: rgba(26, 200, 255, 0.06);
+        }
+        #climb-btn:hover,
+        #levels-btn:hover { transform: translateY(-2px); }
+        #climb-btn:hover { box-shadow: 0 0 24px rgba(255, 47, 186, 0.72); }
+        #levels-btn:hover { background: rgba(26, 200, 255, 0.16); box-shadow: 0 0 18px rgba(26, 200, 255, 0.32); }
+        .feature-strip {
+            width: min(520px, 100%);
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            margin-top: clamp(28px, 5vh, 50px);
+            border: 1px solid rgba(26, 200, 255, 0.65);
+            border-radius: 18px;
+            background: rgba(1, 5, 14, 0.72);
+            box-shadow: inset 0 0 18px rgba(26, 200, 255, 0.08), 0 0 16px rgba(26, 200, 255, 0.12);
+        }
+        .feature {
+            padding: 16px 10px 14px;
+            text-align: center;
+            color: #e9f9ff;
+            font: 600 9px/1.2 'Rajdhani', sans-serif;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+        .feature + .feature { border-left: 1px solid rgba(26, 200, 255, 0.32); }
+        .feature-mark {
+            display: block;
+            min-height: 27px;
+            margin-bottom: 6px;
+            color: var(--cyan);
+            font: 500 23px/1 'Orbitron', sans-serif;
+            text-shadow: 0 0 8px currentColor;
+        }
+        .feature:nth-child(1) .feature-mark { color: var(--pink); }
+        .feature:nth-child(3) .feature-mark { color: var(--amber); }
+        #credits-btn {
+            position: absolute;
+            left: clamp(48px, 7vw, 100px);
+            bottom: 34px;
+            z-index: 3;
+            margin: 0;
+            padding: 0;
+            color: rgba(131, 171, 194, 0.72);
+            font: 600 8px/1 'Orbitron', sans-serif;
+            letter-spacing: 0.2em;
+            border: 0;
+            background: transparent;
+        }
+        #credits-btn:hover { color: var(--cyan); transform: none; }
+        #title-screen .title-version {
+            position: absolute;
+            right: clamp(48px, 7vw, 100px);
+            bottom: 34px;
+            margin: 0;
+            color: rgba(131, 171, 194, 0.45);
+            font: 600 7px/1 'Orbitron', sans-serif;
+            letter-spacing: 0.16em;
+        }
+        .hero-visual {
+            position: relative;
+            min-height: min(78vh, 760px);
+            perspective: 1200px;
+        }
+        .hero-visual::before {
+            content: '';
+            position: absolute;
+            inset: 7% 5% 4%;
+            border: 1px solid rgba(26, 200, 255, 0.2);
+            border-radius: 48% 48% 20% 20%;
+            transform: rotate(-5deg);
+            box-shadow: inset 0 0 50px rgba(26, 200, 255, 0.1);
+        }
+        .hero-table {
+            position: absolute;
+            top: 5%;
+            left: 50%;
+            width: min(390px, 42vw);
+            aspect-ratio: 0.69;
+            overflow: hidden;
+            transform: translateX(-50%) rotateX(18deg) rotateZ(7deg);
+            transform-style: preserve-3d;
+            clip-path: polygon(13% 0, 87% 0, 100% 100%, 0 100%);
+            background:
+                radial-gradient(circle at 50% 58%, rgba(255, 138, 51, 0.4), transparent 13%),
+                radial-gradient(circle at 33% 36%, rgba(26, 200, 255, 0.32), transparent 10%),
+                linear-gradient(145deg, rgba(255, 47, 186, 0.18), transparent 28%),
+                repeating-linear-gradient(90deg, transparent 0 39px, rgba(26, 200, 255, 0.08) 40px),
+                repeating-linear-gradient(0deg, transparent 0 39px, rgba(26, 200, 255, 0.06) 40px),
+                #050817;
+            border: 2px solid var(--cyan);
+            box-shadow: inset 0 0 35px rgba(26, 200, 255, 0.2), inset 0 0 80px rgba(255, 47, 186, 0.12), 0 0 10px var(--cyan), 0 35px 50px rgba(0, 0, 0, 0.72);
+        }
+        .hero-table::before,
+        .hero-table::after {
+            content: '';
+            position: absolute;
+            inset: 8% 10%;
+            border: 8px double var(--pink);
+            border-radius: 44% 44% 28% 28%;
+            box-shadow: inset 0 0 15px var(--pink), 0 0 12px var(--pink);
+        }
+        .hero-table::after {
+            inset: 20% 22% 24%;
+            border-color: var(--cyan);
+            border-width: 4px;
+            border-radius: 50%;
+            box-shadow: inset 0 0 15px var(--cyan), 0 0 12px var(--cyan);
+        }
+        .hero-bumper,
+        .hero-core,
+        .hero-flipper { position: absolute; z-index: 2; display: block; }
+        .hero-bumper {
+            width: 42px;
+            height: 42px;
+            border: 5px solid var(--pink);
+            border-radius: 50%;
+            background: radial-gradient(circle, white 0 11%, var(--cyan) 13% 26%, #060a18 29%);
+            box-shadow: 0 0 10px var(--pink), inset 0 0 9px var(--cyan);
+        }
+        .hero-bumper.b1 { top: 28%; left: 25%; }
+        .hero-bumper.b2 { top: 22%; right: 23%; }
+        .hero-bumper.b3 { top: 43%; left: 43%; }
+        .hero-core {
+            left: 50%;
+            bottom: 24%;
+            width: 76px;
+            height: 76px;
+            transform: translateX(-50%);
+            border: 5px double var(--amber);
+            border-radius: 50%;
+            background: radial-gradient(circle, #fff 0 4%, var(--amber) 8% 20%, #231025 23% 56%, var(--pink) 60% 64%, transparent 67%);
+            box-shadow: 0 0 18px var(--amber), inset 0 0 18px var(--pink);
+        }
+        .hero-flipper {
+            bottom: 11%;
+            width: 92px;
+            height: 18px;
+            border: 2px solid #ffb7e9;
+            border-radius: 20px;
+            background: linear-gradient(180deg, #ff76d2, #9b145f);
+            box-shadow: 0 0 10px var(--pink);
+        }
+        .hero-flipper.left { left: 22%; transform: rotate(21deg); }
+        .hero-flipper.right { right: 22%; transform: rotate(-21deg); }
+        .hero-ball {
+            position: absolute;
+            z-index: 3;
+            top: 14%;
+            right: 20%;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 30% 25%, white, #9de9ff 24%, #1e5a8a 70%, #08101f);
+            box-shadow: 0 0 12px white, -30px 38px 0 -5px rgba(255, 255, 255, 0.7), -58px 80px 0 -6px rgba(255, 255, 255, 0.4);
+        }
+        .hero-caption {
+            position: absolute;
+            right: 1%;
+            bottom: 5%;
+            color: rgba(188, 224, 240, 0.78);
+            font: 600 9px/1.5 'Orbitron', sans-serif;
+            letter-spacing: 0.14em;
+            text-align: right;
+            text-transform: uppercase;
+        }
+        .hero-caption strong {
+            display: block;
+            color: var(--pink);
+            font-size: 21px;
+            letter-spacing: 0.04em;
+            text-shadow: 0 0 9px var(--pink);
+        }
+        #level-select,
+        #game-over,
+        #credits-modal,
+        #achievements-modal {
+            width: min(580px, calc(100vw - 38px));
+            max-height: min(86svh, 760px);
+            overflow-y: auto;
+            padding: 28px;
+            color: var(--ink);
+            border: 1px solid rgba(26, 200, 255, 0.78);
+            border-radius: 18px;
+            background: linear-gradient(135deg, rgba(10, 23, 45, 0.97), rgba(2, 5, 14, 0.98));
+            box-shadow: inset 0 0 28px rgba(26, 200, 255, 0.08), 0 0 18px rgba(26, 200, 255, 0.3), 0 0 42px rgba(255, 47, 186, 0.16);
+        }
+        #level-select h2,
+        #game-over h2,
+        #credits-modal h2,
+        #achievements-modal h2 {
+            color: var(--cyan);
+            font: 700 16px/1.2 'Orbitron', sans-serif !important;
+            letter-spacing: 0.2em;
+            text-shadow: 0 0 10px rgba(26, 200, 255, 0.65);
+        }
+        .level-grid {
+            grid-template-columns: repeat(3, 1fr);
+            gap: 9px;
+            margin: 22px 0 18px;
+        }
+        .level-btn {
+            min-width: 0;
+            min-height: 98px;
+            padding: 12px 8px;
+            color: var(--ink);
+            border: 1px solid rgba(90, 133, 158, 0.28);
+            border-radius: 7px;
+            background: linear-gradient(145deg, rgba(14, 31, 56, 0.72), rgba(3, 8, 20, 0.88));
+        }
+        .level-btn:hover,
+        .level-btn.selected {
+            transform: translateY(-2px);
+            border-color: var(--pink);
+            box-shadow: inset 0 0 14px rgba(255, 47, 186, 0.12), 0 0 10px rgba(255, 47, 186, 0.25);
+        }
+        .level-btn .level-icon {
+            margin-bottom: 8px;
+            color: var(--cyan);
+            font: 0/1 'Orbitron', sans-serif;
+            text-shadow: 0 0 7px currentColor;
+        }
+        .level-btn .level-icon::before { font: 500 22px/1 'Orbitron', sans-serif; }
+        .level-btn[data-level="0"] .level-icon::before { content: '◎'; }
+        .level-btn[data-level="1"] .level-icon::before { content: '◉'; }
+        .level-btn[data-level="2"] .level-icon::before { content: '◇'; }
+        .level-btn[data-level="3"] .level-icon::before { content: '♜'; }
+        .level-btn[data-level="4"] .level-icon::before { content: '≋'; }
+        .level-btn[data-level="5"] .level-icon::before { content: '⌁'; }
+        .level-btn[data-level="6"] .level-icon::before { content: '↑'; color: var(--amber); }
+        .level-btn .level-name {
+            color: #edfaff;
+            font: 600 10px/1.2 'Orbitron', sans-serif;
+            letter-spacing: 0.06em;
+        }
+        .level-btn .level-desc {
+            display: block;
+            margin-top: 5px;
+            color: var(--muted);
+            font: 500 11px/1.15 'Rajdhani', sans-serif;
+        }
+        .level-btn.climb-btn {
+            grid-column: span 3 !important;
+            min-height: 76px;
+            border-color: rgba(255, 138, 51, 0.55);
+        }
+        #play-btn,
+        #restart-btn,
+        #menu-from-over-btn,
+        #credits-close,
+        #achievements-close {
+            border: 1px solid var(--pink);
+            border-radius: 4px;
+            color: #180413;
+            background: linear-gradient(105deg, var(--pink), #ff84da);
+            box-shadow: 0 0 14px rgba(255, 47, 186, 0.35);
+            font: 700 10px/1 'Orbitron', sans-serif;
+        }
+        #play-btn,
+        #credits-close,
+        #achievements-close { padding: 14px 28px; }
+        #menu-from-over-btn {
+            color: var(--cyan-soft);
+            border-color: var(--cyan);
+            background: rgba(26, 200, 255, 0.08);
+            box-shadow: none;
+        }
+        #game-over { border-color: rgba(255, 47, 186, 0.82); }
+        #game-over h2 { color: var(--pink); text-shadow: 0 0 12px var(--pink); }
+        #final-score { color: var(--cyan); font-family: 'Orbitron', sans-serif; text-shadow: 0 0 12px var(--cyan); }
+        #final-floor { color: var(--amber); }
+        #credits-modal .credits-label { color: var(--muted); font-family: 'Orbitron', sans-serif; }
+        #credits-modal .credits-value { color: var(--cyan); }
+        #editor-controls {
+            max-width: 400px;
+            gap: 5px;
+            padding: 7px;
+            border: 1px solid rgba(26, 200, 255, 0.6);
+            border-top: 0;
+            background: rgba(3, 7, 18, 0.96);
+        }
+        .editor-btn {
+            padding: 7px 9px;
+            color: var(--cyan-soft);
+            border: 1px solid rgba(26, 200, 255, 0.3);
+            border-radius: 3px;
+            background: rgba(26, 200, 255, 0.08);
+            font: 600 8px/1 'Orbitron', sans-serif;
+        }
+        .editor-btn.active { color: #170412; border-color: var(--pink); background: var(--pink); }
+        .editor-btn.danger { background: rgba(255, 47, 103, 0.18); color: #ff7ba2; }
+        .editor-btn.extend { background: rgba(255, 138, 51, 0.15); color: #ffb578; }
+
+        @media (max-width: 860px) {
+            body::before { inset: 6px; border-radius: 18px; }
+            #title-screen {
+                padding: 56px 28px 46px;
+                overflow-y: auto;
+                background:
+                    linear-gradient(90deg, rgba(3, 5, 13, 0.97), rgba(3, 5, 13, 0.76)),
+                    url('assets/neon-city-background.png') center / cover,
+                    var(--void);
+            }
+            .title-shell { grid-template-columns: 1fr; align-items: start; min-height: 100%; }
+            .title-copy { width: min(560px, 100%); }
+            .arcade-kicker { margin-bottom: 28px; }
+            #title-screen .game-title { font-size: clamp(46px, 14vw, 82px); }
+            #title-screen .tagline { margin-top: 28px; }
+            .hero-visual { display: none; }
+            #credits-btn { left: 28px; bottom: 18px; }
+            #title-screen .title-version { right: 28px; bottom: 18px; }
+        }
+        @media (max-width: 520px) {
+            #title-screen { padding: 54px 22px 70px; }
+            .arcade-kicker { font-size: 7px; letter-spacing: 0.3em; }
+            #title-screen .game-title { -webkit-text-stroke-width: 1px; }
+            #title-screen .tagline { font-size: 16px; }
+            .title-actions { align-items: stretch; }
+            #climb-btn,
+            #levels-btn { flex: 1; padding-inline: 10px; font-size: 8px; }
+            .feature-strip { margin-top: 28px; }
+            .feature { padding: 13px 4px 11px; font-size: 7px; }
+            .feature-mark { font-size: 19px; }
+            #instructions { display: none; }
+            .level-grid { grid-template-columns: repeat(2, 1fr); }
+            .level-btn.climb-btn { grid-column: span 2 !important; }
+            #level-select,
+            #game-over,
+            #credits-modal,
+            #achievements-modal { padding: 22px 16px; }
+            body.game-active #score-display {
+                top: 12px;
+                width: calc(100vw - 104px);
+                min-height: 62px;
+                padding-inline: 9px;
+            }
+            body.game-active .score-item { min-width: 43px; }
+            body.game-active .score-label { font-size: 6px; }
+            body.game-active .score-value,
+            body.game-active #multiplier-score .score-value { font-size: 16px !important; }
+            body.game-active #menu-btn,
+            body.game-active #mute-btn { top: 19px; }
+            body.game-active #menu-btn { left: 12px; }
+            body.game-active #mute-btn { right: 12px; }
+            body.game-active #level-name-display { top: 83px; }
+            body.game-active #rule-hud {
+                top: 82px;
+                width: calc(100vw - 28px);
+                padding: 6px 8px;
+            }
+            #rule-hud .rule-label { width: 46px; font-size: 5px; }
+            #rule-hud .rule-value { font-size: 6px; }
+        }
+        /* ===== PickBits account chip ===== */
+        #pbAuth {
+            position: fixed;
+            top: max(14px, env(safe-area-inset-top));
+            right: max(14px, env(safe-area-inset-right));
+            z-index: 250;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        /* The in-game HUD owns the top corners, so the chip only shows on the
+           menu / level select / game-over screens. */
+        body.game-active #pbAuth { display: none; }
+        #pbAuthBtn {
+            padding: 8px 14px;
+            color: var(--cyan-soft);
+            border: 1px solid rgba(26, 200, 255, 0.55);
+            border-radius: 4px;
+            background: rgba(26, 200, 255, 0.09);
+            font: 700 8px/1 'Orbitron', sans-serif;
+            letter-spacing: 0.2em;
+            cursor: pointer;
+            transition: all 0.25s ease;
+        }
+        #pbAuthBtn:hover {
+            color: #06131d;
+            background: var(--cyan);
+            box-shadow: 0 0 14px rgba(26, 200, 255, 0.5);
+        }
+        #pbAuthLabel {
+            display: flex;
+            align-items: center;
+            gap: 7px;
+            padding: 8px 13px;
+            color: var(--cyan-soft);
+            border: 1px solid rgba(26, 200, 255, 0.28);
+            border-radius: 4px;
+            background: rgba(4, 12, 26, 0.85);
+            font: 600 8px/1 'Orbitron', sans-serif;
+            letter-spacing: 0.14em;
+            max-width: 42vw;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        #pbAuthLabel::before {
+            content: '';
+            flex: none;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #3dffa8;
+            box-shadow: 0 0 7px #3dffa8;
+        }
+
+        /* ===== Achievement toast ===== */
+        #ach-toast {
+            position: fixed;
+            top: -120px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 400;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 20px 12px 15px;
+            color: var(--ink);
+            border: 1px solid rgba(255, 138, 51, 0.75);
+            border-radius: 8px;
+            background: linear-gradient(135deg, rgba(28, 16, 6, 0.97), rgba(4, 6, 16, 0.98));
+            box-shadow: 0 0 20px rgba(255, 138, 51, 0.35), inset 0 0 22px rgba(255, 138, 51, 0.08);
+            pointer-events: none;
+            opacity: 0;
+            transition: top 0.3s ease, opacity 0.3s ease;
+        }
+        #ach-toast.show {
+            top: max(16px, env(safe-area-inset-top));
+            opacity: 1;
+        }
+        .ach-toast-icon { font-size: 24px; line-height: 1; }
+        .ach-toast-copy { display: flex; flex-direction: column; gap: 5px; }
+        .ach-toast-kicker {
+            color: var(--amber);
+            font: 700 7px/1 'Orbitron', sans-serif;
+            letter-spacing: 0.28em;
+        }
+        .ach-toast-title { font: 700 11px/1 'Orbitron', sans-serif; letter-spacing: 0.1em; }
+
+        /* ===== Achievements modal ===== */
+        #achievements-modal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            display: none;
+            z-index: 300;
+            border-color: rgba(255, 138, 51, 0.7);
+        }
+        #achievements-modal h2 { color: var(--amber) !important; text-shadow: 0 0 10px rgba(255, 138, 51, 0.6); }
+        #ach-progress {
+            margin-top: 8px;
+            color: var(--muted);
+            font: 600 9px/1 'Orbitron', sans-serif;
+            letter-spacing: 0.16em;
+        }
+        .ach-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(154px, 1fr));
+            gap: 9px;
+            margin: 20px 0 18px;
+            text-align: left;
+        }
+        .ach-tile {
+            display: flex;
+            gap: 10px;
+            padding: 11px 10px;
+            border: 1px solid rgba(90, 133, 158, 0.28);
+            border-radius: 7px;
+            background: linear-gradient(145deg, rgba(14, 31, 56, 0.72), rgba(3, 8, 20, 0.88));
+        }
+        .ach-tile.unlocked { border-color: rgba(255, 138, 51, 0.6); background: linear-gradient(145deg, rgba(48, 28, 10, 0.7), rgba(6, 8, 18, 0.9)); }
+        .ach-tile.locked { opacity: 0.42; filter: grayscale(1); }
+        .ach-tile-icon { flex: none; font-size: 19px; line-height: 1.1; }
+        .ach-tile-name { color: var(--ink); font: 700 9px/1.2 'Orbitron', sans-serif; letter-spacing: 0.08em; }
+        .ach-tile.unlocked .ach-tile-name { color: var(--amber); }
+        .ach-tile-desc { margin-top: 5px; color: var(--muted); font: 500 11px/1.25 'Rajdhani', sans-serif; }
+
+        /* ===== Global rank on the game-over screen ===== */
+        #final-rank {
+            display: none;
+            margin-top: 8px;
+            color: var(--cyan-soft);
+            font: 600 9px/1.4 'Orbitron', sans-serif;
+            letter-spacing: 0.14em;
+        }
+        #final-rank b { color: var(--cyan); text-shadow: 0 0 9px rgba(26, 200, 255, 0.6); }
+
+        /* Achievements entry point, mirroring #credits-btn on the title screen */
+        #achievements-btn {
+            position: absolute;
+            left: clamp(48px, 7vw, 100px);
+            bottom: 54px;
+            z-index: 3;
+            margin: 0;
+            padding: 0;
+            color: rgba(131, 171, 194, 0.72);
+            font: 600 8px/1 'Orbitron', sans-serif;
+            letter-spacing: 0.2em;
+            border: 0;
+            background: transparent;
+            cursor: pointer;
+            transition: color 0.25s ease;
+        }
+        #achievements-btn:hover { color: var(--amber); }
+
+        @media (max-width: 860px) {
+            #achievements-btn { left: 28px; bottom: 38px; }
+        }
+        @media (max-width: 520px) {
+            .ach-grid { grid-template-columns: 1fr; }
+            #pbAuth { top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); }
+        }
+
+        @media (max-height: 720px) and (min-width: 861px) {
+            #title-screen { padding-top: 46px; padding-bottom: 46px; }
+            .arcade-kicker { margin-bottom: 20px; }
+            #title-screen .game-title { font-size: clamp(48px, 7vw, 82px); }
+            #title-screen .tagline { margin-top: 28px; }
+            .feature-strip { margin-top: 24px; }
+            .hero-visual { min-height: 620px; transform: scale(0.88); }
+        }
     </style>
     <!-- PostHog Analytics -->
     <script>!function(t,e){var o,n,p,r;e.__SV||(window.posthog=e,e._i=[],e.init=function(i,s,a){function g(t,e){var o=e.split(".");2==o.length&&(t=t[o[0]],e=o[1]),t[e]=function(){t.push([e].concat(Array.prototype.slice.call(arguments,0)))}}(p=t.createElement("script")).type="text/javascript",p.async=!0,p.src=s.api_host+"/static/array.js",(r=t.getElementsByTagName("script")[0]).parentNode.insertBefore(p,r);var u=e;for(void 0!==a?u=e[a]=[]:a="posthog",u.people=u.people||[],u.toString=function(t){var e="posthog";return"posthog"!==a&&(e+="."+a),t||(e+=" (stub)"),e},u.people.toString=function(){return u.toString(1)+" (stub)"},o="capture identify alias people.set people.set_once set_config register register_once unregister opt_out_capturing has_opted_out_capturing opt_in_capturing reset isFeatureEnabled onFeatureFlags getFeatureFlag getFeatureFlagPayload reloadFeatureFlags group updateEarlyAccessFeatureEnrollment getEarlyAccessFeatures getActiveMatchingSurveys getSurveys onSessionId".split(" "),n=0;n<o.length;n++)g(u,o[n]);e._i.push([i,s,a])},e.__SV=1)}(document,window.posthog||[]);posthog.init("phc_yvcBpCFdgfv12kjHY1fnN1LNJSBfFUB8uvXrVw1pCY2",{api_host:"https://us.i.posthog.com",person_profiles:"identified_only",capture_pageview:true});posthog.register({"$product":"arcade","surface":"pinballdreams"});</script>
@@ -314,15 +1301,22 @@
                 <div class="score-value" style="color:#00ccff;font-size:20px">1×</div>
             </div>
         </div>
-        <canvas id="game-canvas"></canvas>
+        <canvas id="game-3d-canvas" aria-label="3D neon pinball playfield"></canvas>
+        <canvas id="game-canvas" aria-hidden="true"></canvas>
         <button id="menu-btn">MENU</button>
         <div id="touch-left" class="touch-zone"></div>
         <div id="touch-right" class="touch-zone"></div>
-        <div id="launch-indicator">Tap to Launch!</div>
+        <div id="launch-indicator">Hold Space / Tap to Launch</div>
         <div id="level-name-display"></div>
+        <div id="pause-overlay">PAUSED<small>PRESS P TO RESUME</small></div>
         <div id="climb-hud">
             <div class="floor-display">Floor <span id="floor-num">1</span> - <span id="floor-board-name">Classic</span></div>
             <div class="element-display" id="element-display"></div>
+        </div>
+        <div id="rule-hud" data-power="normal">
+            <div class="rule-row"><span class="rule-label">Mission</span><span class="rule-value" id="mission-rule">Light the three top lanes</span></div>
+            <div class="rule-row"><span class="rule-label">Capsule</span><span class="rule-value" id="capsule-rule">Bank <span class="rule-pips" id="capsule-pips">◇ ◇ ◇</span> · then shoot core</span></div>
+            <div class="rule-row"><span class="rule-label">Power</span><span class="rule-value" id="power-rule">Normal ball</span></div>
         </div>
         <div id="ball-save-indicator">BALL SAVE!</div>
         <button id="mute-btn">🔊</button>
@@ -342,12 +1336,45 @@
 
         <!-- Title Screen -->
         <div id="title-screen">
-            <div class="game-title">PINBALL<span class="dreams">DREAMS</span></div>
-            <div class="tagline">FLIP IT. DREAM IT. SCORE IT.</div>
-            <button id="climb-btn">CLIMB MODE</button><br>
-            <button id="levels-btn">LEVELS</button><br>
+            <div class="title-shell">
+                <div class="title-copy">
+                    <div class="arcade-kicker">PICKBITS ARCADE</div>
+                    <div class="game-title">PINBALL<span class="dreams">DREAMS</span></div>
+                    <div class="tagline">Build the table.<span>Chase the impossible shot.</span></div>
+                    <div class="title-actions">
+                        <button id="climb-btn">START CLIMB</button>
+                        <button id="levels-btn">SELECT TABLE</button>
+                    </div>
+                    <div class="feature-strip" aria-label="Game features">
+                        <div class="feature"><span class="feature-mark">◎</span>Matter.js Physics</div>
+                        <div class="feature"><span class="feature-mark">◇</span>Table Editor</div>
+                        <div class="feature"><span class="feature-mark">↑</span>Climb Mode</div>
+                    </div>
+                </div>
+                <div class="hero-visual" aria-hidden="true">
+                    <div class="hero-table">
+                        <span class="hero-bumper b1"></span>
+                        <span class="hero-bumper b2"></span>
+                        <span class="hero-bumper b3"></span>
+                        <span class="hero-core"></span>
+                        <span class="hero-flipper left"></span>
+                        <span class="hero-flipper right"></span>
+                        <span class="hero-ball"></span>
+                    </div>
+                    <div class="hero-caption"><strong>20</strong>floors of neon<br>after midnight</div>
+                </div>
+            </div>
+            <button id="achievements-btn">ACHIEVEMENTS</button>
             <button id="credits-btn">CREDITS</button>
-            <div class="title-version">v1.0</div>
+            <div class="title-version">A PICKBITS.AI GAME / 2026</div>
+        </div>
+
+        <!-- Achievements Modal -->
+        <div id="achievements-modal">
+            <h2>ACHIEVEMENTS</h2>
+            <div id="ach-progress">0 / 0 UNLOCKED</div>
+            <div class="ach-grid" id="ach-grid"></div>
+            <button id="achievements-close">BACK</button>
         </div>
 
         <!-- Credits Modal -->
@@ -369,27 +1396,27 @@
                 <button class="level-btn selected" data-level="0">
                     <div class="level-icon">🎯</div>
                     <span class="level-name">Classic</span>
-                    <span class="level-desc">Traditional layout</span>
+                    <span class="level-desc">Neon Foundry · Fire zone</span>
                 </button>
                 <button class="level-btn" data-level="1">
                     <div class="level-icon">🌀</div>
                     <span class="level-name">Vortex</span>
-                    <span class="level-desc">Spiral madness</span>
+                    <span class="level-desc">Cryo Spiral · Ice zone</span>
                 </button>
                 <button class="level-btn" data-level="2">
                     <div class="level-icon">💎</div>
                     <span class="level-name">Diamond</span>
-                    <span class="level-desc">Gem patterns</span>
+                    <span class="level-desc">Prism Quarry · Rock zone</span>
                 </button>
                 <button class="level-btn" data-level="3">
                     <div class="level-icon">🏰</div>
                     <span class="level-name">Castle</span>
-                    <span class="level-desc">Tower defense</span>
+                    <span class="level-desc">Ember Citadel · Fire zone</span>
                 </button>
                 <button class="level-btn" data-level="4">
                     <div class="level-icon">🌊</div>
                     <span class="level-name">Wave</span>
-                    <span class="level-desc">Curved chaos</span>
+                    <span class="level-desc">Tidal Array · Ice zone</span>
                 </button>
                 <button class="level-btn" data-level="5">
                     <div class="level-icon">🎨</div>
@@ -411,6 +1438,7 @@
             <p style="color:#fff">Final Score:</p>
             <div id="final-score">0</div>
             <div id="final-floor">Reached Floor: <span id="final-floor-num">1</span></div>
+            <div id="final-rank"></div>
             <div id="game-over-buttons">
                 <button id="restart-btn">PLAY AGAIN</button>
                 <button id="menu-from-over-btn">MENU</button>
@@ -422,32 +1450,70 @@
         <span>Mobile:</span> Tap sides for flippers
     </div>
 
+    <div id="ach-toast"></div>
+
+    <!-- Career stats + achievements (local-first), then the PickBits bridge.
+         Both must load before the game script below, which calls into them. -->
+    <script src="src/pinball-progress.js"></script>
+    <script src="src/pickbits.js"></script>
+
     <script>
         const { Engine, Bodies, Body, Composite, Constraint, Events } = Matter;
 
         const CONFIG = {
-            width: 400, height: 700,
+            width: 400, height: 860,
             ball: { radius: 10, restitution: 0.5, friction: 0.001, frictionAir: 0.0005, density: 0.0015 },
             flipper: { restAngle: 0.5, activeAngle: -0.5 },
             totalBalls: 3
         };
+        const BASE_BOARD_HEIGHT = 700;
+        const boardY = (value) => value * (CONFIG.height / BASE_BOARD_HEIGHT);
 
         const LEVELS = [
-            { name: "Classic", theme: { bg: '#1a1a2e', wall: '#4a5568', bumper: '#00ccff', accent: '#ff6688' } },
-            { name: "Vortex", theme: { bg: '#0a0a1a', wall: '#6366f1', bumper: '#a855f7', accent: '#22d3ee' } },
-            { name: "Diamond", theme: { bg: '#1a2e2a', wall: '#2dd4bf', bumper: '#34d399', accent: '#fbbf24' } },
-            { name: "Castle", theme: { bg: '#2e1a0a', wall: '#b45309', bumper: '#fbbf24', accent: '#ef4444' } },
-            { name: "Wave", theme: { bg: '#1e1b4b', wall: '#7c3aed', bumper: '#c084fc', accent: '#fb7185' } },
-            { name: "Custom", theme: { bg: '#1a1a2e', wall: '#22d3ee', bumper: '#f472b6', accent: '#a78bfa' } },
-            { name: "Climb", theme: { bg: '#0a1628', wall: '#4a90d9', bumper: '#22d3ee', accent: '#ff6688' } }
+            {
+                name: "Classic", subtitle: "Neon Foundry", zone: "fire",
+                theme: { bg: '#020817', wall: '#20ddff', bumper: '#ff2bb5', accent: '#ff8a24', secondary: '#ffe45c', metal: '#153a52' },
+                mission: { name: 'Reactor Run', action: 'bumper', goal: 8, reward: 12000, instruction: 'Hit 8 reactor bumpers' }
+            },
+            {
+                name: "Vortex", subtitle: "Cryo Spiral", zone: "ice",
+                theme: { bg: '#09031b', wall: '#9d67ff', bumper: '#35e7ff', accent: '#ff43cf', secondary: '#8dffdc', metal: '#2c1850' },
+                mission: { name: 'Stabilize Spiral', action: 'spinner', goal: 5, reward: 15000, instruction: 'Spin the vortex 5 times' }
+            },
+            {
+                name: "Diamond", subtitle: "Prism Quarry", zone: "rock",
+                theme: { bg: '#02131b', wall: '#55f4ff', bumper: '#8d7cff', accent: '#ff5ad9', secondary: '#ffd45e', metal: '#173f55' },
+                mission: { name: 'Cut the Crown', action: 'target', goal: 6, reward: 18000, instruction: 'Break 6 stand-up targets' }
+            },
+            {
+                name: "Castle", subtitle: "Ember Citadel", zone: "fire",
+                theme: { bg: '#170508', wall: '#ff7a28', bumper: '#ff315f', accent: '#ffd15c', secondary: '#ff4fbc', metal: '#55200f' },
+                mission: { name: 'Breach Protocol', action: 'target', goal: 7, reward: 22000, instruction: 'Breach 7 castle targets' }
+            },
+            {
+                name: "Wave", subtitle: "Tidal Array", zone: "ice",
+                theme: { bg: '#031026', wall: '#3f92ff', bumper: '#a968ff', accent: '#40f0db', secondary: '#ff55cb', metal: '#183675' },
+                mission: { name: 'Ride the Current', action: 'spinner', goal: 6, reward: 20000, instruction: 'Charge 6 current spinners' }
+            },
+            {
+                name: "Custom", subtitle: "Dream Circuit", zone: "rock",
+                theme: { bg: '#040817', wall: '#1ac8ff', bumper: '#ff2fba', accent: '#a77dff', secondary: '#ffbe55', metal: '#183249' },
+                mission: { name: 'Maker Test', action: 'bumper', goal: 10, reward: 10000, instruction: 'Hit 10 custom bumpers' }
+            },
+            {
+                name: "Climb", subtitle: "Elemental Ascent", zone: "fire",
+                theme: { bg: '#030917', wall: '#1ac8ff', bumper: '#ff2fba', accent: '#ff8a33', secondary: '#ffe45c', metal: '#183249' },
+                mission: { name: 'Ascension', action: 'target', goal: 9, reward: 25000, instruction: 'Break 9 ascent targets' }
+            }
         ];
 
-        const ELEMENT_COLORS = {
-            normal: { ball: ['#fff', '#ccc', '#666'], name: 'Normal', icon: '' },
-            hot: { ball: ['#fff', '#ff6644', '#cc2200'], name: 'Hot', icon: '🔥' },
-            water: { ball: ['#fff', '#4488ff', '#0044cc'], name: 'Water', icon: '💧' },
-            grass: { ball: ['#fff', '#44ff66', '#00aa22'], name: 'Grass', icon: '🌿' }
+        const POWER_TYPES = {
+            normal: { ball: ['#ffffff', '#ccefff', '#506070'], name: 'Normal', icon: '●', color: '#bfeeff' },
+            fire: { ball: ['#fff7cf', '#ff6a22', '#a90e00'], name: 'Fire', icon: '▲', color: '#ff5a24' },
+            ice: { ball: ['#ffffff', '#70e9ff', '#1758c9'], name: 'Ice', icon: '◆', color: '#5ee7ff' },
+            rock: { ball: ['#fff0b8', '#b77a3e', '#3d291f'], name: 'Rock', icon: '⬟', color: '#e2a15a' }
         };
+        const ELEMENT_COLORS = POWER_TYPES;
 
         // Custom level editor state
         let editorMode = 'bumper';
@@ -491,6 +1557,27 @@
             boardNames: {} // floor -> board name for HUD
         };
 
+        let powerSystem = {
+            active: 'normal',
+            rarity: 'STANDARD',
+            potency: 1,
+            expiresAt: 0,
+            zone: null,
+            zoneUntil: 0,
+            armed: false,
+            bankTargets: [],
+            bankHits: new Set(),
+            drawCount: 0
+        };
+
+        let missionSystem = {
+            active: false,
+            ready: false,
+            progress: 0,
+            laneHits: new Set(),
+            lanes: []
+        };
+
         let currentLevel = 0;
         let gameState = {
             score: 0, highScore: parseInt(localStorage.getItem('pinballDreamsHighScore')) || 0,
@@ -503,11 +1590,28 @@
         canvas.width = CONFIG.width;
         canvas.height = CONFIG.height;
         const ctx = canvas.getContext('2d');
+        const canvas3D = document.getElementById('game-3d-canvas');
+        let pinball3D = null;
+        if (window.NeonPinball3D && window.THREE && canvas3D) {
+            try {
+                pinball3D = new window.NeonPinball3D({
+                    canvas: canvas3D,
+                    assetUrl: 'assets/3d/neon-pinball-kit.glb',
+                    backdropUrl: 'assets/neon-city-background.png'
+                });
+            } catch (error) {
+                console.warn('3D renderer unavailable; physics renderer remains active.', error);
+            }
+        }
 
         const CATEGORY = { WALL: 0x0001, BALL: 0x0002, FLIPPER: 0x0004, BUMPER: 0x0008, SENSOR: 0x0020 };
 
         let ball = null, leftFlipper = null, rightFlipper = null;
         let bumpers = [], particles = [];
+        // Per-run tracking for achievements: score at the current ball's launch,
+        // and which elemental balls have been collected this game.
+        let ballStartScore = 0;
+        let runElements = {};
         let plunger = { power: 0, charging: false };
         let plungerGate = null;
         let ballLaunchTime = 0;
@@ -525,6 +1629,20 @@
 
         // ====== AUDIO SYSTEM ======
         let audioCtx = null, musicAudio = null, sfxMuted = false, currentMusicTrack = 'menu';
+
+        // ====== SETTINGS (device-local, mirrored to PickBits cloud saves) ======
+        const SETTINGS_KEY = 'pinballDreamsSettings_v1';
+        function loadSettings() {
+            try {
+                const s = JSON.parse(localStorage.getItem(SETTINGS_KEY) || 'null');
+                if (s && typeof s.muted === 'boolean') sfxMuted = s.muted;
+            } catch (e) {}
+        }
+        function saveSettings() {
+            try { localStorage.setItem(SETTINGS_KEY, JSON.stringify({ version: 1, muted: sfxMuted })); }
+            catch (e) {}
+        }
+        loadSettings();
 
         function ensureAudio() {
             if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -547,6 +1665,7 @@
 
         function toggleMute() {
             sfxMuted = !sfxMuted;
+            saveSettings();
             document.getElementById('mute-btn').textContent = sfxMuted ? '🔇' : '🔊';
             if (sfxMuted) stopMusic();
             else playMusic(currentMusicTrack);
@@ -630,7 +1749,7 @@
 
         function sfxElementPickup(elem) {
             if (sfxMuted) return;
-            const seqs = { hot:[523,659,880], water:[440,554,659], grass:[392,494,587] };
+            const seqs = { fire:[523,659,880], ice:[440,554,659], rock:[196,294,392] };
             (seqs[elem] || [523,659,784]).forEach((f, i) => _beep(f, 'sine', 0.14, 0.15, i * 0.07));
         }
 
@@ -660,7 +1779,10 @@
             else if (comboHits >= 10) scoreMultiplier = 3;
             else if (comboHits >= 5)  scoreMultiplier = 2;
             else scoreMultiplier = 1;
-            if (scoreMultiplier > prev) sfxMultiplierUp();
+            if (scoreMultiplier > prev) {
+                sfxMultiplierUp();
+                if (PinballCareer.best('bestMultiplier', scoreMultiplier)) PinballAchievements.check();
+            }
             updateMultiplierDisplay();
         }
 
@@ -677,41 +1799,276 @@
             if (el) { el.textContent = scoreMultiplier + '×'; el.style.color = scoreMultiplier > 1 ? '#ffcc00' : '#00ccff'; }
         }
 
-        // ====== ELEMENTAL BALL ======
-        // Effects applied in game loop
-        function applyElementalEffects() {
-            if (!climbMode.active) return;
-            const elem = climbMode.elementalBall;
-            if (elem !== 'normal' && climbMode.elementalBallTimer > 0) {
-                if (Date.now() - climbMode.elementalBallTimer > 15000) {
-                    climbMode.elementalBall = 'normal';
-                    climbMode.elementalBallTimer = 0;
-                    engine.gravity.y = 0.8;
-                    updateClimbHUD();
-                } else if (elem === 'water') {
-                    engine.gravity.y = 0.5;
-                }
+        // ====== ELEMENTAL POWERS, ZONES & MISSIONS ======
+        function applyThemeToUI(theme) {
+            document.body.style.setProperty('--table-wall', theme.wall);
+            document.body.style.setProperty('--table-bumper', theme.bumper);
+            document.body.style.setProperty('--table-accent', theme.accent);
+        }
+
+        function resetRuleSystems() {
+            powerSystem.active = 'normal';
+            powerSystem.rarity = 'STANDARD';
+            powerSystem.potency = 1;
+            powerSystem.expiresAt = 0;
+            powerSystem.zone = null;
+            powerSystem.zoneUntil = 0;
+            powerSystem.armed = false;
+            powerSystem.bankTargets = [];
+            powerSystem.bankHits = new Set();
+            missionSystem.active = false;
+            missionSystem.ready = false;
+            missionSystem.progress = 0;
+            missionSystem.laneHits = new Set();
+            missionSystem.lanes = [];
+            if (ball?.plugin) ball.plugin.element = 'normal';
+            updateRuleHUD();
+        }
+
+        function activatePower(type, rarity = 'STANDARD') {
+            const durations = { STANDARD: 18000, CHARGED: 27000, MYTHIC: 42000 };
+            const potency = { STANDARD: 1, CHARGED: 1.5, MYTHIC: 2 };
+            powerSystem.active = POWER_TYPES[type] ? type : 'normal';
+            powerSystem.rarity = rarity;
+            powerSystem.potency = potency[rarity] || 1;
+            powerSystem.expiresAt = Date.now() + (durations[rarity] || durations.STANDARD);
+            powerSystem.drawCount++;
+            climbMode.elementalBall = powerSystem.active;
+            climbMode.elementalBallTimer = Date.now();
+            if (ball?.plugin) ball.plugin.element = powerSystem.active;
+            runElements[powerSystem.active] = true;
+            PinballCareer.mark('elementsCollected', powerSystem.active);
+            PinballAchievements.check({ runElements });
+            sfxElementPickup(powerSystem.active);
+            if (ball) {
+                createParticles(ball.position.x, ball.position.y, POWER_TYPES[powerSystem.active].color);
+                createScorePopup(ball.position.x, ball.position.y - 24, `${rarity} ${POWER_TYPES[powerSystem.active].name.toUpperCase()} BALL`);
             }
+            updateRuleHUD();
+            updateClimbHUD();
+        }
+
+        function rollPowerCapsule(origin) {
+            if (!powerSystem.armed && !climbMode.active) return;
+            const tableZone = powerSystem.zone || LEVELS[currentLevel].zone;
+            const types = ['fire', 'ice', 'rock'];
+            const weights = types.map(type => type === tableZone ? 44 : 28);
+            let roll = Math.random() * weights.reduce((sum, weight) => sum + weight, 0);
+            let selected = types[0];
+            for (let i = 0; i < types.length; i++) {
+                roll -= weights[i];
+                if (roll <= 0) { selected = types[i]; break; }
+            }
+            const rarityRoll = Math.random();
+            const rarity = rarityRoll < 0.06 ? 'MYTHIC' : rarityRoll < 0.26 ? 'CHARGED' : 'STANDARD';
+            powerSystem.armed = false;
+            activatePower(selected, rarity);
+            resetPowerBank();
+            if (origin) createParticles(origin.x, origin.y, POWER_TYPES[selected].color);
+        }
+
+        function resetPowerBank() {
+            powerSystem.bankHits.clear();
+            const theme = LEVELS[currentLevel].theme;
+            powerSystem.bankTargets.forEach(target => {
+                if (!target?.plugin) return;
+                target.plugin.hit = false;
+                target.render.fillStyle = theme.secondary || theme.accent;
+                Body.setPosition(target, { x: target.plugin.homeX, y: target.plugin.homeY });
+            });
+            updateRuleHUD();
+        }
+
+        function isZoneBoosted(type) {
+            return powerSystem.active === type &&
+                powerSystem.zone === type &&
+                powerSystem.zoneUntil > Date.now();
+        }
+
+        function powerScoreMultiplier(action) {
+            if (powerSystem.active === 'fire' && action === 'bumper') {
+                return (isZoneBoosted('fire') ? 3 : 1.5) * powerSystem.potency;
+            }
+            if (powerSystem.active === 'ice' && (action === 'spinner' || action === 'ramp')) {
+                return (isZoneBoosted('ice') ? 3 : 1.5) * powerSystem.potency;
+            }
+            if (powerSystem.active === 'rock' && (action === 'target' || action === 'panel')) {
+                return (isZoneBoosted('rock') ? 3 : 1.5) * powerSystem.potency;
+            }
+            return 1;
+        }
+
+        function lightMissionLane(index, origin) {
+            if (missionSystem.active || missionSystem.laneHits.has(index)) return;
+            missionSystem.laneHits.add(index);
+            const lane = missionSystem.lanes[index];
+            if (lane?.plugin) lane.plugin.lit = true;
+            if (origin) createScorePopup(origin.x, origin.y, `LANE ${index + 1} LIT`);
+            if (missionSystem.laneHits.size >= 3) {
+                missionSystem.ready = true;
+                if (origin) createScorePopup(origin.x, origin.y - 24, 'MISSION READY · SHOOT RAMP');
+                sfxMultiplierUp();
+            }
+            updateRuleHUD();
+        }
+
+        function startMission(origin) {
+            if (!missionSystem.ready || missionSystem.active) return;
+            missionSystem.ready = false;
+            missionSystem.active = true;
+            missionSystem.progress = 0;
+            const mission = LEVELS[currentLevel].mission;
+            if (origin) createScorePopup(origin.x, origin.y - 24, mission.name.toUpperCase());
+            sfxFloorClear();
+            updateRuleHUD();
+        }
+
+        function advanceMission(action, amount = 1, origin) {
+            if (!missionSystem.active) return;
+            const mission = LEVELS[currentLevel].mission;
+            if (!mission || mission.action !== action) return;
+            missionSystem.progress = Math.min(mission.goal, missionSystem.progress + amount);
+            if (missionSystem.progress >= mission.goal) {
+                const reward = Math.round(mission.reward * scoreMultiplier);
+                gameState.score += reward;
+                updateScoreDisplay();
+                if (origin) createScorePopup(origin.x, origin.y - 28, `MISSION +${reward.toLocaleString()}`);
+                sfxHighScore();
+                missionSystem.active = false;
+                missionSystem.ready = false;
+                missionSystem.progress = 0;
+                missionSystem.laneHits.clear();
+                missionSystem.lanes.forEach(lane => { if (lane?.plugin) lane.plugin.lit = false; });
+            }
+            updateRuleHUD();
+        }
+
+        function updateRuleHUD() {
+            const hud = document.getElementById('rule-hud');
+            if (!hud) return;
+            const mission = LEVELS[currentLevel]?.mission;
+            const missionEl = document.getElementById('mission-rule');
+            if (climbMode.active) {
+                missionEl.textContent = `Ascend · break ceiling panels · floor ${climbMode.currentBallFloor + 1}`;
+            } else if (missionSystem.active) {
+                missionEl.textContent = `${mission.name} · ${missionSystem.progress}/${mission.goal} · ${mission.instruction}`;
+            } else if (missionSystem.ready) {
+                missionEl.textContent = `${mission.name} armed · shoot mission ramp`;
+            } else {
+                missionEl.textContent = `Light top lanes ${missionSystem.laneHits.size}/3 · ${mission?.name || 'Mission'}`;
+            }
+            const capsuleRule = document.getElementById('capsule-rule');
+            const capsulePips = document.getElementById('capsule-pips');
+            if (climbMode.active) {
+                capsuleRule.childNodes[0].nodeValue = 'Climb cache ';
+                capsulePips.textContent = '◇ ? ◇';
+                if (capsuleRule.childNodes[2]) capsuleRule.childNodes[2].nodeValue = ' · random power upstairs';
+            } else {
+                const pips = [0, 1, 2].map(i => powerSystem.bankHits.has(i) ? '◆' : '◇').join(' ');
+                capsulePips.textContent = pips;
+                capsuleRule.childNodes[0].nodeValue = powerSystem.armed ? 'ARMED ' : 'Bank ';
+                if (capsuleRule.childNodes[2]) capsuleRule.childNodes[2].nodeValue = ' · then shoot core';
+            }
+            const power = POWER_TYPES[powerSystem.active] || POWER_TYPES.normal;
+            const remaining = powerSystem.active === 'normal' ? 0 : Math.max(0, Math.ceil((powerSystem.expiresAt - Date.now()) / 1000));
+            const zoneText = powerSystem.zoneUntil > Date.now() ? ` · ${powerSystem.zone.toUpperCase()} ZONE` : '';
+            const activeLevel = climbMode.active
+                ? LEVELS[CLIMB_BOARDS[climbMode.currentBallFloor % CLIMB_BOARDS.length]]
+                : LEVELS[currentLevel];
+            document.getElementById('power-rule').textContent = powerSystem.active === 'normal'
+                ? `Normal ball · ${activeLevel.zone.toUpperCase()} zone favors ${activeLevel.zone}`
+                : `${power.icon} ${powerSystem.rarity} ${power.name} · ${remaining}s${zoneText}`;
+            hud.dataset.power = powerSystem.active;
+        }
+
+        function applyElementalEffects() {
+            const now = Date.now();
+            if (powerSystem.active !== 'normal' && now >= powerSystem.expiresAt) {
+                powerSystem.active = 'normal';
+                powerSystem.rarity = 'STANDARD';
+                powerSystem.potency = 1;
+                climbMode.elementalBall = 'normal';
+                climbMode.elementalBallTimer = 0;
+                if (ball?.plugin) ball.plugin.element = 'normal';
+            }
+            if (powerSystem.zoneUntil <= now) powerSystem.zone = null;
+            const iceActive = powerSystem.active === 'ice';
+            engine.gravity.y = iceActive ? (isZoneBoosted('ice') ? 0.38 : 0.62) : 0.8;
+            if (ball) {
+                ball.frictionAir = powerSystem.active === 'rock'
+                    ? CONFIG.ball.frictionAir * 2.4
+                    : CONFIG.ball.frictionAir;
+                if (ball.plugin) ball.plugin.element = powerSystem.active;
+            }
+            updateRuleHUD();
         }
 
         // ====== PAUSE ======
         function togglePause() {
             if (!gameState.isPlaying) return;
             paused = !paused;
+            document.getElementById('pause-overlay').style.display = paused ? 'flex' : 'none';
             if (paused) stopMusic();
             else playMusic(currentMusicTrack);
         }
 
+        let curvedWallSerial = 0;
+
         function createCurvedWall(points, thickness, options) {
             const bodies = [];
+            if (!Array.isArray(points) || points.length < 2) return bodies;
+
+            const wallId = `wall-path-${curvedWallSerial++}`;
+            const visualPoints = points.map(point => ({ x: point.x, y: point.y }));
+            const basePlugin = options.plugin || {};
+
             for (let i = 0; i < points.length - 1; i++) {
                 const p1 = points[i], p2 = points[i + 1];
                 const dx = p2.x - p1.x, dy = p2.y - p1.y;
                 const len = Math.sqrt(dx * dx + dy * dy);
+                if (len < 0.001) continue;
                 const angle = Math.atan2(dy, dx);
-                bodies.push(Bodies.rectangle((p1.x + p2.x) / 2, (p1.y + p2.y) / 2, len + thickness, thickness, { ...options, angle }));
-                if (i > 0) bodies.push(Bodies.circle(p1.x, p1.y, thickness / 2, options));
+                bodies.push(Bodies.rectangle(
+                    (p1.x + p2.x) / 2,
+                    (p1.y + p2.y) / 2,
+                    len,
+                    thickness,
+                    {
+                        ...options,
+                        angle,
+                        label: 'wall-segment',
+                        plugin: {
+                            ...basePlugin,
+                            neonWall: {
+                                id: wallId,
+                                points: visualPoints,
+                                thickness,
+                                root: bodies.length === 0,
+                            }
+                        }
+                    }
+                ));
             }
+
+            // Circles turn the piecewise rectangles into one capsule-style collision
+            // path. They close every joint and wrap both terminal ends without the
+            // oversized rectangle-on-rectangle intersections used previously.
+            points.forEach((point) => {
+                bodies.push(Bodies.circle(point.x, point.y, thickness / 2, {
+                    ...options,
+                    label: 'wall-cap',
+                    plugin: {
+                        ...basePlugin,
+                        neonWall: {
+                            id: wallId,
+                            points: visualPoints,
+                            thickness,
+                            root: false,
+                        }
+                    }
+                }));
+            });
+
             return bodies;
         }
 
@@ -720,9 +2077,95 @@
             return -floor * CONFIG.height;
         }
 
+        function createZoneSensor(level, baseY = 0) {
+            const zone = level.zone || 'fire';
+            const positions = {
+                fire: { x: 200, y: 250, radius: 58 },
+                ice: { x: 175, y: 330, radius: 62 },
+                rock: { x: 205, y: 385, radius: 60 }
+            };
+            const palette = { fire: '#ff5a24', ice: '#5ee7ff', rock: '#e2a15a' };
+            const position = positions[zone] || positions.fire;
+            const sensor = Bodies.circle(position.x, baseY + boardY(position.y), position.radius, {
+                isStatic: true,
+                isSensor: true,
+                label: `zone-${zone}`,
+                render: { fillStyle: palette[zone] },
+                collisionFilter: { category: CATEGORY.SENSOR },
+                plugin: { zone, floorY: baseY }
+            });
+            Composite.add(world, sensor);
+            return sensor;
+        }
+
+        function createTraditionalRuleSet(level, baseY = 0) {
+            const theme = level.theme;
+            missionSystem.lanes = [];
+            powerSystem.bankTargets = [];
+
+            // Three rollover lanes select and arm the table mission.
+            [92, 180, 268].forEach((x, index) => {
+                const lane = Bodies.rectangle(x, baseY + boardY(82), 42, 12, {
+                    isStatic: true,
+                    isSensor: true,
+                    label: 'mission-lane',
+                    render: { fillStyle: theme.wall },
+                    collisionFilter: { category: CATEGORY.SENSOR },
+                    plugin: { lane: index, lit: false }
+                });
+                Composite.add(world, lane);
+                missionSystem.lanes.push(lane);
+            });
+
+            // A traditional ramp shot starts the selected mission.
+            Composite.add(world, Bodies.rectangle(70, baseY + boardY(340), 62, 20, {
+                isStatic: true,
+                isSensor: true,
+                angle: -0.46,
+                label: 'mission-ramp',
+                render: { fillStyle: theme.accent },
+                collisionFilter: { category: CATEGORY.SENSOR },
+                plugin: { score: 500 }
+            }));
+
+            // Complete the three-target POWER bank, then shoot the lit core to
+            // perform a weighted capsule draw.
+            [118, 180, 242].forEach((x, index) => {
+                const targetY = baseY + boardY(458);
+                const target = Bodies.rectangle(x, targetY, 18, 34, {
+                    isStatic: true,
+                    label: 'power-target',
+                    restitution: 0.28,
+                    render: { fillStyle: theme.secondary || theme.accent },
+                    collisionFilter: { category: CATEGORY.BUMPER },
+                    plugin: {
+                        index,
+                        hit: false,
+                        score: 350,
+                        homeX: x,
+                        homeY: targetY
+                    }
+                });
+                Composite.add(world, target);
+                powerSystem.bankTargets.push(target);
+            });
+
+            Composite.add(world, Bodies.circle(305, baseY + boardY(355), 18, {
+                isStatic: true,
+                isSensor: true,
+                label: 'power-scoop',
+                render: { fillStyle: theme.secondary || theme.accent },
+                collisionFilter: { category: CATEGORY.SENSOR },
+                plugin: { armed: false }
+            }));
+
+            createZoneSensor(level, baseY);
+        }
+
         function createLevel() {
             const level = LEVELS[currentLevel];
             const W = CONFIG.width, H = CONFIG.height;
+            const Y = boardY;
             const wallOpts = {
                 isStatic: true, restitution: 0.3, friction: 0.0,
                 render: { fillStyle: level.theme.wall },
@@ -738,34 +2181,34 @@
 
             // Left wall
             const leftWall = [
-                { x: 20, y: 50 }, { x: 20, y: 540 },
-                { x: 28, y: 560 }, { x: 50, y: 580 }
+                { x: 20, y: Y(50) }, { x: 20, y: Y(540) },
+                { x: 28, y: Y(560) }, { x: 50, y: Y(580) }
             ];
             walls.push(...createCurvedWall(leftWall, 14, wallOpts));
 
             // Right wall
             const rightWall = [
-                { x: W - 50, y: 100 }, { x: W - 50, y: 545 },
-                { x: W - 60, y: 565 }, { x: W - 75, y: 580 }
+                { x: W - 50, y: Y(100) }, { x: W - 50, y: Y(545) },
+                { x: W - 60, y: Y(565) }, { x: W - 75, y: Y(580) }
             ];
             walls.push(...createCurvedWall(rightWall, 14, wallOpts));
 
             // Plunger entrance curve
             const plungerEntrance = [
-                { x: W - 50, y: 20 },
-                { x: W - 20, y: 45 }, { x: W - 8, y: 70 }
+                { x: W - 50, y: Y(20) },
+                { x: W - 20, y: Y(45) }, { x: W - 8, y: Y(70) }
             ];
             walls.push(...createCurvedWall(plungerEntrance, 16, wallOpts));
 
             if (boardExtended) {
-                const extLeft = [{ x: 20, y: -650 }, { x: 20, y: 50 }];
+                const extLeft = [{ x: 20, y: -H + Y(50) }, { x: 20, y: Y(50) }];
                 walls.push(...createCurvedWall(extLeft, 14, wallOpts));
-                const extRight = [{ x: W - 50, y: -650 }, { x: W - 50, y: 100 }];
+                const extRight = [{ x: W - 50, y: -H + Y(50) }, { x: W - 50, y: Y(100) }];
                 walls.push(...createCurvedWall(extRight, 14, wallOpts));
-                walls.push(Bodies.rectangle((20 + W - 50) / 2, -650, W - 70, 14, wallOpts));
+                walls.push(Bodies.rectangle((20 + W - 50) / 2, -H + Y(50), W - 70, 14, wallOpts));
             } else {
-                walls.push(Bodies.rectangle((20 + W - 50) / 2, 30, W - 70, 14, wallOpts));
-                Composite.add(world, Bodies.rectangle(W / 2 - 15, 10, W - 80, 16, {
+                walls.push(Bodies.rectangle((20 + W - 50) / 2, Y(30), W - 70, 14, wallOpts));
+                Composite.add(world, Bodies.rectangle(W / 2 - 15, Y(10), W - 80, 16, {
                     isStatic: true, isSensor: true, label: 'top-exit',
                     render: { fillStyle: 'transparent' },
                     collisionFilter: { category: CATEGORY.SENSOR }
@@ -773,67 +2216,67 @@
             }
 
             // Plunger lane
-            walls.push(Bodies.rectangle(W - 8, H / 2 + 50, 10, H - 80, wallOpts));
-            walls.push(Bodies.rectangle(W - 42, H - 55, 8, 110, wallOpts));
-            walls.push(Bodies.rectangle(W - 25, H - 10, 40, 10, wallOpts));
+            walls.push(Bodies.rectangle(W - 8, H / 2 + Y(50), 10, H - Y(80), wallOpts));
+            walls.push(Bodies.rectangle(W - 42, H - Y(55), 8, Y(110), wallOpts));
+            walls.push(Bodies.rectangle(W - 25, H - Y(10), 40, 10, wallOpts));
 
             // Bottom guides
-            const leftGuide = [{ x: 50, y: 580 }, { x: 70, y: 600 }, { x: 85, y: 625 }];
+            const leftGuide = [{ x: 50, y: Y(580) }, { x: 70, y: Y(600) }, { x: 85, y: Y(625) }];
             walls.push(...createCurvedWall(leftGuide, 12, wallOpts));
-            const rightGuide = [{ x: W - 75, y: 580 }, { x: W - 90, y: 600 }, { x: W - 105, y: 625 }];
+            const rightGuide = [{ x: W - 75, y: Y(580) }, { x: W - 90, y: Y(600) }, { x: W - 105, y: Y(625) }];
             walls.push(...createCurvedWall(rightGuide, 12, wallOpts));
 
             // Level-specific elements
             if (currentLevel === 0) {
-                createBumper(120, 180, 24);
-                createBumper(200, 130, 28);
-                createBumper(280, 180, 24);
-                createBumper(160, 300, 22);
-                createBumper(240, 300, 22);
-                walls.push(Bodies.polygon(90, H - 180, 3, 30, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
-                walls.push(Bodies.polygon(W - 110, H - 180, 3, 30, { ...wallOpts, angle: 0, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
+                createBumper(120, Y(180), 24);
+                createBumper(200, Y(130), 28);
+                createBumper(280, Y(180), 24);
+                createBumper(160, Y(300), 22);
+                createBumper(240, Y(300), 22);
+                walls.push(Bodies.polygon(90, H - Y(180), 3, 30, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
+                walls.push(Bodies.polygon(W - 110, H - Y(180), 3, 30, { ...wallOpts, angle: 0, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
             }
             else if (currentLevel === 1) {
-                const cx = 170, cy = 280;
+                const cx = 170, cy = Y(280);
                 for (let i = 0; i < 6; i++) {
                     const a = (i / 6) * Math.PI * 2 - Math.PI/2;
                     const r = 50 + i * 18;
-                    createBumper(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 18 + (i % 2) * 6);
+                    createBumper(cx + Math.cos(a) * r, cy + Math.sin(a) * Y(r), 18 + (i % 2) * 6);
                 }
                 // Spinner at vortex center
-                walls.push(Bodies.circle(170, 280, 14, { isStatic: true, isSensor: true, label: 'spinner',
+                walls.push(Bodies.circle(170, Y(280), 14, { isStatic: true, isSensor: true, label: 'spinner',
                     render: { fillStyle: level.theme.accent },
                     collisionFilter: { category: CATEGORY.BUMPER },
                     plugin: { score: 75, angle: 0 } }));
             }
             else if (currentLevel === 2) {
-                createBumper(180, 120, 24);
-                createBumper(100, 200, 20);
-                createBumper(260, 200, 20);
-                createBumper(180, 280, 24);
-                createBumper(100, 360, 20);
-                createBumper(260, 360, 20);
-                createBumper(180, 440, 24);
-                walls.push(Bodies.rectangle(140, 200, 40, 8, { ...wallOpts, angle: 0.5, render: { fillStyle: level.theme.accent } }));
-                walls.push(Bodies.rectangle(220, 200, 40, 8, { ...wallOpts, angle: -0.5, render: { fillStyle: level.theme.accent } }));
-                walls.push(Bodies.rectangle(140, 360, 40, 8, { ...wallOpts, angle: -0.5, render: { fillStyle: level.theme.accent } }));
-                walls.push(Bodies.rectangle(220, 360, 40, 8, { ...wallOpts, angle: 0.5, render: { fillStyle: level.theme.accent } }));
+                createBumper(180, Y(120), 24);
+                createBumper(100, Y(200), 20);
+                createBumper(260, Y(200), 20);
+                createBumper(180, Y(280), 24);
+                createBumper(100, Y(360), 20);
+                createBumper(260, Y(360), 20);
+                createBumper(180, Y(440), 24);
+                walls.push(Bodies.rectangle(140, Y(200), 40, 8, { ...wallOpts, angle: 0.5, render: { fillStyle: level.theme.accent } }));
+                walls.push(Bodies.rectangle(220, Y(200), 40, 8, { ...wallOpts, angle: -0.5, render: { fillStyle: level.theme.accent } }));
+                walls.push(Bodies.rectangle(140, Y(360), 40, 8, { ...wallOpts, angle: -0.5, render: { fillStyle: level.theme.accent } }));
+                walls.push(Bodies.rectangle(220, Y(360), 40, 8, { ...wallOpts, angle: 0.5, render: { fillStyle: level.theme.accent } }));
             }
             else if (currentLevel === 3) {
-                createBumper(90, 160, 28);
-                createBumper(180, 120, 32);
-                createBumper(270, 160, 28);
-                createBumper(135, 300, 24);
-                createBumper(225, 300, 24);
-                createBumper(180, 420, 26);
+                createBumper(90, Y(160), 28);
+                createBumper(180, Y(120), 32);
+                createBumper(270, Y(160), 28);
+                createBumper(135, Y(300), 24);
+                createBumper(225, Y(300), 24);
+                createBumper(180, Y(420), 26);
                 for (let i = 0; i < 3; i++) {
-                    walls.push(Bodies.rectangle(70 + i * 40, 230, 25, 10, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
-                    walls.push(Bodies.rectangle(210 + i * 40, 230, 25, 10, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
+                    walls.push(Bodies.rectangle(70 + i * 40, Y(230), 25, 10, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
+                    walls.push(Bodies.rectangle(210 + i * 40, Y(230), 25, 10, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
                 }
-                walls.push(Bodies.rectangle(180, 200, 12, 45, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
+                walls.push(Bodies.rectangle(180, Y(200), 12, Y(45), { ...wallOpts, render: { fillStyle: level.theme.accent } }));
                 // Castle battlement drop targets
                 [100, 160, 220, 280].forEach((dtX, i) => {
-                    const dt = Bodies.rectangle(dtX, 480, 20, 36, {
+                    const dt = Bodies.rectangle(dtX, Y(480), 20, 36, {
                         isStatic: true, label: 'drop-target', restitution: 0.2,
                         render: { fillStyle: level.theme.accent },
                         collisionFilter: { category: CATEGORY.BUMPER },
@@ -844,20 +2287,20 @@
                 });
             }
             else if (currentLevel === 4) {
-                createBumper(90, 180, 22);
-                createBumper(270, 220, 22);
-                createBumper(130, 340, 24);
-                createBumper(230, 400, 24);
-                createBumper(170, 480, 20);
-                const w1 = [{ x: 70, y: 270 }, { x: 110, y: 250 }, { x: 150, y: 270 }, { x: 190, y: 250 }, { x: 230, y: 270 }];
+                createBumper(90, Y(180), 22);
+                createBumper(270, Y(220), 22);
+                createBumper(130, Y(340), 24);
+                createBumper(230, Y(400), 24);
+                createBumper(170, Y(480), 20);
+                const w1 = [{ x: 70, y: Y(270) }, { x: 110, y: Y(250) }, { x: 150, y: Y(270) }, { x: 190, y: Y(250) }, { x: 230, y: Y(270) }];
                 walls.push(...createCurvedWall(w1, 8, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
-                const w2 = [{ x: 140, y: 430 }, { x: 180, y: 410 }, { x: 220, y: 430 }, { x: 260, y: 410 }, { x: 300, y: 430 }];
+                const w2 = [{ x: 140, y: Y(430) }, { x: 180, y: Y(410) }, { x: 220, y: Y(430) }, { x: 260, y: Y(410) }, { x: 300, y: Y(430) }];
                 walls.push(...createCurvedWall(w2, 8, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
                 // Wave spinners along the curves
-                Composite.add(world, Bodies.circle(150, 268, 13, { isStatic: true, isSensor: true, label: 'spinner',
+                Composite.add(world, Bodies.circle(150, Y(268), 13, { isStatic: true, isSensor: true, label: 'spinner',
                     render: { fillStyle: level.theme.accent }, collisionFilter: { category: CATEGORY.BUMPER },
                     plugin: { score: 75, angle: 0 } }));
-                Composite.add(world, Bodies.circle(220, 428, 13, { isStatic: true, isSensor: true, label: 'spinner',
+                Composite.add(world, Bodies.circle(220, Y(428), 13, { isStatic: true, isSensor: true, label: 'spinner',
                     render: { fillStyle: level.theme.accent }, collisionFilter: { category: CATEGORY.BUMPER },
                     plugin: { score: 75, angle: 0 } }));
             }
@@ -883,12 +2326,14 @@
                 });
             }
 
+            createTraditionalRuleSet(level, 0);
             Composite.add(world, walls);
         }
 
         // ===== CLIMB MODE LEVEL GENERATION =====
         function createClimbLevel(walls, wallOpts) {
             const W = CONFIG.width, H = CONFIG.height;
+            const Y = boardY;
             const cm = climbMode;
             cm.checkpointFlippers = [];
             cm.dropTargets = [];
@@ -898,48 +2343,49 @@
             // EXACT classic board (level 0) layout - proven to work
             // Left wall - extends from ceiling to flipper area
             walls.push(...createCurvedWall([
-                { x: 20, y: 30 }, { x: 20, y: 540 },
-                { x: 28, y: 560 }, { x: 50, y: 580 }
+                { x: 20, y: Y(30) }, { x: 20, y: Y(540) },
+                { x: 28, y: Y(560) }, { x: 50, y: Y(580) }
             ], 14, wallOpts));
 
             // Right wall
             walls.push(...createCurvedWall([
-                { x: W - 50, y: 100 }, { x: W - 50, y: 545 },
-                { x: W - 60, y: 565 }, { x: W - 75, y: 580 }
+                { x: W - 50, y: Y(100) }, { x: W - 50, y: Y(545) },
+                { x: W - 60, y: Y(565) }, { x: W - 75, y: Y(580) }
             ], 14, wallOpts));
 
             // Plunger entrance curve
             walls.push(...createCurvedWall([
-                { x: W - 50, y: 20 }, { x: W - 20, y: 45 }, { x: W - 8, y: 70 }
+                { x: W - 50, y: Y(20) }, { x: W - 20, y: Y(45) }, { x: W - 8, y: Y(70) }
             ], 16, wallOpts));
 
             // Top wall removed - replaced by breakable ceiling tiles below
 
             // Plunger lane
-            walls.push(Bodies.rectangle(W - 8, H / 2 + 50, 10, H - 80, wallOpts));
-            walls.push(Bodies.rectangle(W - 42, H - 55, 8, 110, wallOpts));
-            walls.push(Bodies.rectangle(W - 25, H - 10, 40, 10, wallOpts));
+            walls.push(Bodies.rectangle(W - 8, H / 2 + Y(50), 10, H - Y(80), wallOpts));
+            walls.push(Bodies.rectangle(W - 42, H - Y(55), 8, Y(110), wallOpts));
+            walls.push(Bodies.rectangle(W - 25, H - Y(10), 40, 10, wallOpts));
 
             // Bottom guides - left guide extended toward flipper pivot
-            walls.push(...createCurvedWall([{ x: 50, y: 580 }, { x: 70, y: 600 }, { x: 90, y: 618 }, { x: 108, y: 632 }], 12, wallOpts));
-            walls.push(...createCurvedWall([{ x: W - 75, y: 580 }, { x: W - 90, y: 600 }, { x: W - 105, y: 625 }], 12, wallOpts));
+            walls.push(...createCurvedWall([{ x: 50, y: Y(580) }, { x: 70, y: Y(600) }, { x: 90, y: Y(618) }, { x: 108, y: Y(632) }], 12, wallOpts));
+            walls.push(...createCurvedWall([{ x: W - 75, y: Y(580) }, { x: W - 90, y: Y(600) }, { x: W - 105, y: Y(625) }], 12, wallOpts));
 
             // Bumpers - same as level 0
-            createBumper(120, 180, 24);
-            createBumper(200, 130, 28);
-            createBumper(280, 180, 24);
-            createBumper(160, 300, 22);
-            createBumper(240, 300, 22);
+            createBumper(120, Y(180), 24);
+            createBumper(200, Y(130), 28);
+            createBumper(280, Y(180), 24);
+            createBumper(160, Y(300), 22);
+            createBumper(240, Y(300), 22);
 
             // Slingshots - same as level 0
             const level = LEVELS[6];
-            walls.push(Bodies.polygon(90, H - 180, 3, 30, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
-            walls.push(Bodies.polygon(W - 110, H - 180, 3, 30, { ...wallOpts, angle: 0, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
+            walls.push(Bodies.polygon(90, H - Y(180), 3, 30, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
+            walls.push(Bodies.polygon(W - 110, H - Y(180), 3, 30, { ...wallOpts, angle: 0, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
+            createZoneSensor(LEVELS[0], 0);
 
             // Drop targets - floor 0
             const dt0Positions = [W/2 - 55, W/2, W/2 + 55];
             dt0Positions.forEach((dtX, i) => {
-                const dt = Bodies.rectangle(dtX, 390, 18, 32, {
+                const dt = Bodies.rectangle(dtX, Y(390), 18, 32, {
                     isStatic: true, label: 'drop-target', restitution: 0.2,
                     render: { fillStyle: level.theme.accent },
                     collisionFilter: { category: CATEGORY.BUMPER },
@@ -955,7 +2401,7 @@
             cm.ballSaveUsed = false;
 
             // Breakable ceiling tiles replace the solid top wall
-            const ceilY = 30;
+            const ceilY = Y(30);
             const ceilLeft = 20;
             const ceilRight = W - 50;
             const ceilWidth = ceilRight - ceilLeft;
@@ -982,6 +2428,7 @@
             cm.spawnedFloors.add(floor);
 
             const W = CONFIG.width, H = CONFIG.height;
+            const Y = boardY;
             const boardIdx = floor % CLIMB_BOARDS.length;
             const boardLevel = CLIMB_BOARDS[boardIdx];
             const theme = LEVELS[boardLevel].theme;
@@ -1009,108 +2456,110 @@
 
             // Left wall - extends from ceiling level
             walls.push(...createCurvedWall([
-                { x: 20, y: baseY + 30 }, { x: 20, y: baseY + 540 },
-                { x: 28, y: baseY + 560 }, { x: 50, y: baseY + 580 }
+                { x: 20, y: baseY + Y(30) }, { x: 20, y: baseY + Y(540) },
+                { x: 28, y: baseY + Y(560) }, { x: 50, y: baseY + Y(580) }
             ], 14, wallOpts));
 
             // Right wall - starts lower to leave room for plunger entrance
             walls.push(...createCurvedWall([
-                { x: W - 50, y: baseY + 100 }, { x: W - 50, y: baseY + 545 },
-                { x: W - 60, y: baseY + 565 }, { x: W - 75, y: baseY + 580 }
+                { x: W - 50, y: baseY + Y(100) }, { x: W - 50, y: baseY + Y(545) },
+                { x: W - 60, y: baseY + Y(565) }, { x: W - 75, y: baseY + Y(580) }
             ], 14, wallOpts));
 
             // Plunger entrance curve
             walls.push(...createCurvedWall([
-                { x: W - 50, y: baseY + 20 }, { x: W - 20, y: baseY + 45 }, { x: W - 8, y: baseY + 70 }
+                { x: W - 50, y: baseY + Y(20) }, { x: W - 20, y: baseY + Y(45) }, { x: W - 8, y: baseY + Y(70) }
             ], 16, wallOpts));
 
             // Plunger lane
-            walls.push(Bodies.rectangle(W - 8, baseY + H / 2 + 50, 10, H - 80, wallOpts));
-            walls.push(Bodies.rectangle(W - 42, baseY + H - 55, 8, 110, wallOpts));
-            walls.push(Bodies.rectangle(W - 25, baseY + H - 10, 40, 10, wallOpts));
+            walls.push(Bodies.rectangle(W - 8, baseY + H / 2 + Y(50), 10, H - Y(80), wallOpts));
+            walls.push(Bodies.rectangle(W - 42, baseY + H - Y(55), 8, Y(110), wallOpts));
+            walls.push(Bodies.rectangle(W - 25, baseY + H - Y(10), 40, 10, wallOpts));
 
             // Seal the plunger entrance on upper floors so the ball can't fall in
-            walls.push(Bodies.rectangle(W - 50, baseY + 57, 14, 90, wallOpts));
+            walls.push(Bodies.rectangle(W - 50, baseY + Y(57), 14, Y(90), wallOpts));
 
             // Solid transition walls between this board and the one below
             walls.push(...createCurvedWall([
-                { x: 20, y: baseY + 580 }, { x: 20, y: baseY + H }
+                { x: 20, y: baseY + Y(580) }, { x: 20, y: baseY + H }
             ], 14, wallOpts));
             walls.push(...createCurvedWall([
-                { x: W - 50, y: baseY + 580 }, { x: W - 50, y: baseY + H }
+                { x: W - 50, y: baseY + Y(580) }, { x: W - 50, y: baseY + H }
             ], 14, wallOpts));
 
             // Bottom guides - left guide extended toward flipper pivot
             walls.push(...createCurvedWall([
-                { x: 50, y: baseY + 580 }, { x: 70, y: baseY + 600 }, { x: 90, y: baseY + 618 }, { x: 108, y: baseY + 632 }
+                { x: 50, y: baseY + Y(580) }, { x: 70, y: baseY + Y(600) }, { x: 90, y: baseY + Y(618) }, { x: 108, y: baseY + Y(632) }
             ], 12, wallOpts));
             walls.push(...createCurvedWall([
-                { x: W - 75, y: baseY + 580 }, { x: W - 90, y: baseY + 600 }, { x: W - 105, y: baseY + 625 }
+                { x: W - 75, y: baseY + Y(580) }, { x: W - 90, y: baseY + Y(600) }, { x: W - 105, y: baseY + Y(625) }
             ], 12, wallOpts));
 
             // Board-specific obstacles
             if (boardIdx === 0) { // Classic
-                addBumper(120, baseY + 180, 24);
-                addBumper(200, baseY + 130, 28);
-                addBumper(280, baseY + 180, 24);
-                addBumper(160, baseY + 300, 22);
-                addBumper(240, baseY + 300, 22);
-                walls.push(Bodies.polygon(90, baseY + H - 180, 3, 30, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: theme.accent } }));
-                walls.push(Bodies.polygon(W - 110, baseY + H - 180, 3, 30, { ...wallOpts, angle: 0, restitution: 1.3, label: 'slingshot', render: { fillStyle: theme.accent } }));
+                addBumper(120, baseY + Y(180), 24);
+                addBumper(200, baseY + Y(130), 28);
+                addBumper(280, baseY + Y(180), 24);
+                addBumper(160, baseY + Y(300), 22);
+                addBumper(240, baseY + Y(300), 22);
+                walls.push(Bodies.polygon(90, baseY + H - Y(180), 3, 30, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: theme.accent } }));
+                walls.push(Bodies.polygon(W - 110, baseY + H - Y(180), 3, 30, { ...wallOpts, angle: 0, restitution: 1.3, label: 'slingshot', render: { fillStyle: theme.accent } }));
             }
             else if (boardIdx === 1) { // Vortex
-                const cx = 170, cy = baseY + 280;
+                const cx = 170, cy = baseY + Y(280);
                 for (let i = 0; i < 6; i++) {
                     const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
                     const r = 50 + i * 18;
-                    addBumper(cx + Math.cos(a) * r, cy + Math.sin(a) * r, 18 + (i % 2) * 6);
+                    addBumper(cx + Math.cos(a) * r, cy + Math.sin(a) * Y(r), 18 + (i % 2) * 6);
                 }
-                walls.push(Bodies.rectangle(170, baseY + 280, 70, 10, { ...wallOpts, restitution: 0.8, render: { fillStyle: theme.accent } }));
+                walls.push(Bodies.rectangle(170, baseY + Y(280), 70, 10, { ...wallOpts, restitution: 0.8, render: { fillStyle: theme.accent } }));
             }
             else if (boardIdx === 2) { // Diamond
-                addBumper(180, baseY + 120, 24);
-                addBumper(100, baseY + 200, 20);
-                addBumper(260, baseY + 200, 20);
-                addBumper(180, baseY + 280, 24);
-                addBumper(100, baseY + 360, 20);
-                addBumper(260, baseY + 360, 20);
-                addBumper(180, baseY + 440, 24);
-                walls.push(Bodies.rectangle(140, baseY + 200, 40, 8, { ...wallOpts, angle: 0.5, render: { fillStyle: theme.accent } }));
-                walls.push(Bodies.rectangle(220, baseY + 200, 40, 8, { ...wallOpts, angle: -0.5, render: { fillStyle: theme.accent } }));
-                walls.push(Bodies.rectangle(140, baseY + 360, 40, 8, { ...wallOpts, angle: -0.5, render: { fillStyle: theme.accent } }));
-                walls.push(Bodies.rectangle(220, baseY + 360, 40, 8, { ...wallOpts, angle: 0.5, render: { fillStyle: theme.accent } }));
+                addBumper(180, baseY + Y(120), 24);
+                addBumper(100, baseY + Y(200), 20);
+                addBumper(260, baseY + Y(200), 20);
+                addBumper(180, baseY + Y(280), 24);
+                addBumper(100, baseY + Y(360), 20);
+                addBumper(260, baseY + Y(360), 20);
+                addBumper(180, baseY + Y(440), 24);
+                walls.push(Bodies.rectangle(140, baseY + Y(200), 40, 8, { ...wallOpts, angle: 0.5, render: { fillStyle: theme.accent } }));
+                walls.push(Bodies.rectangle(220, baseY + Y(200), 40, 8, { ...wallOpts, angle: -0.5, render: { fillStyle: theme.accent } }));
+                walls.push(Bodies.rectangle(140, baseY + Y(360), 40, 8, { ...wallOpts, angle: -0.5, render: { fillStyle: theme.accent } }));
+                walls.push(Bodies.rectangle(220, baseY + Y(360), 40, 8, { ...wallOpts, angle: 0.5, render: { fillStyle: theme.accent } }));
             }
             else if (boardIdx === 3) { // Castle
-                addBumper(90, baseY + 160, 28);
-                addBumper(180, baseY + 120, 32);
-                addBumper(270, baseY + 160, 28);
-                addBumper(135, baseY + 300, 24);
-                addBumper(225, baseY + 300, 24);
-                addBumper(180, baseY + 420, 26);
+                addBumper(90, baseY + Y(160), 28);
+                addBumper(180, baseY + Y(120), 32);
+                addBumper(270, baseY + Y(160), 28);
+                addBumper(135, baseY + Y(300), 24);
+                addBumper(225, baseY + Y(300), 24);
+                addBumper(180, baseY + Y(420), 26);
                 for (let i = 0; i < 3; i++) {
-                    walls.push(Bodies.rectangle(70 + i * 40, baseY + 230, 25, 10, { ...wallOpts, render: { fillStyle: theme.accent } }));
-                    walls.push(Bodies.rectangle(210 + i * 40, baseY + 230, 25, 10, { ...wallOpts, render: { fillStyle: theme.accent } }));
+                    walls.push(Bodies.rectangle(70 + i * 40, baseY + Y(230), 25, 10, { ...wallOpts, render: { fillStyle: theme.accent } }));
+                    walls.push(Bodies.rectangle(210 + i * 40, baseY + Y(230), 25, 10, { ...wallOpts, render: { fillStyle: theme.accent } }));
                 }
-                walls.push(Bodies.rectangle(180, baseY + 200, 12, 45, { ...wallOpts, render: { fillStyle: theme.accent } }));
+                walls.push(Bodies.rectangle(180, baseY + Y(200), 12, Y(45), { ...wallOpts, render: { fillStyle: theme.accent } }));
             }
             else if (boardIdx === 4) { // Wave
-                addBumper(90, baseY + 180, 22);
-                addBumper(270, baseY + 220, 22);
-                addBumper(130, baseY + 340, 24);
-                addBumper(230, baseY + 400, 24);
-                addBumper(170, baseY + 480, 20);
+                addBumper(90, baseY + Y(180), 22);
+                addBumper(270, baseY + Y(220), 22);
+                addBumper(130, baseY + Y(340), 24);
+                addBumper(230, baseY + Y(400), 24);
+                addBumper(170, baseY + Y(480), 20);
                 walls.push(...createCurvedWall([
-                    { x: 70, y: baseY + 270 }, { x: 110, y: baseY + 250 }, { x: 150, y: baseY + 270 },
-                    { x: 190, y: baseY + 250 }, { x: 230, y: baseY + 270 }
+                    { x: 70, y: baseY + Y(270) }, { x: 110, y: baseY + Y(250) }, { x: 150, y: baseY + Y(270) },
+                    { x: 190, y: baseY + Y(250) }, { x: 230, y: baseY + Y(270) }
                 ], 8, { ...wallOpts, render: { fillStyle: theme.accent } }));
                 walls.push(...createCurvedWall([
-                    { x: 140, y: baseY + 430 }, { x: 180, y: baseY + 410 }, { x: 220, y: baseY + 430 },
-                    { x: 260, y: baseY + 410 }, { x: 300, y: baseY + 430 }
+                    { x: 140, y: baseY + Y(430) }, { x: 180, y: baseY + Y(410) }, { x: 220, y: baseY + Y(430) },
+                    { x: 260, y: baseY + Y(410) }, { x: 300, y: baseY + Y(430) }
                 ], 8, { ...wallOpts, render: { fillStyle: theme.accent } }));
             }
 
+            createZoneSensor(LEVELS[boardLevel], baseY);
+
             // Drop targets - 3 per floor
-            const dtY = baseY + 390;
+            const dtY = baseY + Y(390);
             const dtPositions = [W/2 - 55, W/2, W/2 + 55];
             dtPositions.forEach((dtX, i) => {
                 const dt = Bodies.rectangle(dtX, dtY, 18, 32, {
@@ -1123,29 +2572,26 @@
                 cm.dropTargets.push(dt);
             });
 
-            // Element orb pickup (floors 1+)
+            // Random elemental capsule pickup (floors 1+)
             if (floor > 0) {
-                const elems = ['hot', 'water', 'grass'];
-                const elemType = elems[(floor - 1) % 3];
-                const elemClr = { hot: '#ff6644', water: '#4499ff', grass: '#44ee66' };
                 const orbX = 70 + Math.floor(Math.random() * 3) * 95 + 30;
-                const orbY = baseY + 240;
+                const orbY = baseY + Y(240);
                 const orb = Bodies.circle(orbX, orbY, 13, {
-                    isStatic: true, isSensor: true, label: 'elem-' + elemType,
-                    render: { fillStyle: elemClr[elemType] },
+                    isStatic: true, isSensor: true, label: 'power-capsule',
+                    render: { fillStyle: theme.secondary || theme.accent },
                     collisionFilter: { category: CATEGORY.BUMPER }
                 });
                 Composite.add(world, orb);
             }
 
             // Flippers for this floor
-            const flipperY = baseY + H - 65;
+            const flipperY = baseY + H - Y(65);
             const lf = createClimbFlipper(150, flipperY, 'left', floor, theme.accent);
             const rf = createClimbFlipper(W - 150, flipperY, 'right', floor, theme.accent);
             cm.checkpointFlippers.push({ floor, left: lf, right: rf });
 
             // Breakable ceiling tiles at the top of this board
-            const ceilY = baseY + 30;
+            const ceilY = baseY + Y(30);
             const ceilLeft = 20;
             const ceilRight = W - 50;
             const ceilWidth = ceilRight - ceilLeft;
@@ -1196,7 +2642,7 @@
             const f = floor !== undefined ? floor : 0;
             const baseY = floorY(f);
             // Full-width gate from left wall to right outer wall, tilted so ball rolls into plunger lane
-            const gate = Bodies.rectangle(W / 2, baseY + H - 10, W - 16, 8, {
+            const gate = Bodies.rectangle(W / 2, baseY + H - boardY(10), W - 16, 8, {
                 isStatic: true, label: 'ball-save-gate',
                 angle: 0.15,
                 restitution: 0.1,
@@ -1220,7 +2666,7 @@
         function createBoostPad(floor) {
             const W = CONFIG.width, H = CONFIG.height;
             const baseY = floorY(floor);
-            const padY = baseY + 180;
+            const padY = baseY + boardY(180);
             const pad = Bodies.rectangle(W / 2 - 15, padY, 80, 10, {
                 isStatic: true, label: 'boost-pad',
                 restitution: 3.0,
@@ -1332,6 +2778,8 @@
         function saveCustomLevel() {
             const data = { bumpers: customBumpers, flippers: customFlippers, ramps: customRamps, walls: customWalls };
             localStorage.setItem('pinballDreamsCustomLevel', JSON.stringify(data));
+            PinballCareer.setFlag('customTableSaved', true);
+            PinballAchievements.check();
             const btn = document.getElementById('save-level-btn');
             const prev = btn.textContent; btn.textContent = 'Saved!';
             setTimeout(() => btn.textContent = prev, 1200);
@@ -1362,10 +2810,12 @@
                 gameState.isPlaying = true; gameState.ballsRemaining = CONFIG.totalBalls;
                 gameState.score = 0; isInUpperLevel = false;
                 updateScoreDisplay(); updateBallsDisplay(); createBall();
+                document.getElementById('rule-hud').style.display = 'block';
                 document.getElementById('editor-instructions').style.display = 'none';
             } else {
                 gameState.isPlaying = false;
                 if (ball) { Composite.remove(world, ball); ball = null; }
+                document.getElementById('rule-hud').style.display = 'none';
                 document.getElementById('editor-instructions').style.display = 'block';
                 const instructions = { 'bumper': 'Tap to place bumpers | Drag to move', 'flipper': 'Tap to place flippers | Left/Right side auto-detected', 'ramp': 'Tap to place ramps | Ball enters upper level', 'wall': 'Draw walls with your finger' };
                 document.getElementById('editor-instructions').textContent = instructions[mode] || '';
@@ -1375,7 +2825,7 @@
         function createFlipper(side) {
             const isLeft = side === 'left';
             const x = isLeft ? 150 : CONFIG.width - 150;
-            const y = CONFIG.height - 65;
+            const y = CONFIG.height - boardY(65);
             const pivotX = isLeft ? x - 25 : x + 25;
             const level = LEVELS[currentLevel];
             const flipper = Bodies.rectangle(x, y, 60, 12, {
@@ -1407,7 +2857,7 @@
         }
 
         function createDrainSensor() {
-            Composite.add(world, Bodies.rectangle(CONFIG.width / 2, CONFIG.height + 30, CONFIG.width, 60, {
+            Composite.add(world, Bodies.rectangle(CONFIG.width / 2, CONFIG.height + boardY(30), CONFIG.width, boardY(60), {
                 isStatic: true, isSensor: true, label: 'drain',
                 render: { fillStyle: 'transparent' },
                 collisionFilter: { category: CATEGORY.SENSOR }
@@ -1427,7 +2877,7 @@
             const f = floor !== undefined ? floor : 0;
             const baseY = floorY(f);
             // Seal the gap between the plunger entrance curve and the right wall
-            plungerGate = Bodies.rectangle(W - 50, baseY + 57, 14, 90, {
+            plungerGate = Bodies.rectangle(W - 50, baseY + boardY(57), 14, boardY(90), {
                 isStatic: true, label: 'plunger-gate',
                 render: { fillStyle: '#4a4a6a' },
                 collisionFilter: { category: CATEGORY.WALL }
@@ -1438,24 +2888,55 @@
         function createBall() {
             if (ball) Composite.remove(world, ball);
             removePlungerGate();
-            ball = Bodies.circle(CONFIG.width - 25, CONFIG.height - 50, CONFIG.ball.radius, {
+            ball = Bodies.circle(CONFIG.width - 25, CONFIG.height - boardY(50), CONFIG.ball.radius, {
                 label: 'ball', restitution: CONFIG.ball.restitution,
                 friction: CONFIG.ball.friction, frictionAir: CONFIG.ball.frictionAir,
                 density: CONFIG.ball.density, render: { fillStyle: '#ddd' },
-                collisionFilter: { category: CATEGORY.BALL, mask: CATEGORY.WALL | CATEGORY.FLIPPER | CATEGORY.BUMPER | CATEGORY.SENSOR }
+                collisionFilter: { category: CATEGORY.BALL, mask: CATEGORY.WALL | CATEGORY.FLIPPER | CATEGORY.BUMPER | CATEGORY.SENSOR },
+                plugin: { element: 'normal' }
             });
             Composite.add(world, ball);
             gameState.ballLaunched = false;
             gameState.ballInPlay = true;
+            ballStartScore = gameState.score;
+            powerSystem.active = 'normal';
+            powerSystem.expiresAt = 0;
+            powerSystem.zone = null;
+            powerSystem.zoneUntil = 0;
+            climbMode.elementalBall = 'normal';
+            climbMode.elementalBallTimer = 0;
             if (climbMode.active) {
-                climbMode.elementalBall = 'normal';
                 climbMode.ballSaveActive = false;
                 climbMode.ballSaveTimer = 0;
                 climbMode.ballSaveUsed = false;
                 climbMode.ballSaveFloor = 0;
                 updateClimbHUD();
             }
+            updateRuleHUD();
             document.getElementById('launch-indicator').style.display = 'block';
+        }
+
+        // Every drain path — the drain sensor, the out-of-bounds safety net and
+        // the fallback check — funnels through here, so the per-ball bookkeeping
+        // exists in exactly one place.
+        function loseBall() {
+            if (climbMode.active) { removeBallSaveGate(); engine.gravity.y = 0.8; }
+            missionSystem.active = false;
+            missionSystem.ready = false;
+            missionSystem.progress = 0;
+            missionSystem.laneHits.clear();
+            missionSystem.lanes.forEach(lane => { if (lane?.plugin) lane.plugin.lit = false; });
+            powerSystem.active = 'normal';
+            powerSystem.expiresAt = 0;
+            powerSystem.zone = null;
+            resetCombo();
+            sfxDrain();
+            if (PinballCareer.best('bestBallScore', gameState.score - ballStartScore)) {
+                PinballAchievements.check();
+            }
+            gameState.ballInPlay = false; gameState.ballsRemaining--;
+            updateBallsDisplay();
+            if (gameState.ballsRemaining <= 0) endGame(); else setTimeout(createBall, 800);
         }
 
         // Input handling
@@ -1469,6 +2950,34 @@
             if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') keys.left = false;
             if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') keys.right = false;
             if (e.key === ' ') { if (plunger.charging && !gameState.ballLaunched) launchBall(); plunger.charging = false; }
+        });
+
+        // Desktop pointer controls mirror touch: click once to launch, then use
+        // either half of the physical playfield as a flipper button.
+        let mouseFlipSide = null;
+        canvas.addEventListener('mousedown', (event) => {
+            if (!gameState.isPlaying || paused || isMenuVisible()) return;
+            if (isEditing && editorMode !== 'play') return;
+            if (!gameState.ballLaunched && gameState.ballInPlay) {
+                plunger.charging = true;
+                return;
+            }
+            const rect = canvas.getBoundingClientRect();
+            mouseFlipSide = event.clientX < rect.left + rect.width / 2 ? 'left' : 'right';
+            keys[mouseFlipSide] = true;
+        });
+        const releaseMouseControl = () => {
+            if (plunger.charging && !gameState.ballLaunched) launchBall();
+            plunger.charging = false;
+            if (mouseFlipSide) keys[mouseFlipSide] = false;
+            mouseFlipSide = null;
+        };
+        canvas.addEventListener('mouseup', releaseMouseControl);
+        canvas.addEventListener('mouseleave', releaseMouseControl);
+        canvas.addEventListener('click', () => {
+            if (gameState.isPlaying && !paused && gameState.ballInPlay && !gameState.ballLaunched) {
+                launchBall();
+            }
         });
 
         const activeTouches = new Map();
@@ -1601,31 +3110,82 @@
             event.pairs.forEach(({ bodyA, bodyB }) => {
                 const isBall = bodyA.label === 'ball' || bodyB.label === 'ball';
 
-                // Element orb pickups
-                if (isBall && climbMode.active) {
-                    const orb = ['hot','water','grass'].reduce((found, e) => {
-                        const lbl = 'elem-' + e;
-                        return found || (bodyA.label === lbl ? bodyA : bodyB.label === lbl ? bodyB : null);
-                    }, null);
-                    if (orb && !orb._collected) {
-                        orb._collected = true;
-                        const elemType = orb.label.replace('elem-', '');
-                        climbMode.elementalBall = elemType;
-                        climbMode.elementalBallTimer = Date.now();
-                        if (elemType === 'water') engine.gravity.y = 0.5;
-                        sfxElementPickup(elemType);
-                        createParticles(orb.position.x, orb.position.y, orb.render.fillStyle);
-                        const elemNames = { hot: '🔥 HOT!', water: '💧 WATER!', grass: '🌿 GRASS!' };
-                        createScorePopup(orb.position.x, orb.position.y - 20, elemNames[elemType] || elemType);
-                        setTimeout(() => { if (Composite.get(world, orb.id, 'body')) Composite.remove(world, orb); }, 0);
-                        updateClimbHUD();
+                // Elemental zones strengthen their matching ball power for a short
+                // tactical window. Entering with the wrong ball is harmless.
+                const zoneBody = [bodyA, bodyB].find(body => body.label?.startsWith('zone-'));
+                if (isBall && zoneBody) {
+                    const zone = zoneBody.label.replace('zone-', '');
+                    powerSystem.zone = zone;
+                    powerSystem.zoneUntil = Date.now() + 7000;
+                    createScorePopup(zoneBody.position.x, zoneBody.position.y - 28,
+                        powerSystem.active === zone ? `${zone.toUpperCase()} ZONE OVERDRIVE` : `${zone.toUpperCase()} ZONE`);
+                    updateRuleHUD();
+                }
+
+                // Upper climb floors award a random capsule instead of a fixed
+                // element, using the same weighted draw as the mechanical bank.
+                const capsuleOrb = bodyA.label === 'power-capsule' ? bodyA : bodyB.label === 'power-capsule' ? bodyB : null;
+                if (isBall && capsuleOrb && !capsuleOrb._collected) {
+                    capsuleOrb._collected = true;
+                    rollPowerCapsule(capsuleOrb.position);
+                    setTimeout(() => {
+                        if (Composite.get(world, capsuleOrb.id, 'body')) Composite.remove(world, capsuleOrb);
+                    }, 0);
+                }
+
+                // Top rollover lanes select the mission. The ramp starts it.
+                const missionLane = bodyA.label === 'mission-lane' ? bodyA : bodyB.label === 'mission-lane' ? bodyB : null;
+                if (isBall && missionLane?.plugin) {
+                    lightMissionLane(missionLane.plugin.lane, missionLane.position);
+                    advanceMission('lane', 1, missionLane.position);
+                }
+                const missionRamp = bodyA.label === 'mission-ramp' ? bodyA : bodyB.label === 'mission-ramp' ? bodyB : null;
+                if (isBall && missionRamp) {
+                    if (missionSystem.ready) startMission(missionRamp.position);
+                    else advanceMission('ramp', 1, missionRamp.position);
+                    const rampPts = Math.round(500 * scoreMultiplier * powerScoreMultiplier('ramp'));
+                    gameState.score += rampPts;
+                    updateScoreDisplay();
+                    createScorePopup(missionRamp.position.x, missionRamp.position.y, rampPts);
+                }
+
+                // POWER target bank -> armed core -> weighted capsule draw.
+                const powerTarget = bodyA.label === 'power-target' ? bodyA : bodyB.label === 'power-target' ? bodyB : null;
+                if (isBall && powerTarget?.plugin && !powerTarget.plugin.hit) {
+                    powerTarget.plugin.hit = true;
+                    powerSystem.bankHits.add(powerTarget.plugin.index);
+                    powerTarget.render.fillStyle = '#28313b';
+                    Body.setPosition(powerTarget, {
+                        x: powerTarget.plugin.homeX,
+                        y: powerTarget.plugin.homeY + 15
+                    });
+                    const targetPts = Math.round(powerTarget.plugin.score * scoreMultiplier * powerScoreMultiplier('target'));
+                    gameState.score += targetPts;
+                    updateScoreDisplay();
+                    createScorePopup(powerTarget.position.x, powerTarget.position.y, targetPts);
+                    createParticles(powerTarget.position.x, powerTarget.position.y, LEVELS[currentLevel].theme.secondary);
+                    advanceMission('target', 1, powerTarget.position);
+                    if (powerSystem.bankHits.size >= 3) {
+                        powerSystem.armed = true;
+                        createScorePopup(powerTarget.position.x, powerTarget.position.y - 28, 'CAPSULE ARMED · SHOOT CORE');
+                        sfxFloorClear();
+                    }
+                    updateRuleHUD();
+                }
+                const powerScoop = bodyA.label === 'power-scoop' ? bodyA : bodyB.label === 'power-scoop' ? bodyB : null;
+                if (isBall && powerScoop) {
+                    if (powerSystem.armed) {
+                        rollPowerCapsule(powerScoop.position);
+                    } else {
+                        gameState.score += 250 * scoreMultiplier;
+                        updateScoreDisplay();
+                        createScorePopup(powerScoop.position.x, powerScoop.position.y, 'COMPLETE POWER BANK');
                     }
                 }
 
                 const bumper = bodyA.label === 'bumper' ? bodyA : bodyB.label === 'bumper' ? bodyB : null;
                 if (bumper && bumper.plugin) {
-                    const elemBonus = climbMode.active && climbMode.elementalBall === 'hot' ? 2 : 1;
-                    const pts = bumper.plugin.score * scoreMultiplier * elemBonus;
+                    const pts = Math.round(bumper.plugin.score * scoreMultiplier * powerScoreMultiplier('bumper'));
                     addComboHit();
                     gameState.score += pts;
                     updateScoreDisplay();
@@ -1633,15 +3193,17 @@
                     bumper.plugin.isFlashing = true;
                     setTimeout(() => bumper.plugin.isFlashing = false, 80);
                     sfxBumper(pts);
-                    createParticles(bumper.position.x, bumper.position.y, LEVELS[currentLevel].theme.bumper);
+                    createParticles(bumper.position.x, bumper.position.y, bumper.render.fillStyle || LEVELS[currentLevel].theme.bumper);
+                    advanceMission('bumper', 1, bumper.position);
                     // Apply force push away from bumper center
                     if (ball) {
                         const dx = ball.position.x - bumper.position.x;
                         const dy = ball.position.y - bumper.position.y;
                         const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                        const force = isZoneBoosted('fire') ? 18 : 15;
                         Body.setVelocity(ball, {
-                            x: (dx / dist) * 15,
-                            y: (dy / dist) * 15
+                            x: (dx / dist) * force,
+                            y: (dy / dist) * force
                         });
                     }
                 }
@@ -1672,11 +3234,12 @@
                     dt.plugin.hit = true;
                     dt.render.fillStyle = '#333';
                     Body.setPosition(dt, { x: dt.position.x, y: dt.position.y + 14 });
-                    const dtPts = dt.plugin.score * scoreMultiplier;
+                    const dtPts = Math.round(dt.plugin.score * scoreMultiplier * powerScoreMultiplier('target'));
                     gameState.score += dtPts;
                     updateScoreDisplay();
                     createScorePopup(dt.position.x, dt.position.y, dtPts);
                     sfxBumper(dtPts);
+                    advanceMission('target', 1, dt.position);
                     if (climbMode.active) {
                         const floorTargets = climbMode.dropTargets.filter(t => t.plugin.floor === dt.plugin.floor);
                         if (floorTargets.every(t => t.plugin.hit)) {
@@ -1685,6 +3248,8 @@
                             updateScoreDisplay();
                             createScorePopup(dt.position.x, dt.position.y - 30, bonus);
                             sfxFloorClear();
+                            PinballCareer.bump('banksCleared');
+                            PinballAchievements.check();
                             createBoostPad(dt.plugin.floor);
                         }
                     }
@@ -1694,8 +3259,9 @@
                 const fp = bodyA.label === 'floor-panel' ? bodyA : bodyB.label === 'floor-panel' ? bodyB : null;
                 if (fp && fp.plugin && !fp.plugin.hit && isBall) {
                     fp.plugin.hit = true;
-                    const grassBonus = climbMode.active && climbMode.elementalBall === 'grass' ? 2 : 1;
-                    const fpPts = fp.plugin.score * scoreMultiplier * grassBonus;
+                    PinballCareer.bump('panelsBroken');
+                    PinballAchievements.check();
+                    const fpPts = Math.round(fp.plugin.score * scoreMultiplier * powerScoreMultiplier('panel'));
                     gameState.score += fpPts;
                     updateScoreDisplay();
                     createScorePopup(fp.position.x, fp.position.y, fpPts);
@@ -1709,12 +3275,13 @@
                 // Spinner
                 const sp = bodyA.label === 'spinner' ? bodyA : bodyB.label === 'spinner' ? bodyB : null;
                 if (sp && sp.plugin && isBall) {
-                    const spPts = sp.plugin.score * scoreMultiplier;
+                    const spPts = Math.round(sp.plugin.score * scoreMultiplier * powerScoreMultiplier('spinner'));
                     gameState.score += spPts;
                     updateScoreDisplay();
                     createScorePopup(sp.position.x, sp.position.y, spPts);
                     sp.plugin.angle += Math.PI;
                     sfxSpinner();
+                    advanceMission('spinner', 1, sp.position);
                 }
 
                 // Ball save gate: return ball to play on this floor
@@ -1724,7 +3291,7 @@
                     const saveBaseY = floorY(saveFloor);
                     if (saveFloor === 0) {
                         // Floor 0's plunger lane is the only functional one — return to plunger
-                        Body.setPosition(ball, { x: CONFIG.width - 25, y: saveBaseY + CONFIG.height - 50 });
+                        Body.setPosition(ball, { x: CONFIG.width - 25, y: saveBaseY + CONFIG.height - boardY(50) });
                         Body.setVelocity(ball, { x: 0, y: 0 });
                         Body.setAngularVelocity(ball, 0);
                         gameState.ballLaunched = false;
@@ -1739,6 +3306,8 @@
                     removeBallSaveGate();
                     climbMode.ballSaveUsed = true;
                     climbMode.ballSaveActive = false;
+                    PinballCareer.bump('ballSaves');
+                    PinballAchievements.check();
                     sfxBallSave();
                     const saveInd = document.getElementById('ball-save-indicator');
                     saveInd.style.display = 'block';
@@ -1747,12 +3316,7 @@
 
                 // Drain
                 if ((bodyA.label === 'drain' || bodyB.label === 'drain') && isBall && gameState.ballInPlay) {
-                    if (climbMode.active) { removeBallSaveGate(); engine.gravity.y = 0.8; }
-                    resetCombo();
-                    sfxDrain();
-                    gameState.ballInPlay = false; gameState.ballsRemaining--;
-                    updateBallsDisplay();
-                    if (gameState.ballsRemaining <= 0) endGame(); else setTimeout(createBall, 800);
+                    loseBall();
                 }
             });
         });
@@ -1812,6 +3376,8 @@
             if (actualFloor > climbMode.highestFloor) {
                 climbMode.highestFloor = actualFloor;
                 climbMode.totalFloors = Math.max(climbMode.totalFloors, actualFloor + 1);
+                // Floors are 0-indexed internally but shown 1-indexed everywhere.
+                if (PinballCareer.best('bestFloor', actualFloor + 1)) PinballAchievements.check();
                 gameState.score += 500 * actualFloor;
                 updateScoreDisplay();
                 createScorePopup(ball.position.x, ball.position.y, 500 * actualFloor);
@@ -1847,14 +3413,14 @@
             document.getElementById('floor-num').textContent = floor + 1;
             const boardName = climbMode.boardNames[floor] || LEVELS[CLIMB_BOARDS[floor % CLIMB_BOARDS.length]].name;
             document.getElementById('floor-board-name').textContent = boardName;
-            const elem = climbMode.elementalBall;
+            const elem = powerSystem.active;
             const elemInfo = ELEMENT_COLORS[elem];
             let elemHtml;
             if (elem === 'normal') {
                 elemHtml = '<span style="color:#888">Normal Ball</span>';
             } else {
-                const remaining = Math.max(0, Math.ceil((15000 - (Date.now() - climbMode.elementalBallTimer)) / 1000));
-                elemHtml = `<span style="color:${elemInfo.ball[1]}">${elemInfo.icon} ${elemInfo.name} Ball (${remaining}s)</span>`;
+                const remaining = Math.max(0, Math.ceil((powerSystem.expiresAt - Date.now()) / 1000));
+                elemHtml = `<span style="color:${elemInfo.color}">${elemInfo.icon} ${powerSystem.rarity} ${elemInfo.name} (${remaining}s)</span>`;
             }
             document.getElementById('element-display').innerHTML = elemHtml;
         }
@@ -1862,7 +3428,13 @@
         function updateScoreDisplay() { document.querySelector('#current-score .score-value').textContent = gameState.score.toLocaleString(); }
         function updateBallsDisplay() { document.querySelector('#balls-left .score-value').textContent = gameState.ballsRemaining; }
         function updateHighScore() {
-            if (gameState.score > gameState.highScore) { gameState.highScore = gameState.score; localStorage.setItem('pinballDreamsHighScore', gameState.highScore); }
+            // Route through PinballCareer so the career blob and the legacy
+            // pinballDreamsHighScore key can never drift apart — it mirrors the
+            // legacy key on every save.
+            if (gameState.score > gameState.highScore) {
+                gameState.highScore = gameState.score;
+                PinballCareer.best('bestScore', gameState.highScore);
+            }
             document.querySelector('#high-score .score-value').textContent = gameState.highScore.toLocaleString();
         }
 
@@ -1899,6 +3471,81 @@
             cameraY += (targetCam - cameraY) * 0.08;
         }
 
+        function drawPlayfieldSurface(theme, baseY, W, H, label = '') {
+            ctx.save();
+
+            const surface = ctx.createLinearGradient(0, baseY, 0, baseY + H);
+            surface.addColorStop(0, theme.bg);
+            surface.addColorStop(0.48, '#050a19');
+            surface.addColorStop(1, '#02040b');
+            ctx.fillStyle = surface;
+            ctx.fillRect(0, baseY, W, H);
+
+            ctx.beginPath();
+            ctx.rect(0, baseY, W, H);
+            ctx.clip();
+
+            const aura = ctx.createRadialGradient(W * 0.5, baseY + H * 0.38, 5, W * 0.5, baseY + H * 0.38, W * 0.7);
+            aura.addColorStop(0, theme.accent + '2d');
+            aura.addColorStop(0.4, theme.bumper + '14');
+            aura.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = aura;
+            ctx.fillRect(0, baseY, W, H);
+
+            // Technical perspective grid
+            ctx.strokeStyle = theme.wall + '18';
+            ctx.lineWidth = 0.75;
+            for (let x = -80; x <= W + 80; x += 32) {
+                ctx.beginPath();
+                ctx.moveTo(W / 2 + (x - W / 2) * 0.12, baseY + 45);
+                ctx.lineTo(x, baseY + H);
+                ctx.stroke();
+            }
+            for (let row = 0; row < 13; row++) {
+                const t = row / 12;
+                const y = baseY + 52 + Math.pow(t, 1.7) * (H - 62);
+                ctx.beginPath();
+                ctx.moveTo(12, y);
+                ctx.lineTo(W - 12, y);
+                ctx.stroke();
+            }
+
+            // Blueprint arcs become the illuminated circuitry of the finished table
+            ctx.strokeStyle = theme.bumper + '24';
+            ctx.lineWidth = 1;
+            ctx.setLineDash([4, 7]);
+            [92, 132, 174].forEach(radius => {
+                ctx.beginPath();
+                ctx.arc(W / 2, baseY + 210, radius, Math.PI * 0.12, Math.PI * 0.88);
+                ctx.stroke();
+            });
+            ctx.setLineDash([]);
+
+            ctx.strokeStyle = theme.wall + '55';
+            ctx.lineWidth = 1.25;
+            ctx.strokeRect(12.5, baseY + 12.5, W - 25, H - 25);
+            ctx.strokeStyle = theme.bumper + '36';
+            ctx.strokeRect(18.5, baseY + 18.5, W - 37, H - 37);
+
+            ctx.fillStyle = theme.wall + '74';
+            ctx.font = '600 7px Orbitron, sans-serif';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'alphabetic';
+            ctx.fillText('PB // DREAM CIRCUIT', 28, baseY + 39);
+            ctx.textAlign = 'right';
+            ctx.fillText(label ? label.toUpperCase() : 'NIGHT DRIVE', W - 28, baseY + 39);
+
+            // Warm reactor at the heart of each playfield
+            const core = ctx.createRadialGradient(W / 2, baseY + H * 0.58, 1, W / 2, baseY + H * 0.58, 74);
+            core.addColorStop(0, theme.accent + '42');
+            core.addColorStop(0.2, theme.accent + '1e');
+            core.addColorStop(1, 'rgba(0,0,0,0)');
+            ctx.fillStyle = core;
+            ctx.fillRect(W / 2 - 75, baseY + H * 0.58 - 75, 150, 150);
+
+            ctx.restore();
+        }
+
         // Render
         function render() {
             const level = LEVELS[currentLevel];
@@ -1916,8 +3563,7 @@
                     const fy = floorY(f);
                     const boardIdx = f % CLIMB_BOARDS.length;
                     const floorTheme = LEVELS[CLIMB_BOARDS[boardIdx]].theme;
-                    ctx.fillStyle = floorTheme.bg;
-                    ctx.fillRect(0, fy, W, H);
+                    drawPlayfieldSurface(floorTheme, fy, W, H, LEVELS[CLIMB_BOARDS[boardIdx]].name);
                     // Floor divider line and label
                     if (f > 0) {
                         ctx.strokeStyle = floorTheme.wall + '40';
@@ -1939,7 +3585,7 @@
                     }
                 }
             } else if (boardExtended) {
-                ctx.fillRect(0, -H, W, H);
+                drawPlayfieldSurface(level.theme, -H, W, H, 'Table 02');
                 ctx.strokeStyle = level.theme.wall + '60';
                 ctx.lineWidth = 2;
                 ctx.setLineDash([8, 6]);
@@ -1953,8 +3599,7 @@
                 ctx.textAlign = 'center';
                 ctx.fillText('TABLE 2', W / 2 - 15, -320);
             }
-            ctx.fillStyle = level.theme.bg;
-            ctx.fillRect(0, 0, W, H);
+            drawPlayfieldSurface(level.theme, 0, W, H, level.name);
 
             // Draw all physics bodies
             Composite.allBodies(world).forEach(body => {
@@ -1974,19 +3619,32 @@
                 }
                 ctx.fill();
 
+                if (body.label !== 'ball') {
+                    ctx.save();
+                    ctx.strokeStyle = fill;
+                    ctx.lineWidth = body.isStatic ? 1.1 : 1.8;
+                    ctx.globalAlpha = body.isStatic ? 0.74 : 0.92;
+                    ctx.shadowColor = fill;
+                    ctx.shadowBlur = body.isStatic ? 5 : 9;
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
                 if (body.label === 'bumper') {
                     const bumperColor = body.render.fillStyle || level.theme.bumper;
                     ctx.shadowColor = bumperColor; ctx.shadowBlur = 12; ctx.fill(); ctx.shadowBlur = 0;
                     ctx.beginPath();
                     ctx.arc(body.position.x, body.position.y, body.circleRadius * 0.45, 0, Math.PI * 2);
                     ctx.fillStyle = body.plugin?.isFlashing ? '#fff' : level.theme.bg; ctx.fill();
-                    ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                    ctx.strokeStyle = '#ffffffaa'; ctx.lineWidth = 1;
+                    ctx.beginPath(); ctx.arc(body.position.x, body.position.y, body.circleRadius * 0.72, 0, Math.PI * 2); ctx.stroke();
+                    ctx.fillStyle = '#fff'; ctx.font = '700 8px Orbitron, sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
                     ctx.fillText(body.plugin?.score || 100, body.position.x, body.position.y);
                 }
 
                 // Elemental ball rendering
                 if (body.label === 'ball') {
-                    const colors = climbMode.active ? ELEMENT_COLORS[climbMode.elementalBall].ball : ['#fff', '#ccc', '#666'];
+                    const colors = (ELEMENT_COLORS[powerSystem.active] || ELEMENT_COLORS.normal).ball;
                     const g = ctx.createRadialGradient(body.position.x - 3, body.position.y - 3, 0, body.position.x, body.position.y, body.circleRadius);
                     g.addColorStop(0, colors[0]); g.addColorStop(0.4, colors[1]); g.addColorStop(1, colors[2]);
                     ctx.fillStyle = g; ctx.fill();
@@ -2028,12 +3686,11 @@
                     ctx.restore();
                 }
 
-                // Element orb glow
-                if (body.label && body.label.startsWith('elem-')) {
+                // Random capsule glow
+                if (body.label === 'power-capsule') {
                     ctx.shadowColor = body.render.fillStyle; ctx.shadowBlur = 18; ctx.fill(); ctx.shadowBlur = 0;
-                    const elemIcon = { 'elem-hot': '🔥', 'elem-water': '💧', 'elem-grass': '🌿' }[body.label] || '★';
                     ctx.font = '11px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                    ctx.fillText(elemIcon, body.position.x, body.position.y);
+                    ctx.fillText('?', body.position.x, body.position.y);
                 }
 
                 // Ball save gate glow
@@ -2090,7 +3747,7 @@
             if (plunger.charging) {
                 plunger.power = Math.min(plunger.power + 0.03, 1);
                 ctx.fillStyle = `rgba(0,255,136,${plunger.power})`;
-                ctx.fillRect(CONFIG.width - 36, plungerFloorBase + pH - 105, 22 * plunger.power, 5);
+                ctx.fillRect(CONFIG.width - 36, plungerFloorBase + pH - boardY(105), 22 * plunger.power, 5);
             }
             if (!gameState.ballLaunched && gameState.ballInPlay) {
                 ctx.fillStyle = 'rgba(0,255,136,0.15)';
@@ -2198,31 +3855,57 @@
                 updateParticles();
                 // Out-of-bounds safety net
                 if (ball && gameState.ballInPlay && (ball.position.x < -10 || ball.position.x > CONFIG.width + 30)) {
-                    if (climbMode.active) { removeBallSaveGate(); engine.gravity.y = 0.8; }
-                    resetCombo(); sfxDrain();
-                    gameState.ballInPlay = false; gameState.ballsRemaining--;
-                    updateBallsDisplay();
-                    if (gameState.ballsRemaining <= 0) endGame(); else setTimeout(createBall, 800);
+                    loseBall();
                 }
                 // Fallback drain check
                 if (ball && gameState.ballInPlay && ball.position.y > CONFIG.height + 50) {
-                    if (climbMode.active) { removeBallSaveGate(); engine.gravity.y = 0.8; }
-                    resetCombo(); sfxDrain();
-                    gameState.ballInPlay = false; gameState.ballsRemaining--;
-                    updateBallsDisplay();
-                    if (gameState.ballsRemaining <= 0) endGame(); else setTimeout(createBall, 800);
+                    loseBall();
                 }
             }
             updateCamera();
             render();
+            if (pinball3D) {
+                pinball3D.render({
+                    bodies: Composite.allBodies(world),
+                    level: LEVELS[currentLevel],
+                    ball,
+                    cameraY,
+                    powerState: {
+                        active: powerSystem.active,
+                        rarity: powerSystem.rarity,
+                        zone: powerSystem.zone,
+                        armed: powerSystem.armed
+                    },
+                    floorThemes: climbMode.active
+                        ? Array.from(
+                            { length: Math.max(2, climbMode.highestFloor + 2) },
+                            (_, floor) => LEVELS[CLIMB_BOARDS[floor % CLIMB_BOARDS.length]].theme
+                        )
+                        : [LEVELS[currentLevel].theme],
+                    floorCount: climbMode.active
+                        ? Math.max(2, climbMode.highestFloor + 2)
+                        : (boardExtended ? 2 : 1)
+                });
+            }
             requestAnimationFrame(gameLoop);
         }
 
         function startGame() {
+            document.body.classList.add('game-active');
+            handleResize();
             gameState.score = 0; gameState.ballsRemaining = CONFIG.totalBalls;
             gameState.isPlaying = true; gameState.ballInPlay = false;
             isInUpperLevel = false; paused = false;
             resetCombo(); engine.gravity.y = 0.8;
+            resetRuleSystems();
+            applyThemeToUI(LEVELS[currentLevel].theme);
+            ballStartScore = 0; runElements = {};
+            PinballCareer.bump('gamesPlayed');
+            PinballCareer.mark('tablesPlayed', currentLevel);
+            PinballAchievements.check();
+            if (typeof PickBitsClient !== 'undefined') {
+                PickBitsClient.trackEvent('pinball_game_start', { level: LEVELS[currentLevel].name });
+            }
 
             if (currentLevel === 6) {
                 playMusic('climb');
@@ -2254,9 +3937,11 @@
             updateScoreDisplay(); updateBallsDisplay(); updateHighScore();
             document.getElementById('game-over').style.display = 'none';
             document.getElementById('level-select').style.display = 'none';
+            document.getElementById('achievements-modal').style.display = 'none';
             document.getElementById('menu-btn').style.display = 'block';
             document.getElementById('mute-btn').style.display = 'block';
-            document.getElementById('level-name-display').textContent = LEVELS[currentLevel].name;
+            document.getElementById('level-name-display').textContent = `${LEVELS[currentLevel].name} // ${LEVELS[currentLevel].subtitle}`;
+            document.getElementById('rule-hud').style.display = 'block';
             document.getElementById('ball-save-indicator').style.display = 'none';
         }
 
@@ -2272,6 +3957,7 @@
             document.getElementById('menu-btn').style.display = 'none';
             document.getElementById('mute-btn').style.display = 'none';
             document.getElementById('climb-hud').style.display = 'none';
+            document.getElementById('rule-hud').style.display = 'none';
             document.getElementById('ball-save-indicator').style.display = 'none';
             if (climbMode.active) {
                 document.getElementById('final-floor').style.display = 'block';
@@ -2279,8 +3965,41 @@
             } else {
                 document.getElementById('final-floor').style.display = 'none';
             }
+
+            // Career roll-up + PickBits. Runs before climbMode.active is cleared
+            // below, so the climb floor is still readable.
+            const finalScore = gameState.score;
+            PinballCareer.best('bestScore', finalScore);
+            PinballCareer.bump('totalScore', finalScore);
+            if (climbMode.active) PinballCareer.best('bestFloor', climbMode.highestFloor + 1);
+            PinballAchievements.check({ runElements: runElements });
+            submitRunToPickBits(finalScore, climbMode.active ? climbMode.highestFloor + 1 : 0);
+
             climbMode.active = false;
             playMusic('gameover');
+        }
+
+        // Leaderboard submission + the global rank readout. Every step is a
+        // no-op when PickBits is inactive, the player is anonymous, or the
+        // network is down — the rank line simply stays hidden.
+        function submitRunToPickBits(score, floor) {
+            const rankEl = document.getElementById('final-rank');
+            rankEl.style.display = 'none';
+            rankEl.textContent = '';
+            if (typeof PickBitsClient === 'undefined') return;
+            PickBitsClient.trackEvent('pinball_game_over', {
+                score: score, floor: floor, level: LEVELS[currentLevel].name
+            });
+            if (!PickBitsClient.isAuthed()) return;
+            PickBitsClient.submitScore(score);
+            // Give the submission a moment to land so the rank reflects this run.
+            setTimeout(() => {
+                PickBitsClient.getRank(PinballCareer.get().bestScore).then(r => {
+                    if (!r) return;
+                    rankEl.innerHTML = 'GLOBAL RANK <b>#' + r.rank + '</b> OF ' + r.total;
+                    rankEl.style.display = 'block';
+                }).catch(() => {});
+            }, 700);
         }
 
         function showLevelSelect() {
@@ -2295,8 +4014,11 @@
             document.getElementById('mute-btn').style.display = 'none';
             document.getElementById('editor-controls').style.display = 'none';
             document.getElementById('climb-hud').style.display = 'none';
+            document.getElementById('rule-hud').style.display = 'none';
             document.getElementById('ball-save-indicator').style.display = 'none';
             document.getElementById('credits-modal').style.display = 'none';
+            document.getElementById('achievements-modal').style.display = 'none';
+            document.getElementById('rule-hud').style.display = 'none';
             playMusic('menu');
             showTitleScreen();
         }
@@ -2337,6 +4059,10 @@
         });
 
         function startCustomEditor() {
+            document.body.classList.add('game-active');
+            handleResize();
+            resetRuleSystems();
+            applyThemeToUI(LEVELS[currentLevel].theme);
             isEditing = true; editorMode = 'bumper';
             gameState.score = 0; gameState.ballsRemaining = CONFIG.totalBalls;
             gameState.isPlaying = false; gameState.ballInPlay = false;
@@ -2351,6 +4077,7 @@
             document.getElementById('editor-controls').style.display = 'flex';
             document.getElementById('editor-instructions').style.display = 'block';
             document.getElementById('level-name-display').textContent = 'Custom Editor';
+            document.getElementById('rule-hud').style.display = 'none';
             document.getElementById('extend-btn').classList.toggle('active', boardExtended);
             document.getElementById('extend-btn').textContent = boardExtended ? 'Extended' : 'Extend';
             setEditorMode('bumper');
@@ -2377,8 +4104,22 @@
         canvas.addEventListener('mouseleave', () => { draggedBumper = null; draggedFlipper = null; draggedRamp = null; finishEditorDrawing(); });
 
         function handleResize() {
+            if (document.body.classList.contains('game-active')) {
+                [canvas, canvas3D].forEach(target => {
+                    if (!target) return;
+                    target.style.transform = 'none';
+                    target.style.transformOrigin = 'center';
+                });
+                if (pinball3D) pinball3D.resize(window.innerWidth, window.innerHeight);
+                return;
+            }
             const scale = Math.min((window.innerWidth - 20) / CONFIG.width, (window.innerHeight - 120) / CONFIG.height, 1);
-            canvas.style.transform = `scale(${scale})`; canvas.style.transformOrigin = 'top center';
+            [canvas, canvas3D].forEach(target => {
+                if (!target) return;
+                target.style.transform = `scale(${scale})`;
+                target.style.transformOrigin = 'top center';
+            });
+            if (pinball3D) pinball3D.resize(CONFIG.width, CONFIG.height);
         }
         window.addEventListener('resize', handleResize); handleResize();
 
@@ -2416,10 +4157,13 @@
         }
 
         function showTitleScreen() {
+            document.body.classList.remove('game-active');
+            handleResize();
             document.getElementById('title-screen').style.display = 'block';
             document.getElementById('level-select').style.display = 'none';
             document.getElementById('game-over').style.display = 'none';
             document.getElementById('credits-modal').style.display = 'none';
+            document.getElementById('achievements-modal').style.display = 'none';
             playMusic('menu');
         }
 
@@ -2448,7 +4192,62 @@
 
         document.getElementById('mute-btn').addEventListener('click', toggleMute);
 
-        window.onload = () => { updateHighScore(); runLoadingScreen(); gameLoop(); };
+        // ====== ACHIEVEMENTS SCREEN ======
+        function renderAchievements() {
+            const grid = document.getElementById('ach-grid');
+            const items = PinballAchievements.list();
+            grid.innerHTML = '';
+            items.forEach(a => {
+                const tile = document.createElement('div');
+                tile.className = 'ach-tile ' + (a.unlockedAt ? 'unlocked' : 'locked');
+                const icon = document.createElement('span');
+                icon.className = 'ach-tile-icon';
+                icon.textContent = a.icon;
+                const copy = document.createElement('div');
+                const name = document.createElement('div');
+                name.className = 'ach-tile-name';
+                name.textContent = a.title;
+                const desc = document.createElement('div');
+                desc.className = 'ach-tile-desc';
+                desc.textContent = a.desc;
+                copy.appendChild(name); copy.appendChild(desc);
+                tile.appendChild(icon); tile.appendChild(copy);
+                grid.appendChild(tile);
+            });
+            document.getElementById('ach-progress').textContent =
+                PinballAchievements.unlockedCount() + ' / ' + PinballAchievements.total + ' UNLOCKED';
+        }
+
+        document.getElementById('achievements-btn').addEventListener('click', () => {
+            renderAchievements();
+            document.getElementById('title-screen').style.display = 'none';
+            document.getElementById('achievements-modal').style.display = 'block';
+        });
+        document.getElementById('achievements-close').addEventListener('click', () => {
+            document.getElementById('achievements-modal').style.display = 'none';
+            document.getElementById('title-screen').style.display = 'block';
+        });
+
+        // A cloud save was merged into local storage — re-read everything that
+        // caches it, and re-evaluate achievements against the merged totals.
+        window.addEventListener('pickbits:cloud_hydrated', () => {
+            PinballCareer.reload();
+            PinballAchievements.reload();
+            loadSettings();
+            document.getElementById('mute-btn').textContent = sfxMuted ? '🔇' : '🔊';
+            try { gameState.highScore = parseInt(localStorage.getItem('pinballDreamsHighScore'), 10) || 0; } catch (e) {}
+            updateHighScore();
+            if (document.getElementById('achievements-modal').style.display === 'block') renderAchievements();
+            PinballAchievements.check();
+        });
+
+        window.onload = () => {
+            document.getElementById('mute-btn').textContent = sfxMuted ? '🔇' : '🔊';
+            gameState.highScore = PinballCareer.get().bestScore;
+            updateHighScore();
+            runLoadingScreen();
+            gameLoop();
+        };
     </script>
 </body>
 </html>
