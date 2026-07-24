@@ -1096,6 +1096,164 @@
             #rule-hud .rule-label { width: 46px; font-size: 5px; }
             #rule-hud .rule-value { font-size: 6px; }
         }
+        /* ===== Plunger main menu =====
+           The options are drop targets stacked on the left; the plunger sits in
+           a lane beside them, cocked and aimed at the current selection. The
+           ball is animated in JS (see the MENU PLUNGER block) using coordinates
+           measured off #menu-rig, so this only has to lay the parts out. */
+        #menu-rig {
+            position: relative;
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) 66px;
+            align-items: stretch;
+            gap: 14px;
+            margin-top: 26px;
+            width: min(430px, 100%);
+        }
+        .menu-targets {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 0;
+        }
+        /* Beat the earlier id-specificity rules that pinned the achievements and
+           credits buttons to the bottom-left corner of the title screen. */
+        #climb-btn,
+        #levels-btn,
+        #achievements-btn,
+        #credits-btn {
+            position: relative;
+            left: auto;
+            bottom: auto;
+            width: 100%;
+            min-width: 0;
+            margin: 0;
+            padding: 13px 16px;
+            text-align: left;
+            border-radius: 4px;
+            font: 700 10px/1 'Orbitron', sans-serif;
+            letter-spacing: 0.18em;
+            cursor: pointer;
+            transition: transform 0.18s ease, box-shadow 0.18s ease,
+                        background 0.18s ease, border-color 0.18s ease, color 0.18s ease;
+        }
+        #achievements-btn,
+        #credits-btn {
+            color: var(--cyan-soft);
+            border: 1px solid rgba(26, 200, 255, 0.28);
+            background: rgba(26, 200, 255, 0.06);
+            box-shadow: none;
+        }
+        /* The aimed-at option reads as a lit drop target. */
+        .menu-target[data-selected="true"] {
+            transform: translateX(6px);
+            border-color: var(--amber) !important;
+            box-shadow: 0 0 18px rgba(255, 138, 51, 0.45), inset 0 0 14px rgba(255, 138, 51, 0.12) !important;
+        }
+        .menu-target[data-selected="true"]::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            right: -9px;
+            width: 7px;
+            height: 7px;
+            transform: translateY(-50%) rotate(45deg);
+            background: var(--amber);
+            box-shadow: 0 0 9px var(--amber);
+        }
+        /* Struck by the ball. */
+        .menu-target.menu-hit {
+            transform: translateX(14px) scale(1.04);
+            color: #12070f !important;
+            background: var(--amber) !important;
+            border-color: #fff !important;
+            box-shadow: 0 0 34px rgba(255, 138, 51, 0.9) !important;
+        }
+
+        .menu-lane {
+            position: relative;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            border-left: 1px dashed rgba(26, 200, 255, 0.22);
+        }
+        /* Tracer from the plunger to the selected target. Rotated about its
+           right edge, which sits at the plunger's muzzle. */
+        .menu-aim {
+            position: absolute;
+            right: 50%;
+            height: 1px;
+            transform-origin: 100% 50%;
+            background: linear-gradient(90deg, transparent, rgba(255, 138, 51, 0.75));
+            opacity: 0.42;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+        #menu-rig[data-armed="true"] .menu-aim { opacity: 1; height: 2px; }
+
+        .menu-ball {
+            position: absolute;
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 33% 30%, #fff, #b9d6e4 45%, #4a6272);
+            box-shadow: 0 0 12px rgba(223, 247, 255, 0.85);
+            opacity: 0;
+            pointer-events: none;
+            will-change: transform;
+        }
+        .menu-plunger {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 22px;
+            /* Pulled back as the spring charges. */
+            transform: translateY(calc(var(--pull, 0) * 26px));
+            transition: transform 0.06s linear;
+        }
+        .plunger-rod {
+            width: 5px;
+            height: 46px;
+            background: linear-gradient(180deg, #dff7ff, #6d8494);
+            border-radius: 2px;
+        }
+        .plunger-spring {
+            width: 17px;
+            height: 30px;
+            /* Coils compress as --pull rises. */
+            background: repeating-linear-gradient(
+                180deg,
+                var(--amber) 0 2px,
+                transparent 2px calc(2px + (5px - var(--pull, 0) * 2.6px))
+            );
+            border-radius: 3px;
+            box-shadow: 0 0 12px rgba(255, 138, 51, calc(0.25 + var(--pull, 0) * 0.6));
+        }
+        .plunger-knob {
+            width: 22px;
+            height: 12px;
+            border-radius: 3px;
+            background: linear-gradient(180deg, #ff6aa8, var(--pink));
+            box-shadow: 0 0 14px rgba(255, 47, 186, calc(0.35 + var(--pull, 0) * 0.65));
+        }
+        .menu-hint {
+            grid-column: 1 / -1;
+            margin: 4px 0 0;
+            color: var(--muted);
+            font: 500 12px/1.4 'Rajdhani', sans-serif;
+            letter-spacing: 0.04em;
+        }
+        .menu-hint b { color: var(--cyan-soft); font-weight: 700; }
+        @media (max-width: 520px) {
+            #menu-rig { grid-template-columns: minmax(0, 1fr) 52px; }
+            .menu-hint { font-size: 11px; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            .menu-ball { display: none; }
+            .menu-target, .menu-plunger { transition: none; }
+        }
+
         /* ===== PickBits account chip ===== */
         #pbAuth {
             position: fixed;
@@ -1234,27 +1392,6 @@
         }
         #final-rank b { color: var(--cyan); text-shadow: 0 0 9px rgba(26, 200, 255, 0.6); }
 
-        /* Achievements entry point, mirroring #credits-btn on the title screen */
-        #achievements-btn {
-            position: absolute;
-            left: clamp(48px, 7vw, 100px);
-            bottom: 54px;
-            z-index: 3;
-            margin: 0;
-            padding: 0;
-            color: rgba(131, 171, 194, 0.72);
-            font: 600 8px/1 'Orbitron', sans-serif;
-            letter-spacing: 0.2em;
-            border: 0;
-            background: transparent;
-            cursor: pointer;
-            transition: color 0.25s ease;
-        }
-        #achievements-btn:hover { color: var(--amber); }
-
-        @media (max-width: 860px) {
-            #achievements-btn { left: 28px; bottom: 38px; }
-        }
         @media (max-width: 520px) {
             .ach-grid { grid-template-columns: 1fr; }
             #pbAuth { top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); }
@@ -1312,6 +1449,7 @@
         <div id="climb-hud">
             <div class="floor-display">Floor <span id="floor-num">1</span> - <span id="floor-board-name">Classic</span></div>
             <div class="element-display" id="element-display"></div>
+            <div class="element-display" id="seal-display"></div>
         </div>
         <div id="rule-hud" data-power="normal">
             <div class="rule-row"><span class="rule-label">Mission</span><span class="rule-value" id="mission-rule">Light the three top lanes</span></div>
@@ -1341,9 +1479,25 @@
                     <div class="arcade-kicker">PICKBITS ARCADE</div>
                     <div class="game-title">PINBALL<span class="dreams">DREAMS</span></div>
                     <div class="tagline">Build the table.<span>Chase the impossible shot.</span></div>
-                    <div class="title-actions">
-                        <button id="climb-btn">START CLIMB</button>
-                        <button id="levels-btn">SELECT TABLE</button>
+                    <!-- Plunger menu: the options are drop targets, the spring
+                         below is held back and aimed at whichever is selected. -->
+                    <div class="title-actions" id="menu-rig">
+                        <div class="menu-targets" id="menu-targets" role="menu">
+                            <button class="menu-target" id="climb-btn" role="menuitem" data-menu="climb">START CLIMB</button>
+                            <button class="menu-target" id="levels-btn" role="menuitem" data-menu="levels">SELECT TABLE</button>
+                            <button class="menu-target" id="achievements-btn" role="menuitem" data-menu="achievements">ACHIEVEMENTS</button>
+                            <button class="menu-target" id="credits-btn" role="menuitem" data-menu="credits">CREDITS</button>
+                        </div>
+                        <div class="menu-lane" aria-hidden="true">
+                            <div class="menu-aim" id="menu-aim"></div>
+                            <div class="menu-ball" id="menu-ball"></div>
+                            <div class="menu-plunger" id="menu-plunger">
+                                <div class="plunger-rod"></div>
+                                <div class="plunger-spring"></div>
+                                <div class="plunger-knob"></div>
+                            </div>
+                        </div>
+                        <p class="menu-hint" id="menu-hint">↑↓ aim · hold <b>SPACE</b> to pull the plunger · release to launch</p>
                     </div>
                     <div class="feature-strip" aria-label="Game features">
                         <div class="feature"><span class="feature-mark">◎</span>Matter.js Physics</div>
@@ -1364,8 +1518,6 @@
                     <div class="hero-caption"><strong>20</strong>floors of neon<br>after midnight</div>
                 </div>
             </div>
-            <button id="achievements-btn">ACHIEVEMENTS</button>
-            <button id="credits-btn">CREDITS</button>
             <div class="title-version">A PICKBITS.AI GAME / 2026</div>
         </div>
 
@@ -1554,7 +1706,8 @@
             ballSaveFloor: 0,
             boostPads: [],
             spawnedFloors: new Set(),
-            boardNames: {} // floor -> board name for HUD
+            boardNames: {}, // floor -> board name for HUD
+            floorGates: {}  // floor -> elemental seal, see climbFloorGate()
         };
 
         let powerSystem = {
@@ -1734,6 +1887,12 @@
             [523, 659, 784, 1047, 784, 1047, 1319].forEach((f, i) => _beep(f, 'square', 0.12, 0.18, i * 0.1));
         }
 
+        // Dull thud when the ball rattles a climb ceiling it can't break yet.
+        function sfxSealDeny() {
+            if (sfxMuted) return;
+            [150, 110].forEach((f, i) => _beep(f, 'sawtooth', 0.07, 0.09, i * 0.05));
+        }
+
         function sfxLaunch() {
             if (sfxMuted) return;
             const ac = ensureAudio(), t = ac.currentTime;
@@ -1848,6 +2007,130 @@
             updateClimbHUD();
         }
 
+        // ====== CLIMB ELEMENTAL SEALS ======
+        // Every climb floor's ceiling is sealed with its board's zone element.
+        // Working that board's task breaks the seal and hands you the matching
+        // power; the ceiling then only shatters while that power is live. So
+        // the loop per floor is: earn the element -> use it to ascend.
+
+        // Board mastery is a PickBits perk. Anonymous runs re-earn every seal;
+        // signed-in players keep the boards they've already cleared, synced
+        // across devices by the cloud save. Mastery is still RECORDED while
+        // anonymous, so signing in later retroactively pays it out.
+        function climbBoardMastered(boardLevel) {
+            try {
+                if (typeof PickBitsClient === 'undefined' || !PickBitsClient.isAuthed()) return false;
+                return !!PinballCareer.get().boardsMastered[boardLevel];
+            } catch (e) { return false; }
+        }
+
+        // Lazily build (and memoize) a floor's seal. Never called from render —
+        // the renderer reads climbMode.floorGates directly so drawing stays
+        // side-effect free.
+        function climbFloorGate(floor) {
+            let gate = climbMode.floorGates[floor];
+            if (gate) return gate;
+            const boardLevel = CLIMB_BOARDS[floor % CLIMB_BOARDS.length];
+            const level = LEVELS[boardLevel];
+            const mission = level.mission;
+            // Board missions are tuned for a whole table, so halve them for a
+            // single floor, then add a step each time the rotation comes round.
+            const goal = Math.max(3, Math.round(mission.goal * 0.5) + Math.floor(floor / CLIMB_BOARDS.length));
+            // Phrase the task from the gate's OWN goal — the board's mission
+            // instruction quotes the full-table number and would contradict it.
+            const verbs = {
+                bumper: n => `Hit ${n} bumpers`,
+                spinner: n => `Spin ${n} spinners`,
+                target: n => `Break ${n} targets`,
+                ramp: n => `Shoot ${n} ramps`,
+                lane: n => `Light ${n} lanes`
+            };
+            gate = climbMode.floorGates[floor] = {
+                floor, boardLevel, element: level.zone, action: mission.action,
+                label: (verbs[mission.action] || (n => `Score ${n} hits`))(goal),
+                goal, progress: 0,
+                unsealed: false, breached: false, mastered: false
+            };
+            if (climbBoardMastered(boardLevel)) {
+                gate.progress = goal;
+                gate.unsealed = true;
+                gate.mastered = true;
+            }
+            return gate;
+        }
+
+        // The ceiling only yields to the floor's own element.
+        function canBreachFloor(gate) {
+            return gate.unsealed && powerSystem.active === gate.element;
+        }
+
+        // Climb seals listen to the same table actions as missions, so they
+        // advance from the same seam — one call site, no chance of drift.
+        function advanceClimbGate(action, amount = 1, origin) {
+            if (!climbMode.active) return;
+            const gate = climbFloorGate(climbMode.currentBallFloor);
+            if (gate.unsealed || gate.action !== action) return;
+            gate.progress = Math.min(gate.goal, gate.progress + amount);
+            if (gate.progress >= gate.goal) unsealClimbFloor(gate.floor, origin);
+            else if (origin) createScorePopup(origin.x, origin.y - 18, `${gate.progress}/${gate.goal}`);
+            updateClimbHUD();
+            updateRuleHUD();
+        }
+
+        function unsealClimbFloor(floor, origin) {
+            const gate = climbFloorGate(floor);
+            if (gate.unsealed) return;
+            gate.unsealed = true;
+            const power = POWER_TYPES[gate.element];
+            // Record mastery even when anonymous — it pays out on sign-in.
+            PinballCareer.mark('boardsMastered', gate.boardLevel);
+            PinballAchievements.check();
+            // The reward IS the key: completing the task hands you the element
+            // the ceiling above you requires.
+            activatePower(gate.element, 'CHARGED');
+            sfxFloorClear();
+            const at = origin || (ball ? ball.position : null);
+            if (at) createScorePopup(at.x, at.y - 34, `${power.icon} SEAL BROKEN`);
+            updateClimbHUD();
+            updateRuleHUD();
+        }
+
+        // Denied: the ball rebounds off the seal instead of passing through.
+        function repelFromSeal(panel, gate) {
+            if (ball) {
+                Body.setVelocity(ball, { x: ball.velocity.x * 0.4, y: Math.abs(ball.velocity.y) * 0.75 + 2.5 });
+                createParticles(ball.position.x, ball.position.y, gate.unsealed ? POWER_TYPES[gate.element].color : '#6b7d8c');
+            }
+            const now = Date.now();
+            // One hint per second — a ball rattling the ceiling would otherwise
+            // bury the playfield in popups.
+            if (now - (climbMode._lastSealHint || 0) > 1000) {
+                climbMode._lastSealHint = now;
+                const power = POWER_TYPES[gate.element];
+                createScorePopup(panel.position.x, panel.position.y + 26, gate.unsealed
+                    ? `NEEDS ${power.icon} ${power.name.toUpperCase()}`
+                    : `SEALED · ${gate.progress}/${gate.goal}`);
+                sfxSealDeny();
+            }
+        }
+
+        // When the power lapses with the ceiling still intact, drop a fresh
+        // capsule on that floor so the player re-arms without redoing the task.
+        function respawnSealCapsule(floor) {
+            const gate = climbMode.floorGates[floor];
+            if (!gate || !gate.unsealed || gate.breached || gate.capsule) return;
+            const baseY = floorY(floor);
+            const theme = LEVELS[gate.boardLevel].theme;
+            const orb = Bodies.circle(CONFIG.width / 2 + (Math.random() - 0.5) * 140, baseY + boardY(250), 13, {
+                isStatic: true, isSensor: true, label: 'power-capsule',
+                render: { fillStyle: POWER_TYPES[gate.element].color },
+                collisionFilter: { category: CATEGORY.BUMPER },
+                plugin: { sealElement: gate.element, floor }
+            });
+            Composite.add(world, orb);
+            gate.capsule = orb;
+        }
+
         function rollPowerCapsule(origin) {
             if (!powerSystem.armed && !climbMode.active) return;
             const tableZone = powerSystem.zone || LEVELS[currentLevel].zone;
@@ -1924,6 +2207,9 @@
         }
 
         function advanceMission(action, amount = 1, origin) {
+            // Climb seals feed off the same table actions, so they advance from
+            // this single seam rather than a parallel set of call sites.
+            advanceClimbGate(action, amount, origin);
             if (!missionSystem.active) return;
             const mission = LEVELS[currentLevel].mission;
             if (!mission || mission.action !== action) return;
@@ -1990,6 +2276,9 @@
                 climbMode.elementalBall = 'normal';
                 climbMode.elementalBallTimer = 0;
                 if (ball?.plugin) ball.plugin.element = 'normal';
+                // The seal is open but the ceiling is still standing — give the
+                // player a way back to the element without redoing the task.
+                if (climbMode.active) respawnSealCapsule(climbMode.currentBallFloor);
             }
             if (powerSystem.zoneUntil <= now) powerSystem.zone = null;
             const iceActive = powerSystem.active === 'ice';
@@ -3127,7 +3416,15 @@
                 const capsuleOrb = bodyA.label === 'power-capsule' ? bodyA : bodyB.label === 'power-capsule' ? bodyB : null;
                 if (isBall && capsuleOrb && !capsuleOrb._collected) {
                     capsuleOrb._collected = true;
-                    rollPowerCapsule(capsuleOrb.position);
+                    // A seal re-arm capsule is a guaranteed refill of that
+                    // floor's element; loose climb capsules stay a random draw.
+                    if (capsuleOrb.plugin?.sealElement) {
+                        const g = climbMode.floorGates[capsuleOrb.plugin.floor];
+                        if (g) g.capsule = null;
+                        activatePower(capsuleOrb.plugin.sealElement, 'STANDARD');
+                    } else {
+                        rollPowerCapsule(capsuleOrb.position);
+                    }
                     setTimeout(() => {
                         if (Composite.get(world, capsuleOrb.id, 'body')) Composite.remove(world, capsuleOrb);
                     }, 0);
@@ -3258,7 +3555,18 @@
                 // Floor panels - breakable ceiling panels at floor transitions
                 const fp = bodyA.label === 'floor-panel' ? bodyA : bodyB.label === 'floor-panel' ? bodyB : null;
                 if (fp && fp.plugin && !fp.plugin.hit && isBall) {
+                    // In Climb the ceiling is an elemental seal: work the floor's
+                    // task to break it, then carry that element to shatter it.
+                    const gate = climbMode.active ? climbFloorGate(fp.plugin.floor) : null;
+                    if (gate && !canBreachFloor(gate)) {
+                        repelFromSeal(fp, gate);
+                        return;
+                    }
                     fp.plugin.hit = true;
+                    if (gate) {
+                        gate.breached = true;
+                        PinballAchievements.unlock('first-breach');
+                    }
                     PinballCareer.bump('panelsBroken');
                     PinballAchievements.check();
                     const fpPts = Math.round(fp.plugin.score * scoreMultiplier * powerScoreMultiplier('panel'));
@@ -3423,6 +3731,24 @@
                 elemHtml = `<span style="color:${elemInfo.color}">${elemInfo.icon} ${powerSystem.rarity} ${elemInfo.name} (${remaining}s)</span>`;
             }
             document.getElementById('element-display').innerHTML = elemHtml;
+
+            // Elemental seal state for the floor the ball is actually on.
+            const sealEl = document.getElementById('seal-display');
+            if (sealEl) {
+                const gate = climbFloorGate(floor);
+                const power = POWER_TYPES[gate.element];
+                if (gate.breached) {
+                    sealEl.innerHTML = `<span style="color:#5f7a8a">${power.icon} ceiling breached</span>`;
+                } else if (!gate.unsealed) {
+                    sealEl.innerHTML = `<span style="color:${power.color}">${power.icon} SEALED</span>` +
+                        `<span style="color:#9fb8c8"> · ${gate.label} (${gate.progress}/${gate.goal})</span>`;
+                } else if (canBreachFloor(gate)) {
+                    sealEl.innerHTML = `<span style="color:${power.color}">${power.icon} SEAL OPEN · SMASH THE CEILING</span>`;
+                } else {
+                    sealEl.innerHTML = `<span style="color:${power.color}">${power.icon} needs ${power.name} ball</span>` +
+                        (gate.mastered ? '<span style="color:#5f7a8a"> · mastered</span>' : '');
+                }
+            }
         }
 
         function updateScoreDisplay() { document.querySelector('#current-score .score-value').textContent = gameState.score.toLocaleString(); }
@@ -3661,10 +3987,40 @@
                 // Floor panel rendering
                 if (body.label === 'floor-panel' && body.plugin && !body.plugin.hit) {
                     const isCeiling = body.plugin.score >= 500;
-                    ctx.shadowColor = isCeiling ? '#ffcc00' : '#4a90d9';
-                    ctx.shadowBlur = isCeiling ? 12 : 8; ctx.fill(); ctx.shadowBlur = 0;
-                    ctx.strokeStyle = isCeiling ? '#ffe066' : '#6ab0ff';
-                    ctx.lineWidth = isCeiling ? 2 : 1; ctx.stroke();
+                    // Read the memoized gate directly — never create one from
+                    // the render loop.
+                    const gate = climbMode.active ? climbMode.floorGates[body.plugin.floor] : null;
+                    if (gate) {
+                        const power = POWER_TYPES[gate.element];
+                        const live = canBreachFloor(gate);
+                        if (!gate.unsealed) {
+                            // Sealed: cold, inert slab with a progress bar.
+                            ctx.fillStyle = '#243441';
+                            ctx.fill();
+                            ctx.strokeStyle = '#415667';
+                            ctx.lineWidth = 1; ctx.stroke();
+                            const b = body.bounds, w = b.max.x - b.min.x;
+                            ctx.fillStyle = power.color;
+                            ctx.globalAlpha = 0.55;
+                            ctx.fillRect(b.min.x, b.max.y - 3, w * (gate.progress / gate.goal), 3);
+                            ctx.globalAlpha = 1;
+                        } else {
+                            // Unsealed: lit in the floor's element, pulsing once
+                            // the matching power is actually in hand.
+                            const pulse = live ? 0.6 + 0.4 * Math.sin(Date.now() / 120) : 0.35;
+                            ctx.fillStyle = power.color;
+                            ctx.shadowColor = power.color;
+                            ctx.shadowBlur = 6 + 14 * pulse;
+                            ctx.fill(); ctx.shadowBlur = 0;
+                            ctx.strokeStyle = live ? '#ffffff' : power.color;
+                            ctx.lineWidth = live ? 2 : 1; ctx.stroke();
+                        }
+                    } else {
+                        ctx.shadowColor = isCeiling ? '#ffcc00' : '#4a90d9';
+                        ctx.shadowBlur = isCeiling ? 12 : 8; ctx.fill(); ctx.shadowBlur = 0;
+                        ctx.strokeStyle = isCeiling ? '#ffe066' : '#6ab0ff';
+                        ctx.lineWidth = isCeiling ? 2 : 1; ctx.stroke();
+                    }
                 }
 
                 // Spinner rendering - rotating blades
@@ -3920,6 +4276,8 @@
                 climbMode.boostPads = [];
                 climbMode.spawnedFloors = new Set();
                 climbMode.boardNames = {};
+                climbMode.floorGates = {};
+                climbMode._lastSealHint = 0;
                 boardExtended = false;
                 cameraY = 0;
                 document.getElementById('climb-hud').style.display = 'block';
@@ -4165,26 +4523,194 @@
             document.getElementById('credits-modal').style.display = 'none';
             document.getElementById('achievements-modal').style.display = 'none';
             playMusic('menu');
+            // Re-aim every time we come back. Done synchronously — the display
+            // change above plus getBoundingClientRect forces the reflow, and a
+            // rAF here would never fire while the tab is backgrounded.
+            if (typeof selectMenu === 'function') selectMenu(menuIndex);
         }
 
-        // Title screen -> Climb mode (main CTA)
-        document.getElementById('climb-btn').addEventListener('click', () => {
-            document.getElementById('title-screen').style.display = 'none';
-            currentLevel = 6;
-            startGame();
+        // ====== MENU PLUNGER ======
+        // The title screen is a miniature table: each option is a drop target and
+        // the spring below is cocked at whichever one is selected. Firing the ball
+        // into a target is what actually opens it, so every route in — keyboard,
+        // mouse, touch — funnels through launchMenu().
+        const menuActions = {
+            climb: () => {
+                document.getElementById('title-screen').style.display = 'none';
+                currentLevel = 6;
+                startGame();
+            },
+            levels: () => {
+                document.getElementById('title-screen').style.display = 'none';
+                document.getElementById('level-select').style.display = 'block';
+            },
+            achievements: () => {
+                renderAchievements();
+                document.getElementById('title-screen').style.display = 'none';
+                document.getElementById('achievements-modal').style.display = 'block';
+            },
+            credits: () => {
+                document.getElementById('title-screen').style.display = 'none';
+                document.getElementById('credits-modal').style.display = 'block';
+            }
+        };
+
+        const menuRig = document.getElementById('menu-rig');
+        const menuBall = document.getElementById('menu-ball');
+        const menuAim = document.getElementById('menu-aim');
+        const menuPlunger = document.getElementById('menu-plunger');
+        const menuItems = Array.from(document.querySelectorAll('.menu-target'));
+        let menuIndex = 0;
+        let menuPull = 0;          // 0..1 spring compression
+        let menuCharging = false;
+        let menuFiring = false;
+        let menuChargeRAF = null;
+        let menuChargeStart = 0;
+
+        function menuOpen() {
+            return document.getElementById('title-screen').style.display === 'block' && !menuFiring;
+        }
+
+        // Muzzle of the plunger, in #menu-rig coordinates.
+        function menuMuzzle() {
+            const rig = menuRig.getBoundingClientRect();
+            const p = menuPlunger.getBoundingClientRect();
+            return { x: p.left + p.width / 2 - rig.left, y: p.top - rig.top };
+        }
+
+        function selectMenu(i) {
+            menuIndex = (i + menuItems.length) % menuItems.length;
+            menuItems.forEach((el, n) => el.dataset.selected = String(n === menuIndex));
+            const rig = menuRig.getBoundingClientRect();
+            const t = menuItems[menuIndex].getBoundingClientRect();
+            const from = menuMuzzle();
+            // Aim at the target's right edge, where the ball will strike.
+            const tx = t.right - rig.left, ty = t.top + t.height / 2 - rig.top;
+            const dx = tx - from.x, dy = ty - from.y;
+            menuAim.style.width = Math.hypot(dx, dy) + 'px';
+            menuAim.style.right = (rig.width - from.x) + 'px';
+            menuAim.style.top = from.y + 'px';
+            menuAim.style.transform = `rotate(${Math.atan2(dy, dx) * 180 / Math.PI + 180}deg)`;
+        }
+
+        function setPull(v) {
+            menuPull = Math.max(0, Math.min(1, v));
+            menuRig.style.setProperty('--pull', menuPull.toFixed(3));
+        }
+
+        function startCharge() {
+            if (!menuOpen() || menuCharging) return;
+            menuCharging = true;
+            menuRig.dataset.armed = 'true';
+            menuChargeStart = performance.now();
+            const step = (now) => {
+                if (!menuCharging) return;
+                setPull(Math.min(1, (now - menuChargeStart) / 620));
+                menuChargeRAF = requestAnimationFrame(step);
+            };
+            menuChargeRAF = requestAnimationFrame(step);
+        }
+
+        function releaseCharge() {
+            if (!menuCharging) return;
+            menuCharging = false;
+            if (menuChargeRAF) cancelAnimationFrame(menuChargeRAF);
+            // A tap still launches — just softly.
+            launchMenu(Math.max(0.28, menuPull));
+        }
+
+        function launchMenu(power) {
+            if (menuFiring || !menuItems[menuIndex]) return;
+            menuFiring = true;
+            const target = menuItems[menuIndex];
+            const action = menuActions[target.dataset.menu];
+            setPull(0);
+            menuRig.dataset.armed = 'false';
+            sfxPlungerRelease(power);
+
+            const rig = menuRig.getBoundingClientRect();
+            const t = target.getBoundingClientRect();
+            const from = menuMuzzle();
+            const to = { x: t.right - rig.left - 10, y: t.top + t.height / 2 - rig.top };
+            // Quadratic arc: a harder pull throws a flatter, faster shot.
+            const ctrl = { x: from.x + (to.x - from.x) * 0.25, y: from.y - 40 - 70 * power };
+            const dur = 620 - 260 * power;
+            const t0 = performance.now();
+            menuBall.style.opacity = '1';
+
+            // rAF only draws the flight. Completion is owned by timers, because
+            // rAF stops ticking in a backgrounded tab and the menu must never be
+            // left stuck mid-launch.
+            const fly = (now) => {
+                const k = Math.min(1, (now - t0) / dur);
+                const inv = 1 - k;
+                const x = inv * inv * from.x + 2 * inv * k * ctrl.x + k * k * to.x;
+                const y = inv * inv * from.y + 2 * inv * k * ctrl.y + k * k * to.y;
+                menuBall.style.transform = `translate(${x - 7.5}px, ${y - 7.5}px)`;
+                if (k < 1) requestAnimationFrame(fly);
+            };
+            requestAnimationFrame(fly);
+
+            setTimeout(() => {
+                menuBall.style.opacity = '0';
+                target.classList.add('menu-hit');
+                sfxMenuHit();
+                setTimeout(() => {
+                    target.classList.remove('menu-hit');
+                    menuFiring = false;
+                    if (action) action();
+                }, 260);
+            }, dur);
+        }
+
+        function sfxPlungerRelease(power) {
+            if (sfxMuted) return;
+            _beep(90 + 130 * power, 'sawtooth', 0.08, 0.13);
+        }
+        function sfxMenuHit() {
+            if (sfxMuted) return;
+            [660, 990].forEach((f, i) => _beep(f, 'square', 0.1, 0.11, i * 0.05));
+        }
+
+        menuItems.forEach((el, i) => {
+            el.addEventListener('mouseenter', () => { if (menuOpen()) selectMenu(i); });
+            el.addEventListener('focus', () => { if (menuOpen()) selectMenu(i); });
+            // Click/tap aims at that option and fires it — the plunger animation
+            // still plays, so pointer users see the same launch.
+            el.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (!menuOpen()) return;
+                selectMenu(i);
+                launchMenu(0.6);
+            });
+            // Holding the button charges the spring for a harder shot.
+            el.addEventListener('pointerdown', (e) => {
+                if (e.pointerType === 'mouse' && e.button !== 0) return;
+                if (!menuOpen()) return;
+                selectMenu(i);
+                startCharge();
+            });
+        });
+        menuPlunger.addEventListener('pointerdown', () => startCharge());
+        window.addEventListener('pointerup', () => { if (menuCharging) releaseCharge(); });
+        window.addEventListener('pointercancel', () => {
+            menuCharging = false;
+            if (menuChargeRAF) cancelAnimationFrame(menuChargeRAF);
+            setPull(0);
         });
 
-        // Title screen -> Level select
-        document.getElementById('levels-btn').addEventListener('click', () => {
-            document.getElementById('title-screen').style.display = 'none';
-            document.getElementById('level-select').style.display = 'block';
+        document.addEventListener('keydown', (e) => {
+            if (!menuOpen()) return;
+            const k = e.key.toLowerCase();
+            if (k === 'arrowup' || k === 'w') { selectMenu(menuIndex - 1); e.preventDefault(); }
+            else if (k === 'arrowdown' || k === 's') { selectMenu(menuIndex + 1); e.preventDefault(); }
+            else if (e.key === ' ' || e.key === 'Enter') { startCharge(); e.preventDefault(); }
         });
+        document.addEventListener('keyup', (e) => {
+            if (e.key === ' ' || e.key === 'Enter') releaseCharge();
+        });
+        window.addEventListener('resize', () => { if (menuOpen()) selectMenu(menuIndex); });
 
-        // Credits
-        document.getElementById('credits-btn').addEventListener('click', () => {
-            document.getElementById('title-screen').style.display = 'none';
-            document.getElementById('credits-modal').style.display = 'block';
-        });
         document.getElementById('credits-close').addEventListener('click', () => {
             document.getElementById('credits-modal').style.display = 'none';
             document.getElementById('title-screen').style.display = 'block';
@@ -4218,11 +4744,7 @@
                 PinballAchievements.unlockedCount() + ' / ' + PinballAchievements.total + ' UNLOCKED';
         }
 
-        document.getElementById('achievements-btn').addEventListener('click', () => {
-            renderAchievements();
-            document.getElementById('title-screen').style.display = 'none';
-            document.getElementById('achievements-modal').style.display = 'block';
-        });
+        // The ACHIEVEMENTS entry point lives in the plunger menu (menuActions).
         document.getElementById('achievements-close').addEventListener('click', () => {
             document.getElementById('achievements-modal').style.display = 'none';
             document.getElementById('title-screen').style.display = 'block';

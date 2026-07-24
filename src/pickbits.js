@@ -237,6 +237,7 @@ const PickBitsClient = (() => {
                 gamesPlayed: c.gamesPlayed | 0,
                 bestMultiplier: c.bestMultiplier || 1,
                 tablesPlayed: Object.keys(c.tablesPlayed || {}).length,
+                boardsMastered: Object.keys(c.boardsMastered || {}).length,
                 achievementsUnlocked: Object.keys(a.unlocked || {}).length,
                 achievementsTotal: total
             };
@@ -328,7 +329,7 @@ const PickBitsClient = (() => {
         out.bestMultiplier = Math.max(local.bestMultiplier || 1, cloud.bestMultiplier || 1);
         out.customTableSaved = !!(local.customTableSaved || cloud.customTableSaved);
         // Set-maps → union.
-        ['elementsCollected', 'tablesPlayed'].forEach(k => {
+        ['elementsCollected', 'tablesPlayed', 'boardsMastered'].forEach(k => {
             const merged = {};
             const lu = local[k] || {}, cu = cloud[k] || {};
             for (const id in lu) if (lu[id]) merged[id] = true;

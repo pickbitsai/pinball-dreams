@@ -26,8 +26,11 @@ There is **no build system** — no `package.json`, no bundler, no dev server, n
 - `gameState` — score, balls, flags. `CONFIG` — dimensions, ball/flipper physics.
 - `LEVELS` — 7 tables, each with `theme`, `zone` (`fire`/`ice`/`rock`) and a `mission` (`{action, goal, reward, instruction}`).
 - `climbMode` — the 20-floor ascent. Floors spawn lazily via `spawnClimbBoard(floor)`, rotating `CLIMB_BOARDS`. Breaking a `floor-panel` ceiling tile spawns the next floor.
+- **Elemental seals** (`climbFloorGate`) — every climb floor's ceiling is locked to its board's `zone` element. Work that floor's task (a halved version of the board's mission) to break the seal, which also *hands you* that element; the ceiling then only shatters while that power is live (`canBreachFloor`). If it lapses first, `respawnSealCapsule()` drops a guaranteed re-arm so the task never has to be redone. Gates advance from inside `advanceMission()` — one seam, so mission and seal actions can't drift apart.
+- **Board mastery** is a PickBits perk: anonymous runs re-earn every seal, signed-in players start mastered boards pre-unsealed (`climbBoardMastered`). Mastery is still *recorded* while anonymous, so signing in later pays it out retroactively.
 - `powerSystem` — timed `fire`/`ice`/`rock` ball powers from `rollPowerCapsule()` → `activatePower()`. `powerScoreMultiplier(action)` maps each power to the actions it boosts.
 - `missionSystem` — light 3 lanes → shoot the ramp → complete the board's mission.
+- **Plunger menu** — the title screen is a small table: each option is a drop target and the spring below is cocked at the selection. Keyboard, mouse and touch all funnel through `launchMenu()`, and `menuActions` is the single map of what each option does. Completion is owned by `setTimeout`, not `requestAnimationFrame`, so a backgrounded tab can't strand the menu mid-launch.
 - `loseBall()` — **the single drain seam.** All three drain paths (sensor, out-of-bounds, fallback) funnel through it. Put per-ball logic here, not in the collision handler.
 - Screens are DOM overlays toggled by `display`. Any new overlay must be added to the hide-lists in `showTitleScreen()`, `showLevelSelect()`, `startGame()` **and** `endGame()`, or it bleeds across screens.
 
@@ -53,5 +56,5 @@ On login the bridge **merges** cloud into local (max of bests, union of sets, ea
 ## Gotchas
 
 - `endGame()` clears `climbMode.active` — read the climb floor *before* that line.
-- A hidden browser tab freezes CSS transitions at `currentTime: 0`, so the achievement toast looks stuck under headless/automated checks. Not a bug; call `el.getAnimations().forEach(a => a.finish())` to step past it.
+- A hidden browser tab freezes CSS transitions at `currentTime: 0` and stops `requestAnimationFrame`, so the achievement toast looks stuck and rAF-driven animation never advances under headless/automated checks. Not a bug; call `el.getAnimations().forEach(a => a.finish())` to step past a transition. **Never make state changes depend on a rAF callback firing** — drive visuals with rAF, but own completion with timers.
 - PostHog is configured `person_profiles: 'identified_only'`; `src/pickbits.js` supplies the `identify()` on sign-in.

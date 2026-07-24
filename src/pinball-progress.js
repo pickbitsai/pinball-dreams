@@ -34,6 +34,7 @@ const PinballCareer = (() => {
             ballSaves: 0,
             elementsCollected: {},  // set-map: fire / ice / rock
             tablesPlayed: {},       // set-map: index into LEVELS
+            boardsMastered: {},     // set-map: climb boards whose seal you've broken
             customTableSaved: false
         };
     }
@@ -44,6 +45,7 @@ const PinballCareer = (() => {
         const out = Object.assign(blank(), stored && stored.version === VERSION ? stored : null);
         out.elementsCollected = Object.assign({}, out.elementsCollected);
         out.tablesPlayed = Object.assign({}, out.tablesPlayed);
+        out.boardsMastered = Object.assign({}, out.boardsMastered);
         // Adopt the pre-PickBits high score so existing players keep their best.
         let legacy = 0;
         try { legacy = parseInt(localStorage.getItem(LEGACY_HIGH_SCORE), 10) || 0; } catch (e) {}
@@ -128,7 +130,9 @@ const PinballAchievements = (() => {
         { id: 'ball-saver',    icon: '🛡️', title: 'SECOND CHANCE',   desc: 'Rescue a ball with the ball-save gate.' },
         { id: 'demolition',    icon: '🔨', title: 'DEMOLITION',      desc: 'Break 50 floor panels.' },
         { id: 'table-tourist', icon: '🗺️', title: 'TABLE TOURIST',   desc: 'Play all five main tables.' },
-        { id: 'architect',     icon: '📐', title: 'ARCHITECT',       desc: 'Build and save a custom table.' }
+        { id: 'architect',     icon: '📐', title: 'ARCHITECT',       desc: 'Build and save a custom table.' },
+        { id: 'first-breach',  icon: '💥', title: 'SEAL BREAKER',    desc: 'Shatter an elemental ceiling seal in Climb mode.' },
+        { id: 'zone-master',   icon: '🔱', title: 'MASTER OF ELEMENTS', desc: 'Master the seal on all five Climb boards.' }
     ];
 
     const BY_ID = {};
@@ -196,6 +200,8 @@ const PinballAchievements = (() => {
         if (c.customTableSaved) unlock('architect');
         // Tables 0-4 are the five main boards (5 = editor, 6 = climb).
         if ([0, 1, 2, 3, 4].every(i => c.tablesPlayed[i])) unlock('table-tourist');
+        // The same five boards rotate as Climb floors (CLIMB_BOARDS).
+        if ([0, 1, 2, 3, 4].every(i => c.boardsMastered[i])) unlock('zone-master');
         // Per-run: all three elemental balls collected in a single game.
         if (ctx.runElements && ['fire', 'ice', 'rock'].every(e => ctx.runElements[e])) {
             unlock('elementalist');
