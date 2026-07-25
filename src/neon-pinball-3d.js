@@ -37,6 +37,24 @@
         });
     }
 
+    // Phones are fill-rate bound and choke on the desktop lighting rig (a soft
+    // shadow pass every frame plus a PointLight per deck and per bumper — dozens
+    // of dynamic lights once the climb stacks floors). Detect low-power devices
+    // once so the renderer can drop shadows, MSAA, extra lights and pixel ratio.
+    function detectLowPower() {
+        try {
+            const ua = navigator.userAgent || '';
+            if (/Mobi|Android|iPhone|iPad|iPod|Silk|Kindle/i.test(ua)) return true;
+            const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+            const smallViewport = Math.min(window.innerWidth || 0, window.innerHeight || 0) <= 820;
+            if (coarse && smallViewport) return true;
+            if ((navigator.hardwareConcurrency || 8) <= 4) return true;
+        } catch {
+            /* default to the full-quality path */
+        }
+        return false;
+    }
+
     class NeonPinball3D {
         constructor(options) {
             this.canvas = options.canvas;
@@ -46,16 +64,21 @@
             this.assetNodes = new Map();
             this.floorKey = '';
             this.elapsed = 0;
+            this.lowPower = typeof options.lowPower === 'boolean' ? options.lowPower : detectLowPower();
+            this.canvas.dataset.quality = this.lowPower ? 'lite' : 'full';
 
             this.renderer = new THREE.WebGLRenderer({
                 canvas: this.canvas,
-                antialias: true,
+                antialias: !this.lowPower,
                 alpha: false,
                 powerPreference: 'high-performance',
             });
-            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+            const dpr = window.devicePixelRatio || 1;
+            // Full quality caps at 1.5x; lite renders at native CSS pixels — the
+            // single biggest fill-rate win on high-DPR phones.
+            this.renderer.setPixelRatio(this.lowPower ? Math.min(dpr, 1) : Math.min(dpr, 1.5));
             this.renderer.setSize(BOARD_WIDTH, BOARD_HEIGHT, false);
-            this.renderer.shadowMap.enabled = true;
+            this.renderer.shadowMap.enabled = !this.lowPower;
             this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             this.renderer.outputEncoding = THREE.sRGBEncoding;
             this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -145,7 +168,7 @@
             const key = new THREE.SpotLight(0x24cfff, 4.1, WORLD_LENGTH * 1.7, Math.PI / 5.5, 0.48, 1.1);
             key.position.set(-6.5, 11, 3);
             key.target.position.set(0, 0, -1);
-            key.castShadow = true;
+            key.castShadow = !this.lowPower;
             key.shadow.mapSize.set(1024, 1024);
             this.scene.add(key, key.target);
 
@@ -325,9 +348,14 @@
             addEdge(edgeGeometryLong, pink, WORLD_WIDTH / 2 + 0.15, 0, 0, Math.PI / 2);
             addEdge(edgeGeometryShort, amber, 0, -WORLD_LENGTH / 2 - 0.15, Math.PI / 2, 0);
 
-            const underGlow = new THREE.PointLight(color(theme.bumper, '#ff2fba'), 2.4, 8, 1.7);
-            underGlow.position.set(0, 0.55, WORLD_LENGTH * 0.12);
-            floor.add(underGlow);
+            // One PointLight per deck multiplies with floor count in the climb.
+            // Skip it on low-power devices — the hemisphere + spot + accent lights
+            // already carry the base lighting.
+            if (!this.lowPower) {
+                const underGlow = new THREE.PointLight(color(theme.bumper, '#ff2fba'), 2.4, 8, 1.7);
+                underGlow.position.set(0, 0.55, WORLD_LENGTH * 0.12);
+                floor.add(underGlow);
+            }
 
             const reactor = this.cloneAsset('Reactor', theme.accent, theme.wall);
             if (reactor) {
@@ -486,9 +514,14 @@
                 ring.position.y = 0.38;
                 group.add(base, ring);
             }
-            const light = new THREE.PointLight(color(tint, '#ff2fba'), 1.3, 3.3, 1.8);
-            light.position.y = 0.66;
-            group.add(light);
+            // Bumpers are the densest bodies on the board; a PointLight on each
+            // one is the heaviest per-frame cost. The emissive neon ring still
+            // reads as lit without it, so skip the light on low-power devices.
+            if (!this.lowPower) {
+                const light = new THREE.PointLight(color(tint, '#ff2fba'), 1.3, 3.3, 1.8);
+                light.position.y = 0.66;
+                group.add(light);
+            }
             group.userData.flashable = true;
             group.userData.baseScale = group.scale.clone();
             return group;
