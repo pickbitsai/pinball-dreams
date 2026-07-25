@@ -2,8 +2,8 @@
     'use strict';
 
     const PX = 50;
-    const BOARD_WIDTH = 400;
-    const BOARD_HEIGHT = 860;
+    const BOARD_WIDTH = 600;
+    const BOARD_HEIGHT = 1720;
     const WORLD_WIDTH = BOARD_WIDTH / PX;
     const WORLD_LENGTH = BOARD_HEIGHT / PX;
 
@@ -63,9 +63,9 @@
 
             this.scene = new THREE.Scene();
             this.scene.background = new THREE.Color(0x02040b);
-            this.scene.fog = new THREE.FogExp2(0x02040b, 0.027);
+            this.scene.fog = new THREE.FogExp2(0x02040b, 0.018);
 
-            this.camera = new THREE.PerspectiveCamera(38, BOARD_WIDTH / BOARD_HEIGHT, 0.1, 90);
+            this.camera = new THREE.PerspectiveCamera(38, BOARD_WIDTH / BOARD_HEIGHT, 0.1, 140);
             this.camera.position.set(0, WORLD_LENGTH * 0.93, WORLD_LENGTH * 0.91);
             this.camera.lookAt(0, 0, 0.72);
 
@@ -142,7 +142,7 @@
             const hemisphere = new THREE.HemisphereLight(0x6edfff, 0x080218, 0.68);
             this.scene.add(hemisphere);
 
-            const key = new THREE.SpotLight(0x24cfff, 4.1, 38, Math.PI / 5.5, 0.48, 1.1);
+            const key = new THREE.SpotLight(0x24cfff, 4.1, WORLD_LENGTH * 1.7, Math.PI / 5.5, 0.48, 1.1);
             key.position.set(-6.5, 11, 3);
             key.target.position.set(0, 0, -1);
             key.castShadow = true;
@@ -300,7 +300,7 @@
             surface.receiveShadow = true;
             floor.add(surface);
 
-            const grid = new THREE.GridHelper(WORLD_LENGTH - 0.35, 28, color(theme.wall, '#1ac8ff'), color(theme.wall, '#1ac8ff'));
+            const grid = new THREE.GridHelper(WORLD_LENGTH - 0.35, 56, color(theme.wall, '#1ac8ff'), color(theme.wall, '#1ac8ff'));
             grid.scale.x = WORLD_WIDTH / WORLD_LENGTH;
             grid.position.y = 0.086;
             grid.material.transparent = true;
@@ -326,18 +326,18 @@
             addEdge(edgeGeometryShort, amber, 0, -WORLD_LENGTH / 2 - 0.15, Math.PI / 2, 0);
 
             const underGlow = new THREE.PointLight(color(theme.bumper, '#ff2fba'), 2.4, 8, 1.7);
-            underGlow.position.set(0, 0.55, 2.1);
+            underGlow.position.set(0, 0.55, WORLD_LENGTH * 0.12);
             floor.add(underGlow);
 
             const reactor = this.cloneAsset('Reactor', theme.accent, theme.wall);
             if (reactor) {
                 reactor.scale.setScalar(0.62);
-                reactor.position.set(0, -0.42, -5.75);
+                reactor.position.set(0, -0.42, -WORLD_LENGTH / 2 + 1.25);
                 floor.add(reactor);
             } else {
                 const core = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.08, 12, 48), amber);
                 core.rotation.x = Math.PI / 2;
-                core.position.set(0, 0.12, -5.75);
+                core.position.set(0, 0.12, -WORLD_LENGTH / 2 + 1.25);
                 floor.add(core);
             }
 
@@ -710,7 +710,7 @@
             const width = Math.max(lengths[0], lengths[1], 0.3);
             const target = new THREE.Mesh(
                 new THREE.BoxGeometry(width, 0.65, 0.18),
-                this.neonMaterial(theme.accent, 2.8)
+                this.neonMaterial(body.render?.fillStyle || theme.accent, 2.8)
             );
             target.position.y = 0.34;
             target.castShadow = true;
@@ -836,13 +836,13 @@
             else if (label === 'ball') group = this.createBall(body);
             else if (label.startsWith('zone-')) group = this.createZone(body, theme);
             else if (label === 'power-scoop') group = this.createScoop(body, theme);
-            else if (label === 'mission-lane') group = this.createLaneGate(body, theme);
+            else if (label === 'mission-lane' || label === 'bonus-lane') group = this.createLaneGate(body, theme);
             else if (label === 'power-capsule') group = this.createPowerCapsule(body, theme);
             else if (label === 'bumper') group = this.createBumper(body, theme);
             else if (label.includes('flipper')) group = this.createFlipper(body, theme);
-            else if (label === 'ramp' || label === 'mission-ramp') group = this.createRamp(body, theme);
+            else if (label === 'ramp' || label === 'mission-ramp' || label === 'feature-ramp') group = this.createRamp(body, theme);
             else if (label === 'spinner') group = this.createSpinner(body, theme);
-            else if (label === 'drop-target' || label === 'floor-panel' || label === 'power-target') group = this.createTarget(body, theme);
+            else if (label === 'drop-target' || label === 'floor-panel' || label === 'power-target' || label === 'standup-target') group = this.createTarget(body, theme);
             else if (label === 'slingshot') group = this.createSlingshot(body, theme);
             else if (body.circleRadius) group = this.createPost(body, theme);
             else group = this.createRail(body, theme);

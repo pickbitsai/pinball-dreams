@@ -42,7 +42,7 @@
             border-radius: 0;
             padding: 10px 20px;
             width: 100%;
-            max-width: 400px;
+            max-width: 600px;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -149,7 +149,7 @@
             display: none; z-index: 100;
             flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 4px;
             padding: 6px; background: rgba(26,26,46,0.95);
-            border: 2px solid #4a4a6a; border-top: none; width: 100%; max-width: 400px;
+            border: 2px solid #4a4a6a; border-top: none; width: 100%; max-width: 600px;
         }
         .editor-btn {
             background: linear-gradient(180deg, #6366f1 0%, #4f46e5 100%);
@@ -416,8 +416,8 @@
         #game-canvas,
         #game-3d-canvas {
             display: block;
-            width: 400px;
-            height: 860px;
+            width: 600px;
+            height: 1720px;
             background: #040815;
             border: 1px solid rgba(26, 200, 255, 0.74);
             border-top: none;
@@ -1017,7 +1017,7 @@
         #credits-modal .credits-label { color: var(--muted); font-family: 'Orbitron', sans-serif; }
         #credits-modal .credits-value { color: var(--cyan); }
         #editor-controls {
-            max-width: 400px;
+            max-width: 600px;
             gap: 5px;
             padding: 7px;
             border: 1px solid rgba(26, 200, 255, 0.6);
@@ -1598,7 +1598,7 @@
         </div>
     </div>
     <div id="instructions">
-        <span>Desktop:</span> A/D for flippers | Space to launch |
+        <span>Desktop:</span> A/D, arrows, or left/right Shift for flippers | Space to launch |
         <span>Mobile:</span> Tap sides for flippers
     </div>
 
@@ -1608,17 +1608,21 @@
          Both must load before the game script below, which calls into them. -->
     <script src="src/pinball-progress.js"></script>
     <script src="src/pickbits.js"></script>
+    <script src="src/pinball-board-reference.js"></script>
+    <script src="src/pinball-layout.js"></script>
 
     <script>
         const { Engine, Bodies, Body, Composite, Constraint, Events } = Matter;
 
         const CONFIG = {
-            width: 400, height: 860,
+            width: 600, height: 1720,
             ball: { radius: 10, restitution: 0.5, friction: 0.001, frictionAir: 0.0005, density: 0.0015 },
             flipper: { restAngle: 0.5, activeAngle: -0.5 },
             totalBalls: 3
         };
+        const BASE_BOARD_WIDTH = 400;
         const BASE_BOARD_HEIGHT = 700;
+        const boardX = (value) => value * (CONFIG.width / BASE_BOARD_WIDTH);
         const boardY = (value) => value * (CONFIG.height / BASE_BOARD_HEIGHT);
 
         const LEVELS = [
@@ -2366,12 +2370,23 @@
             return -floor * CONFIG.height;
         }
 
+        function getFlipperAssembly(baseY = 0) {
+            return PinballLayout.flipperAssembly(CONFIG.width, CONFIG.height, baseY);
+        }
+
+        function addFlipperGuideWalls(walls, wallOpts, baseY = 0) {
+            const assembly = getFlipperAssembly(baseY);
+            walls.push(...createCurvedWall(assembly.leftGuide, 12, wallOpts));
+            walls.push(...createCurvedWall(assembly.rightGuide, 12, wallOpts));
+            return assembly;
+        }
+
         function createZoneSensor(level, baseY = 0) {
             const zone = level.zone || 'fire';
             const positions = {
-                fire: { x: 200, y: 250, radius: 58 },
-                ice: { x: 175, y: 330, radius: 62 },
-                rock: { x: 205, y: 385, radius: 60 }
+                fire: { x: boardX(200), y: 250, radius: 58 },
+                ice: { x: boardX(175), y: 330, radius: 62 },
+                rock: { x: boardX(205), y: 385, radius: 60 }
             };
             const palette = { fire: '#ff5a24', ice: '#5ee7ff', rock: '#e2a15a' };
             const position = positions[zone] || positions.fire;
@@ -2387,13 +2402,144 @@
             return sensor;
         }
 
+        function createReferenceBoardFeatures(level, baseY, wallOpts, wallSink, options = {}) {
+            const library = window.PinballBoardReference;
+            const profile = library?.profileFor(level.name);
+            if (!profile) return null;
+
+            const W = CONFIG.width;
+            const H = CONFIG.height;
+            const floor = Number.isFinite(options.floor) ? options.floor : -1;
+            const px = value => value * W;
+            const py = value => baseY + value * H;
+            const bankPrefix = `${level.name.toLowerCase()}-${floor}-${Math.round(baseY)}`;
+
+            // Curved inner guides make the long side shots read as real orbits
+            // instead of empty strips beside a stretched center field.
+            profile.guides.forEach(path => {
+                const points = path.map(([x, y]) => ({ x: px(x), y: py(y) }));
+                wallSink.push(...createCurvedWall(points, 8, {
+                    ...wallOpts,
+                    render: { fillStyle: level.theme.secondary || level.theme.accent }
+                }));
+            });
+
+            // Secondary rollovers sit inside the side orbits and mid-field
+            // returns. They reward navigating the full length of the new board.
+            profile.bonusLanes.forEach(([x, y, angle], index) => {
+                Composite.add(world, Bodies.rectangle(px(x), py(y), 40, 11, {
+                    isStatic: true,
+                    isSensor: true,
+                    angle,
+                    label: 'bonus-lane',
+                    render: { fillStyle: level.theme.wall },
+                    collisionFilter: { category: CATEGORY.SENSOR },
+                    plugin: {
+                        referenceFeature: true,
+                        lane: index,
+                        score: 180 + index * 30,
+                        cooldownUntil: 0
+                    }
+                }));
+            });
+
+            // Physical side droppers are grouped into resetting banks. Banks are
+            // deliberately placed along the long outer routes so a missed ramp
+            // still gives the player useful target progress.
+            profile.dropBanks.forEach(bank => {
+                const bankId = `${bankPrefix}-${bank.id}`;
+                for (let index = 0; index < bank.count; index++) {
+                    const x = bank.axis === 'horizontal' ? bank.x + index * bank.spacing : bank.x;
+                    const y = bank.axis === 'vertical' ? bank.y + index * bank.spacing : bank.y;
+                    const homeX = px(x);
+                    const homeY = py(y);
+                    const target = Bodies.rectangle(homeX, homeY, 18, 32, {
+                        isStatic: true,
+                        angle: bank.angle || 0,
+                        label: 'drop-target',
+                        restitution: 0.24,
+                        render: { fillStyle: level.theme.secondary || level.theme.accent },
+                        collisionFilter: { category: CATEGORY.BUMPER },
+                        plugin: {
+                            floor,
+                            hit: false,
+                            score: 300,
+                            idx: index,
+                            referenceBank: true,
+                            bankId,
+                            bankSize: bank.count,
+                            homeX,
+                            homeY,
+                            homeColor: level.theme.secondary || level.theme.accent
+                        }
+                    });
+                    Composite.add(world, target);
+                }
+            });
+
+            profile.spinners.forEach(([x, y], index) => {
+                Composite.add(world, Bodies.circle(px(x), py(y), 13, {
+                    isStatic: true,
+                    isSensor: true,
+                    label: 'spinner',
+                    render: { fillStyle: index % 2 ? level.theme.secondary : level.theme.accent },
+                    collisionFilter: { category: CATEGORY.BUMPER },
+                    plugin: {
+                        referenceFeature: true,
+                        score: 90 + index * 20,
+                        angle: index * Math.PI / 3
+                    }
+                }));
+            });
+
+            profile.ramps.forEach(([x, y, angle], index) => {
+                Composite.add(world, Bodies.rectangle(px(x), py(y), 62, 20, {
+                    isStatic: true,
+                    isSensor: true,
+                    angle,
+                    label: 'feature-ramp',
+                    render: { fillStyle: index % 2 ? level.theme.wall : level.theme.accent },
+                    collisionFilter: { category: CATEGORY.SENSOR },
+                    plugin: {
+                        referenceFeature: true,
+                        score: 550 + index * 150,
+                        cooldownUntil: 0
+                    }
+                }));
+            });
+
+            profile.standups.forEach(([x, y, angle], index) => {
+                Composite.add(world, Bodies.rectangle(px(x), py(y), 16, 30, {
+                    isStatic: true,
+                    angle,
+                    label: 'standup-target',
+                    restitution: 0.35,
+                    render: { fillStyle: index % 2 ? level.theme.secondary : level.theme.accent },
+                    collisionFilter: { category: CATEGORY.BUMPER },
+                    plugin: {
+                        referenceFeature: true,
+                        score: 240 + index * 40,
+                        cooldownUntil: 0
+                    }
+                }));
+            });
+
+            return profile;
+        }
+
         function createTraditionalRuleSet(level, baseY = 0) {
             const theme = level.theme;
             missionSystem.lanes = [];
             powerSystem.bankTargets = [];
 
-            // Three rollover lanes select and arm the table mission.
-            [92, 180, 268].forEach((x, index) => {
+            // Five or four rollover lanes, depending on the reference recipe.
+            // Any three distinct lanes still arm the mission, preserving the
+            // approachable rules while providing more skill-shot choices.
+            const laneCount = window.PinballBoardReference?.profileFor(level.name)?.topLaneCount || 5;
+            const laneXs = Array.from({ length: laneCount }, (_, index) =>
+                boardX(62) + index * (boardX(246) / Math.max(1, laneCount - 1))
+            );
+            laneXs.forEach((x, index) => {
                 const lane = Bodies.rectangle(x, baseY + boardY(82), 42, 12, {
                     isStatic: true,
                     isSensor: true,
@@ -2407,7 +2553,7 @@
             });
 
             // A traditional ramp shot starts the selected mission.
-            Composite.add(world, Bodies.rectangle(70, baseY + boardY(340), 62, 20, {
+            Composite.add(world, Bodies.rectangle(boardX(70), baseY + boardY(340), 62, 20, {
                 isStatic: true,
                 isSensor: true,
                 angle: -0.46,
@@ -2419,7 +2565,7 @@
 
             // Complete the three-target POWER bank, then shoot the lit core to
             // perform a weighted capsule draw.
-            [118, 180, 242].forEach((x, index) => {
+            [118, 180, 242].map(boardX).forEach((x, index) => {
                 const targetY = baseY + boardY(458);
                 const target = Bodies.rectangle(x, targetY, 18, 34, {
                     isStatic: true,
@@ -2439,7 +2585,7 @@
                 powerSystem.bankTargets.push(target);
             });
 
-            Composite.add(world, Bodies.circle(305, baseY + boardY(355), 18, {
+            Composite.add(world, Bodies.circle(boardX(305), baseY + boardY(355), 18, {
                 isStatic: true,
                 isSensor: true,
                 label: 'power-scoop',
@@ -2454,6 +2600,7 @@
         function createLevel() {
             const level = LEVELS[currentLevel];
             const W = CONFIG.width, H = CONFIG.height;
+            const X = boardX;
             const Y = boardY;
             const wallOpts = {
                 isStatic: true, restitution: 0.3, friction: 0.0,
@@ -2470,34 +2617,34 @@
 
             // Left wall
             const leftWall = [
-                { x: 20, y: Y(50) }, { x: 20, y: Y(540) },
-                { x: 28, y: Y(560) }, { x: 50, y: Y(580) }
+                { x: X(20), y: Y(50) }, { x: X(20), y: Y(540) },
+                { x: X(28), y: Y(560) }, { x: X(50), y: Y(580) }
             ];
             walls.push(...createCurvedWall(leftWall, 14, wallOpts));
 
             // Right wall
             const rightWall = [
-                { x: W - 50, y: Y(100) }, { x: W - 50, y: Y(545) },
-                { x: W - 60, y: Y(565) }, { x: W - 75, y: Y(580) }
+                { x: W - X(50), y: Y(100) },
+                { x: W - X(50), y: Y(580) }
             ];
             walls.push(...createCurvedWall(rightWall, 14, wallOpts));
 
             // Plunger entrance curve
             const plungerEntrance = [
-                { x: W - 50, y: Y(20) },
-                { x: W - 20, y: Y(45) }, { x: W - 8, y: Y(70) }
+                { x: W - X(50), y: Y(20) },
+                { x: W - X(20), y: Y(45) }, { x: W - X(8), y: Y(70) }
             ];
             walls.push(...createCurvedWall(plungerEntrance, 16, wallOpts));
 
             if (boardExtended) {
-                const extLeft = [{ x: 20, y: -H + Y(50) }, { x: 20, y: Y(50) }];
+                const extLeft = [{ x: X(20), y: -H + Y(50) }, { x: X(20), y: Y(50) }];
                 walls.push(...createCurvedWall(extLeft, 14, wallOpts));
-                const extRight = [{ x: W - 50, y: -H + Y(50) }, { x: W - 50, y: Y(100) }];
+                const extRight = [{ x: W - X(50), y: -H + Y(50) }, { x: W - X(50), y: Y(100) }];
                 walls.push(...createCurvedWall(extRight, 14, wallOpts));
-                walls.push(Bodies.rectangle((20 + W - 50) / 2, -H + Y(50), W - 70, 14, wallOpts));
+                walls.push(Bodies.rectangle((X(20) + W - X(50)) / 2, -H + Y(50), W - X(70), 14, wallOpts));
             } else {
-                walls.push(Bodies.rectangle((20 + W - 50) / 2, Y(30), W - 70, 14, wallOpts));
-                Composite.add(world, Bodies.rectangle(W / 2 - 15, Y(10), W - 80, 16, {
+                walls.push(Bodies.rectangle((X(20) + W - X(50)) / 2, Y(30), W - X(70), 14, wallOpts));
+                Composite.add(world, Bodies.rectangle(W / 2 - X(15), Y(10), W - X(80), 16, {
                     isStatic: true, isSensor: true, label: 'top-exit',
                     render: { fillStyle: 'transparent' },
                     collisionFilter: { category: CATEGORY.SENSOR }
@@ -2505,67 +2652,66 @@
             }
 
             // Plunger lane
-            walls.push(Bodies.rectangle(W - 8, H / 2 + Y(50), 10, H - Y(80), wallOpts));
-            walls.push(Bodies.rectangle(W - 42, H - Y(55), 8, Y(110), wallOpts));
-            walls.push(Bodies.rectangle(W - 25, H - Y(10), 40, 10, wallOpts));
+            walls.push(Bodies.rectangle(W - X(8), H / 2 + Y(50), 10, H - Y(80), wallOpts));
+            walls.push(Bodies.rectangle(W - X(42), H - Y(55), 8, Y(110), wallOpts));
+            walls.push(Bodies.rectangle(W - X(25), H - Y(10), X(40), 10, wallOpts));
 
-            // Bottom guides
-            const leftGuide = [{ x: 50, y: Y(580) }, { x: 70, y: Y(600) }, { x: 85, y: Y(625) }];
-            walls.push(...createCurvedWall(leftGuide, 12, wallOpts));
-            const rightGuide = [{ x: W - 75, y: Y(580) }, { x: W - 90, y: Y(600) }, { x: W - 105, y: Y(625) }];
-            walls.push(...createCurvedWall(rightGuide, 12, wallOpts));
+            // One mirrored assembly owns both guide paths, sling positions, and
+            // flipper pivots. Keeping these values together prevents the right
+            // guide from slowly drifting away from its flipper.
+            const flipperAssembly = addFlipperGuideWalls(walls, wallOpts);
 
             // Level-specific elements
             if (currentLevel === 0) {
-                createBumper(120, Y(180), 24);
-                createBumper(200, Y(130), 28);
-                createBumper(280, Y(180), 24);
-                createBumper(160, Y(300), 22);
-                createBumper(240, Y(300), 22);
-                walls.push(Bodies.polygon(90, H - Y(180), 3, 30, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
-                walls.push(Bodies.polygon(W - 110, H - Y(180), 3, 30, { ...wallOpts, angle: 0, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
+                createBumper(X(120), Y(180), 24);
+                createBumper(X(200), Y(130), 28);
+                createBumper(X(280), Y(180), 24);
+                createBumper(X(160), Y(300), 22);
+                createBumper(X(240), Y(300), 22);
+                walls.push(Bodies.polygon(flipperAssembly.leftSling.x, flipperAssembly.leftSling.y, 3, 30, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
+                walls.push(Bodies.polygon(flipperAssembly.rightSling.x, flipperAssembly.rightSling.y, 3, 30, { ...wallOpts, angle: 0, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
             }
             else if (currentLevel === 1) {
-                const cx = 170, cy = Y(280);
+                const cx = X(170), cy = Y(280);
                 for (let i = 0; i < 6; i++) {
                     const a = (i / 6) * Math.PI * 2 - Math.PI/2;
                     const r = 50 + i * 18;
-                    createBumper(cx + Math.cos(a) * r, cy + Math.sin(a) * Y(r), 18 + (i % 2) * 6);
+                    createBumper(cx + Math.cos(a) * X(r), cy + Math.sin(a) * Y(r), 18 + (i % 2) * 6);
                 }
                 // Spinner at vortex center
-                walls.push(Bodies.circle(170, Y(280), 14, { isStatic: true, isSensor: true, label: 'spinner',
+                walls.push(Bodies.circle(X(170), Y(280), 14, { isStatic: true, isSensor: true, label: 'spinner',
                     render: { fillStyle: level.theme.accent },
                     collisionFilter: { category: CATEGORY.BUMPER },
                     plugin: { score: 75, angle: 0 } }));
             }
             else if (currentLevel === 2) {
-                createBumper(180, Y(120), 24);
-                createBumper(100, Y(200), 20);
-                createBumper(260, Y(200), 20);
-                createBumper(180, Y(280), 24);
-                createBumper(100, Y(360), 20);
-                createBumper(260, Y(360), 20);
-                createBumper(180, Y(440), 24);
-                walls.push(Bodies.rectangle(140, Y(200), 40, 8, { ...wallOpts, angle: 0.5, render: { fillStyle: level.theme.accent } }));
-                walls.push(Bodies.rectangle(220, Y(200), 40, 8, { ...wallOpts, angle: -0.5, render: { fillStyle: level.theme.accent } }));
-                walls.push(Bodies.rectangle(140, Y(360), 40, 8, { ...wallOpts, angle: -0.5, render: { fillStyle: level.theme.accent } }));
-                walls.push(Bodies.rectangle(220, Y(360), 40, 8, { ...wallOpts, angle: 0.5, render: { fillStyle: level.theme.accent } }));
+                createBumper(X(180), Y(120), 24);
+                createBumper(X(100), Y(200), 20);
+                createBumper(X(260), Y(200), 20);
+                createBumper(X(180), Y(280), 24);
+                createBumper(X(100), Y(360), 20);
+                createBumper(X(260), Y(360), 20);
+                createBumper(X(180), Y(440), 24);
+                walls.push(Bodies.rectangle(X(140), Y(200), 40, 8, { ...wallOpts, angle: 0.5, render: { fillStyle: level.theme.accent } }));
+                walls.push(Bodies.rectangle(X(220), Y(200), 40, 8, { ...wallOpts, angle: -0.5, render: { fillStyle: level.theme.accent } }));
+                walls.push(Bodies.rectangle(X(140), Y(360), 40, 8, { ...wallOpts, angle: -0.5, render: { fillStyle: level.theme.accent } }));
+                walls.push(Bodies.rectangle(X(220), Y(360), 40, 8, { ...wallOpts, angle: 0.5, render: { fillStyle: level.theme.accent } }));
             }
             else if (currentLevel === 3) {
-                createBumper(90, Y(160), 28);
-                createBumper(180, Y(120), 32);
-                createBumper(270, Y(160), 28);
-                createBumper(135, Y(300), 24);
-                createBumper(225, Y(300), 24);
-                createBumper(180, Y(420), 26);
+                createBumper(X(90), Y(160), 28);
+                createBumper(X(180), Y(120), 32);
+                createBumper(X(270), Y(160), 28);
+                createBumper(X(135), Y(300), 24);
+                createBumper(X(225), Y(300), 24);
+                createBumper(X(180), Y(420), 26);
                 for (let i = 0; i < 3; i++) {
-                    walls.push(Bodies.rectangle(70 + i * 40, Y(230), 25, 10, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
-                    walls.push(Bodies.rectangle(210 + i * 40, Y(230), 25, 10, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
+                    walls.push(Bodies.rectangle(X(70 + i * 40), Y(230), 25, 10, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
+                    walls.push(Bodies.rectangle(X(210 + i * 40), Y(230), 25, 10, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
                 }
-                walls.push(Bodies.rectangle(180, Y(200), 12, Y(45), { ...wallOpts, render: { fillStyle: level.theme.accent } }));
+                walls.push(Bodies.rectangle(X(180), Y(200), 12, Y(45), { ...wallOpts, render: { fillStyle: level.theme.accent } }));
                 // Castle battlement drop targets
                 [100, 160, 220, 280].forEach((dtX, i) => {
-                    const dt = Bodies.rectangle(dtX, Y(480), 20, 36, {
+                    const dt = Bodies.rectangle(X(dtX), Y(480), 20, 36, {
                         isStatic: true, label: 'drop-target', restitution: 0.2,
                         render: { fillStyle: level.theme.accent },
                         collisionFilter: { category: CATEGORY.BUMPER },
@@ -2576,20 +2722,20 @@
                 });
             }
             else if (currentLevel === 4) {
-                createBumper(90, Y(180), 22);
-                createBumper(270, Y(220), 22);
-                createBumper(130, Y(340), 24);
-                createBumper(230, Y(400), 24);
-                createBumper(170, Y(480), 20);
-                const w1 = [{ x: 70, y: Y(270) }, { x: 110, y: Y(250) }, { x: 150, y: Y(270) }, { x: 190, y: Y(250) }, { x: 230, y: Y(270) }];
+                createBumper(X(90), Y(180), 22);
+                createBumper(X(270), Y(220), 22);
+                createBumper(X(130), Y(340), 24);
+                createBumper(X(230), Y(400), 24);
+                createBumper(X(170), Y(480), 20);
+                const w1 = [{ x: X(70), y: Y(270) }, { x: X(110), y: Y(250) }, { x: X(150), y: Y(270) }, { x: X(190), y: Y(250) }, { x: X(230), y: Y(270) }];
                 walls.push(...createCurvedWall(w1, 8, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
-                const w2 = [{ x: 140, y: Y(430) }, { x: 180, y: Y(410) }, { x: 220, y: Y(430) }, { x: 260, y: Y(410) }, { x: 300, y: Y(430) }];
+                const w2 = [{ x: X(140), y: Y(430) }, { x: X(180), y: Y(410) }, { x: X(220), y: Y(430) }, { x: X(260), y: Y(410) }, { x: X(300), y: Y(430) }];
                 walls.push(...createCurvedWall(w2, 8, { ...wallOpts, render: { fillStyle: level.theme.accent } }));
                 // Wave spinners along the curves
-                Composite.add(world, Bodies.circle(150, Y(268), 13, { isStatic: true, isSensor: true, label: 'spinner',
+                Composite.add(world, Bodies.circle(X(150), Y(268), 13, { isStatic: true, isSensor: true, label: 'spinner',
                     render: { fillStyle: level.theme.accent }, collisionFilter: { category: CATEGORY.BUMPER },
                     plugin: { score: 75, angle: 0 } }));
-                Composite.add(world, Bodies.circle(220, Y(428), 13, { isStatic: true, isSensor: true, label: 'spinner',
+                Composite.add(world, Bodies.circle(X(220), Y(428), 13, { isStatic: true, isSensor: true, label: 'spinner',
                     render: { fillStyle: level.theme.accent }, collisionFilter: { category: CATEGORY.BUMPER },
                     plugin: { score: 75, angle: 0 } }));
             }
@@ -2615,6 +2761,9 @@
                 });
             }
 
+            if (currentLevel !== 5) {
+                createReferenceBoardFeatures(level, 0, wallOpts, walls);
+            }
             createTraditionalRuleSet(level, 0);
             Composite.add(world, walls);
         }
@@ -2622,6 +2771,7 @@
         // ===== CLIMB MODE LEVEL GENERATION =====
         function createClimbLevel(walls, wallOpts) {
             const W = CONFIG.width, H = CONFIG.height;
+            const X = boardX;
             const Y = boardY;
             const cm = climbMode;
             cm.checkpointFlippers = [];
@@ -2632,47 +2782,47 @@
             // EXACT classic board (level 0) layout - proven to work
             // Left wall - extends from ceiling to flipper area
             walls.push(...createCurvedWall([
-                { x: 20, y: Y(30) }, { x: 20, y: Y(540) },
-                { x: 28, y: Y(560) }, { x: 50, y: Y(580) }
+                { x: X(20), y: Y(30) }, { x: X(20), y: Y(540) },
+                { x: X(28), y: Y(560) }, { x: X(50), y: Y(580) }
             ], 14, wallOpts));
 
-            // Right wall
+            // Right wall terminates at the mirrored guide start. The plunger
+            // lane remains outside this playfield boundary.
             walls.push(...createCurvedWall([
-                { x: W - 50, y: Y(100) }, { x: W - 50, y: Y(545) },
-                { x: W - 60, y: Y(565) }, { x: W - 75, y: Y(580) }
+                { x: W - X(50), y: Y(100) },
+                { x: W - X(50), y: Y(580) }
             ], 14, wallOpts));
 
             // Plunger entrance curve
             walls.push(...createCurvedWall([
-                { x: W - 50, y: Y(20) }, { x: W - 20, y: Y(45) }, { x: W - 8, y: Y(70) }
+                { x: W - X(50), y: Y(20) }, { x: W - X(20), y: Y(45) }, { x: W - X(8), y: Y(70) }
             ], 16, wallOpts));
 
             // Top wall removed - replaced by breakable ceiling tiles below
 
             // Plunger lane
-            walls.push(Bodies.rectangle(W - 8, H / 2 + Y(50), 10, H - Y(80), wallOpts));
-            walls.push(Bodies.rectangle(W - 42, H - Y(55), 8, Y(110), wallOpts));
-            walls.push(Bodies.rectangle(W - 25, H - Y(10), 40, 10, wallOpts));
+            walls.push(Bodies.rectangle(W - X(8), H / 2 + Y(50), 10, H - Y(80), wallOpts));
+            walls.push(Bodies.rectangle(W - X(42), H - Y(55), 8, Y(110), wallOpts));
+            walls.push(Bodies.rectangle(W - X(25), H - Y(10), X(40), 10, wallOpts));
 
-            // Bottom guides - left guide extended toward flipper pivot
-            walls.push(...createCurvedWall([{ x: 50, y: Y(580) }, { x: 70, y: Y(600) }, { x: 90, y: Y(618) }, { x: 108, y: Y(632) }], 12, wallOpts));
-            walls.push(...createCurvedWall([{ x: W - 75, y: Y(580) }, { x: W - 90, y: Y(600) }, { x: W - 105, y: Y(625) }], 12, wallOpts));
+            const flipperAssembly = addFlipperGuideWalls(walls, wallOpts);
 
             // Bumpers - same as level 0
-            createBumper(120, Y(180), 24);
-            createBumper(200, Y(130), 28);
-            createBumper(280, Y(180), 24);
-            createBumper(160, Y(300), 22);
-            createBumper(240, Y(300), 22);
+            createBumper(X(120), Y(180), 24);
+            createBumper(X(200), Y(130), 28);
+            createBumper(X(280), Y(180), 24);
+            createBumper(X(160), Y(300), 22);
+            createBumper(X(240), Y(300), 22);
 
             // Slingshots - same as level 0
             const level = LEVELS[6];
-            walls.push(Bodies.polygon(90, H - Y(180), 3, 30, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
-            walls.push(Bodies.polygon(W - 110, H - Y(180), 3, 30, { ...wallOpts, angle: 0, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
+            walls.push(Bodies.polygon(flipperAssembly.leftSling.x, flipperAssembly.leftSling.y, 3, 30, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
+            walls.push(Bodies.polygon(flipperAssembly.rightSling.x, flipperAssembly.rightSling.y, 3, 30, { ...wallOpts, angle: 0, restitution: 1.3, label: 'slingshot', render: { fillStyle: level.theme.accent } }));
             createZoneSensor(LEVELS[0], 0);
+            createReferenceBoardFeatures(LEVELS[0], 0, wallOpts, walls, { floor: 0 });
 
             // Drop targets - floor 0
-            const dt0Positions = [W/2 - 55, W/2, W/2 + 55];
+            const dt0Positions = [W/2 - X(55), W/2, W/2 + X(55)];
             dt0Positions.forEach((dtX, i) => {
                 const dt = Bodies.rectangle(dtX, Y(390), 18, 32, {
                     isStatic: true, label: 'drop-target', restitution: 0.2,
@@ -2691,8 +2841,8 @@
 
             // Breakable ceiling tiles replace the solid top wall
             const ceilY = Y(30);
-            const ceilLeft = 20;
-            const ceilRight = W - 50;
+            const ceilLeft = X(20);
+            const ceilRight = W - X(50);
             const ceilWidth = ceilRight - ceilLeft;
             const ceilPanelCount = 6;
             const ceilPanelW = (ceilWidth / ceilPanelCount) - 4;
@@ -2717,6 +2867,7 @@
             cm.spawnedFloors.add(floor);
 
             const W = CONFIG.width, H = CONFIG.height;
+            const X = boardX;
             const Y = boardY;
             const boardIdx = floor % CLIMB_BOARDS.length;
             const boardLevel = CLIMB_BOARDS[boardIdx];
@@ -2745,111 +2896,106 @@
 
             // Left wall - extends from ceiling level
             walls.push(...createCurvedWall([
-                { x: 20, y: baseY + Y(30) }, { x: 20, y: baseY + Y(540) },
-                { x: 28, y: baseY + Y(560) }, { x: 50, y: baseY + Y(580) }
+                { x: X(20), y: baseY + Y(30) }, { x: X(20), y: baseY + Y(540) },
+                { x: X(28), y: baseY + Y(560) }, { x: X(50), y: baseY + Y(580) }
             ], 14, wallOpts));
 
-            // Right wall - starts lower to leave room for plunger entrance
+            // Right wall terminates at the mirrored guide start.
             walls.push(...createCurvedWall([
-                { x: W - 50, y: baseY + Y(100) }, { x: W - 50, y: baseY + Y(545) },
-                { x: W - 60, y: baseY + Y(565) }, { x: W - 75, y: baseY + Y(580) }
+                { x: W - X(50), y: baseY + Y(100) },
+                { x: W - X(50), y: baseY + Y(580) }
             ], 14, wallOpts));
 
             // Plunger entrance curve
             walls.push(...createCurvedWall([
-                { x: W - 50, y: baseY + Y(20) }, { x: W - 20, y: baseY + Y(45) }, { x: W - 8, y: baseY + Y(70) }
+                { x: W - X(50), y: baseY + Y(20) }, { x: W - X(20), y: baseY + Y(45) }, { x: W - X(8), y: baseY + Y(70) }
             ], 16, wallOpts));
 
             // Plunger lane
-            walls.push(Bodies.rectangle(W - 8, baseY + H / 2 + Y(50), 10, H - Y(80), wallOpts));
-            walls.push(Bodies.rectangle(W - 42, baseY + H - Y(55), 8, Y(110), wallOpts));
-            walls.push(Bodies.rectangle(W - 25, baseY + H - Y(10), 40, 10, wallOpts));
+            walls.push(Bodies.rectangle(W - X(8), baseY + H / 2 + Y(50), 10, H - Y(80), wallOpts));
+            walls.push(Bodies.rectangle(W - X(42), baseY + H - Y(55), 8, Y(110), wallOpts));
+            walls.push(Bodies.rectangle(W - X(25), baseY + H - Y(10), X(40), 10, wallOpts));
 
             // Seal the plunger entrance on upper floors so the ball can't fall in
-            walls.push(Bodies.rectangle(W - 50, baseY + Y(57), 14, Y(90), wallOpts));
+            walls.push(Bodies.rectangle(W - X(50), baseY + Y(57), 14, Y(90), wallOpts));
 
             // Solid transition walls between this board and the one below
             walls.push(...createCurvedWall([
-                { x: 20, y: baseY + Y(580) }, { x: 20, y: baseY + H }
+                { x: X(20), y: baseY + Y(580) }, { x: X(20), y: baseY + H }
             ], 14, wallOpts));
             walls.push(...createCurvedWall([
-                { x: W - 50, y: baseY + Y(580) }, { x: W - 50, y: baseY + H }
+                { x: W - X(50), y: baseY + Y(580) }, { x: W - X(50), y: baseY + H }
             ], 14, wallOpts));
 
-            // Bottom guides - left guide extended toward flipper pivot
-            walls.push(...createCurvedWall([
-                { x: 50, y: baseY + Y(580) }, { x: 70, y: baseY + Y(600) }, { x: 90, y: baseY + Y(618) }, { x: 108, y: baseY + Y(632) }
-            ], 12, wallOpts));
-            walls.push(...createCurvedWall([
-                { x: W - 75, y: baseY + Y(580) }, { x: W - 90, y: baseY + Y(600) }, { x: W - 105, y: baseY + Y(625) }
-            ], 12, wallOpts));
+            const flipperAssembly = addFlipperGuideWalls(walls, wallOpts, baseY);
 
             // Board-specific obstacles
             if (boardIdx === 0) { // Classic
-                addBumper(120, baseY + Y(180), 24);
-                addBumper(200, baseY + Y(130), 28);
-                addBumper(280, baseY + Y(180), 24);
-                addBumper(160, baseY + Y(300), 22);
-                addBumper(240, baseY + Y(300), 22);
-                walls.push(Bodies.polygon(90, baseY + H - Y(180), 3, 30, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: theme.accent } }));
-                walls.push(Bodies.polygon(W - 110, baseY + H - Y(180), 3, 30, { ...wallOpts, angle: 0, restitution: 1.3, label: 'slingshot', render: { fillStyle: theme.accent } }));
+                addBumper(X(120), baseY + Y(180), 24);
+                addBumper(X(200), baseY + Y(130), 28);
+                addBumper(X(280), baseY + Y(180), 24);
+                addBumper(X(160), baseY + Y(300), 22);
+                addBumper(X(240), baseY + Y(300), 22);
+                walls.push(Bodies.polygon(flipperAssembly.leftSling.x, flipperAssembly.leftSling.y, 3, 30, { ...wallOpts, angle: Math.PI, restitution: 1.3, label: 'slingshot', render: { fillStyle: theme.accent } }));
+                walls.push(Bodies.polygon(flipperAssembly.rightSling.x, flipperAssembly.rightSling.y, 3, 30, { ...wallOpts, angle: 0, restitution: 1.3, label: 'slingshot', render: { fillStyle: theme.accent } }));
             }
             else if (boardIdx === 1) { // Vortex
-                const cx = 170, cy = baseY + Y(280);
+                const cx = X(170), cy = baseY + Y(280);
                 for (let i = 0; i < 6; i++) {
                     const a = (i / 6) * Math.PI * 2 - Math.PI / 2;
                     const r = 50 + i * 18;
-                    addBumper(cx + Math.cos(a) * r, cy + Math.sin(a) * Y(r), 18 + (i % 2) * 6);
+                    addBumper(cx + Math.cos(a) * X(r), cy + Math.sin(a) * Y(r), 18 + (i % 2) * 6);
                 }
-                walls.push(Bodies.rectangle(170, baseY + Y(280), 70, 10, { ...wallOpts, restitution: 0.8, render: { fillStyle: theme.accent } }));
+                walls.push(Bodies.rectangle(X(170), baseY + Y(280), X(70), 10, { ...wallOpts, restitution: 0.8, render: { fillStyle: theme.accent } }));
             }
             else if (boardIdx === 2) { // Diamond
-                addBumper(180, baseY + Y(120), 24);
-                addBumper(100, baseY + Y(200), 20);
-                addBumper(260, baseY + Y(200), 20);
-                addBumper(180, baseY + Y(280), 24);
-                addBumper(100, baseY + Y(360), 20);
-                addBumper(260, baseY + Y(360), 20);
-                addBumper(180, baseY + Y(440), 24);
-                walls.push(Bodies.rectangle(140, baseY + Y(200), 40, 8, { ...wallOpts, angle: 0.5, render: { fillStyle: theme.accent } }));
-                walls.push(Bodies.rectangle(220, baseY + Y(200), 40, 8, { ...wallOpts, angle: -0.5, render: { fillStyle: theme.accent } }));
-                walls.push(Bodies.rectangle(140, baseY + Y(360), 40, 8, { ...wallOpts, angle: -0.5, render: { fillStyle: theme.accent } }));
-                walls.push(Bodies.rectangle(220, baseY + Y(360), 40, 8, { ...wallOpts, angle: 0.5, render: { fillStyle: theme.accent } }));
+                addBumper(X(180), baseY + Y(120), 24);
+                addBumper(X(100), baseY + Y(200), 20);
+                addBumper(X(260), baseY + Y(200), 20);
+                addBumper(X(180), baseY + Y(280), 24);
+                addBumper(X(100), baseY + Y(360), 20);
+                addBumper(X(260), baseY + Y(360), 20);
+                addBumper(X(180), baseY + Y(440), 24);
+                walls.push(Bodies.rectangle(X(140), baseY + Y(200), 40, 8, { ...wallOpts, angle: 0.5, render: { fillStyle: theme.accent } }));
+                walls.push(Bodies.rectangle(X(220), baseY + Y(200), 40, 8, { ...wallOpts, angle: -0.5, render: { fillStyle: theme.accent } }));
+                walls.push(Bodies.rectangle(X(140), baseY + Y(360), 40, 8, { ...wallOpts, angle: -0.5, render: { fillStyle: theme.accent } }));
+                walls.push(Bodies.rectangle(X(220), baseY + Y(360), 40, 8, { ...wallOpts, angle: 0.5, render: { fillStyle: theme.accent } }));
             }
             else if (boardIdx === 3) { // Castle
-                addBumper(90, baseY + Y(160), 28);
-                addBumper(180, baseY + Y(120), 32);
-                addBumper(270, baseY + Y(160), 28);
-                addBumper(135, baseY + Y(300), 24);
-                addBumper(225, baseY + Y(300), 24);
-                addBumper(180, baseY + Y(420), 26);
+                addBumper(X(90), baseY + Y(160), 28);
+                addBumper(X(180), baseY + Y(120), 32);
+                addBumper(X(270), baseY + Y(160), 28);
+                addBumper(X(135), baseY + Y(300), 24);
+                addBumper(X(225), baseY + Y(300), 24);
+                addBumper(X(180), baseY + Y(420), 26);
                 for (let i = 0; i < 3; i++) {
-                    walls.push(Bodies.rectangle(70 + i * 40, baseY + Y(230), 25, 10, { ...wallOpts, render: { fillStyle: theme.accent } }));
-                    walls.push(Bodies.rectangle(210 + i * 40, baseY + Y(230), 25, 10, { ...wallOpts, render: { fillStyle: theme.accent } }));
+                    walls.push(Bodies.rectangle(X(70 + i * 40), baseY + Y(230), 25, 10, { ...wallOpts, render: { fillStyle: theme.accent } }));
+                    walls.push(Bodies.rectangle(X(210 + i * 40), baseY + Y(230), 25, 10, { ...wallOpts, render: { fillStyle: theme.accent } }));
                 }
-                walls.push(Bodies.rectangle(180, baseY + Y(200), 12, Y(45), { ...wallOpts, render: { fillStyle: theme.accent } }));
+                walls.push(Bodies.rectangle(X(180), baseY + Y(200), 12, Y(45), { ...wallOpts, render: { fillStyle: theme.accent } }));
             }
             else if (boardIdx === 4) { // Wave
-                addBumper(90, baseY + Y(180), 22);
-                addBumper(270, baseY + Y(220), 22);
-                addBumper(130, baseY + Y(340), 24);
-                addBumper(230, baseY + Y(400), 24);
-                addBumper(170, baseY + Y(480), 20);
+                addBumper(X(90), baseY + Y(180), 22);
+                addBumper(X(270), baseY + Y(220), 22);
+                addBumper(X(130), baseY + Y(340), 24);
+                addBumper(X(230), baseY + Y(400), 24);
+                addBumper(X(170), baseY + Y(480), 20);
                 walls.push(...createCurvedWall([
-                    { x: 70, y: baseY + Y(270) }, { x: 110, y: baseY + Y(250) }, { x: 150, y: baseY + Y(270) },
-                    { x: 190, y: baseY + Y(250) }, { x: 230, y: baseY + Y(270) }
+                    { x: X(70), y: baseY + Y(270) }, { x: X(110), y: baseY + Y(250) }, { x: X(150), y: baseY + Y(270) },
+                    { x: X(190), y: baseY + Y(250) }, { x: X(230), y: baseY + Y(270) }
                 ], 8, { ...wallOpts, render: { fillStyle: theme.accent } }));
                 walls.push(...createCurvedWall([
-                    { x: 140, y: baseY + Y(430) }, { x: 180, y: baseY + Y(410) }, { x: 220, y: baseY + Y(430) },
-                    { x: 260, y: baseY + Y(410) }, { x: 300, y: baseY + Y(430) }
+                    { x: X(140), y: baseY + Y(430) }, { x: X(180), y: baseY + Y(410) }, { x: X(220), y: baseY + Y(430) },
+                    { x: X(260), y: baseY + Y(410) }, { x: X(300), y: baseY + Y(430) }
                 ], 8, { ...wallOpts, render: { fillStyle: theme.accent } }));
             }
 
             createZoneSensor(LEVELS[boardLevel], baseY);
+            createReferenceBoardFeatures(LEVELS[boardLevel], baseY, wallOpts, walls, { floor });
 
             // Drop targets - 3 per floor
             const dtY = baseY + Y(390);
-            const dtPositions = [W/2 - 55, W/2, W/2 + 55];
+            const dtPositions = [W/2 - X(55), W/2, W/2 + X(55)];
             dtPositions.forEach((dtX, i) => {
                 const dt = Bodies.rectangle(dtX, dtY, 18, 32, {
                     isStatic: true, label: 'drop-target', restitution: 0.2,
@@ -2863,7 +3009,7 @@
 
             // Random elemental capsule pickup (floors 1+)
             if (floor > 0) {
-                const orbX = 70 + Math.floor(Math.random() * 3) * 95 + 30;
+                const orbX = X(70 + Math.floor(Math.random() * 3) * 95 + 30);
                 const orbY = baseY + Y(240);
                 const orb = Bodies.circle(orbX, orbY, 13, {
                     isStatic: true, isSensor: true, label: 'power-capsule',
@@ -2874,15 +3020,14 @@
             }
 
             // Flippers for this floor
-            const flipperY = baseY + H - Y(65);
-            const lf = createClimbFlipper(150, flipperY, 'left', floor, theme.accent);
-            const rf = createClimbFlipper(W - 150, flipperY, 'right', floor, theme.accent);
+            const lf = createClimbFlipper('left', floor, theme.accent);
+            const rf = createClimbFlipper('right', floor, theme.accent);
             cm.checkpointFlippers.push({ floor, left: lf, right: rf });
 
             // Breakable ceiling tiles at the top of this board
             const ceilY = baseY + Y(30);
-            const ceilLeft = 20;
-            const ceilRight = W - 50;
+            const ceilLeft = X(20);
+            const ceilRight = W - X(50);
             const ceilWidth = ceilRight - ceilLeft;
             const ceilPanelCount = 6;
             const ceilPanelW = (ceilWidth / ceilPanelCount) - 4;
@@ -2902,9 +3047,12 @@
             Composite.add(world, walls);
         }
 
-        function createClimbFlipper(x, y, side, floor, color) {
+        function createClimbFlipper(side, floor, color) {
             const isLeft = side === 'left';
-            const pivotX = isLeft ? x - 25 : x + 25;
+            const placement = PinballLayout.flipperPlacement(CONFIG.width, CONFIG.height, side, floorY(floor));
+            const x = placement.bodyX;
+            const y = placement.bodyY;
+            const pivotX = placement.pivotX;
             const fillColor = color || LEVELS[6].theme.accent;
 
             const flipper = Bodies.rectangle(x, y, 60, 12, {
@@ -3020,20 +3168,20 @@
         }
 
         function addCustomBumper(x, y) {
-            if (x > CONFIG.width - 60 || x < 40 || y < 50 || y > CONFIG.height - 100) return;
+            if (x > CONFIG.width - boardX(60) || x < boardX(40) || y < 50 || y > CONFIG.height - 100) return;
             customBumpers.push({ x, y, radius: 22 + Math.random() * 8 });
             rebuildCustomLevel();
         }
 
         function addCustomFlipper(x, y) {
-            if (x > CONFIG.width - 60 || x < 40 || y < 80 || y > CONFIG.height - 80) return;
+            if (x > CONFIG.width - boardX(60) || x < boardX(40) || y < 80 || y > CONFIG.height - 80) return;
             const side = x < CONFIG.width / 2 ? 'left' : 'right';
             customFlippers.push({ x, y, side });
             rebuildCustomLevel();
         }
 
         function addCustomRamp(x, y) {
-            if (x > CONFIG.width - 60 || x < 40 || y < 80 || y > CONFIG.height - 150) return;
+            if (x > CONFIG.width - boardX(60) || x < boardX(40) || y < 80 || y > CONFIG.height - 150) return;
             customRamps.push({ x, y });
             rebuildCustomLevel();
         }
@@ -3065,7 +3213,14 @@
         function clearCustomLevel() { customBumpers = []; customFlippers = []; customRamps = []; customWalls = []; rebuildCustomLevel(); }
 
         function saveCustomLevel() {
-            const data = { bumpers: customBumpers, flippers: customFlippers, ramps: customRamps, walls: customWalls };
+            const data = {
+                width: CONFIG.width,
+                height: CONFIG.height,
+                bumpers: customBumpers,
+                flippers: customFlippers,
+                ramps: customRamps,
+                walls: customWalls
+            };
             localStorage.setItem('pinballDreamsCustomLevel', JSON.stringify(data));
             PinballCareer.setFlag('customTableSaved', true);
             PinballAchievements.check();
@@ -3079,8 +3234,17 @@
             if (!raw) return;
             try {
                 const data = JSON.parse(raw);
-                customBumpers = data.bumpers || []; customFlippers = data.flippers || [];
-                customRamps = data.ramps || []; customWalls = data.walls || [];
+                const sourceWidth = Number(data.width) || 400;
+                const sourceHeight = Number(data.height) || 860;
+                const xScale = CONFIG.width / sourceWidth;
+                const yScale = CONFIG.height / sourceHeight;
+                const scaleItem = item => ({ ...item, x: item.x * xScale, y: item.y * yScale });
+                customBumpers = (data.bumpers || []).map(scaleItem);
+                customFlippers = (data.flippers || []).map(scaleItem);
+                customRamps = (data.ramps || []).map(scaleItem);
+                customWalls = (data.walls || []).map(wall =>
+                    wall.map(point => ({ ...point, x: point.x * xScale, y: point.y * yScale }))
+                );
                 rebuildCustomLevel();
                 const btn = document.getElementById('load-level-btn');
                 const prev = btn.textContent; btn.textContent = 'Loaded!';
@@ -3113,9 +3277,10 @@
 
         function createFlipper(side) {
             const isLeft = side === 'left';
-            const x = isLeft ? 150 : CONFIG.width - 150;
-            const y = CONFIG.height - boardY(65);
-            const pivotX = isLeft ? x - 25 : x + 25;
+            const placement = PinballLayout.flipperPlacement(CONFIG.width, CONFIG.height, side);
+            const x = placement.bodyX;
+            const y = placement.bodyY;
+            const pivotX = placement.pivotX;
             const level = LEVELS[currentLevel];
             const flipper = Bodies.rectangle(x, y, 60, 12, {
                 label: `flipper-${side}`, density: 0.03, friction: 0.9, restitution: 0.1,
@@ -3166,7 +3331,7 @@
             const f = floor !== undefined ? floor : 0;
             const baseY = floorY(f);
             // Seal the gap between the plunger entrance curve and the right wall
-            plungerGate = Bodies.rectangle(W - 50, baseY + boardY(57), 14, boardY(90), {
+            plungerGate = Bodies.rectangle(W - boardX(50), baseY + boardY(57), 14, boardY(90), {
                 isStatic: true, label: 'plunger-gate',
                 render: { fillStyle: '#4a4a6a' },
                 collisionFilter: { category: CATEGORY.WALL }
@@ -3177,7 +3342,7 @@
         function createBall() {
             if (ball) Composite.remove(world, ball);
             removePlungerGate();
-            ball = Bodies.circle(CONFIG.width - 25, CONFIG.height - boardY(50), CONFIG.ball.radius, {
+            ball = Bodies.circle(CONFIG.width - boardX(25), CONFIG.height - boardY(50), CONFIG.ball.radius, {
                 label: 'ball', restitution: CONFIG.ball.restitution,
                 friction: CONFIG.ball.friction, frictionAir: CONFIG.ball.frictionAir,
                 density: CONFIG.ball.density, render: { fillStyle: '#ddd' },
@@ -3230,14 +3395,20 @@
 
         // Input handling
         document.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') { keys.left = true; e.preventDefault(); }
-            if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') { keys.right = true; e.preventDefault(); }
+            if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a' || e.code === 'ShiftLeft') {
+                keys.left = true;
+                e.preventDefault();
+            }
+            if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd' || e.code === 'ShiftRight') {
+                keys.right = true;
+                e.preventDefault();
+            }
             if (e.key === ' ') { if (!gameState.ballLaunched && gameState.ballInPlay && !paused) plunger.charging = true; e.preventDefault(); }
             if ((e.key === 'Escape' || e.key.toLowerCase() === 'p') && gameState.isPlaying) { togglePause(); e.preventDefault(); }
         });
         document.addEventListener('keyup', (e) => {
-            if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a') keys.left = false;
-            if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd') keys.right = false;
+            if (e.key === 'ArrowLeft' || e.key.toLowerCase() === 'a' || e.code === 'ShiftLeft') keys.left = false;
+            if (e.key === 'ArrowRight' || e.key.toLowerCase() === 'd' || e.code === 'ShiftRight') keys.right = false;
             if (e.key === ' ') { if (plunger.charging && !gameState.ballLaunched) launchBall(); plunger.charging = false; }
         });
 
@@ -3355,7 +3526,11 @@
             if (!ball || gameState.ballLaunched) return;
             sfxLaunch();
             const power = Math.max(plunger.power, 0.35);
-            Body.applyForce(ball, ball.position, { x: 0, y: -0.055 * power });
+            // Travel distance grows linearly, but ballistic launch velocity only
+            // needs the square root of that growth. Linear scaling was punching
+            // fast shots through the Climb ceiling in a single physics step.
+            const launchScale = PinballLayout.launchScale(CONFIG.height);
+            Body.applyForce(ball, ball.position, { x: 0, y: -0.055 * power * launchScale });
             gameState.ballLaunched = true; plunger.power = 0;
             ballLaunchTime = Date.now();
             document.getElementById('launch-indicator').style.display = 'none';
@@ -3392,6 +3567,54 @@
                     Body.setAngularVelocity(cp.right.flipper, (rT - cp.right.flipper.angle) * 0.35);
                 });
             }
+        }
+
+        function scoreReferenceFeature(body, action, sound = 'bumper') {
+            if (!body?.plugin?.referenceFeature) return;
+            const now = Date.now();
+            if (now < (body.plugin.cooldownUntil || 0)) return;
+            body.plugin.cooldownUntil = now + 320;
+            const pts = Math.round((body.plugin.score || 200) * scoreMultiplier * powerScoreMultiplier(action));
+            gameState.score += pts;
+            updateScoreDisplay();
+            createScorePopup(body.position.x, body.position.y, pts);
+            createParticles(body.position.x, body.position.y, body.render.fillStyle || LEVELS[currentLevel].theme.accent);
+            addComboHit();
+            advanceMission(action, 1, body.position);
+            if (sound === 'spinner') sfxSpinner();
+            else if (sound === 'sling') sfxSlingshot();
+            else sfxBumper(pts);
+        }
+
+        function checkReferenceBank(bankId, origin) {
+            if (!bankId) return;
+            const bank = Composite.allBodies(world).filter(body =>
+                body.plugin?.referenceBank && body.plugin.bankId === bankId
+            );
+            if (!bank.length || bank.some(target => !target.plugin.hit) || bank.some(target => target.plugin.resetting)) return;
+
+            bank.forEach(target => { target.plugin.resetting = true; });
+            const bonus = Math.round(2500 * scoreMultiplier * powerScoreMultiplier('target'));
+            gameState.score += bonus;
+            updateScoreDisplay();
+            createScorePopup(origin.x, origin.y - 34, `BANK CLEAR +${bonus}`);
+            createParticles(origin.x, origin.y, LEVELS[currentLevel].theme.secondary || LEVELS[currentLevel].theme.accent);
+            PinballCareer.bump('banksCleared');
+            PinballAchievements.check();
+            sfxFloorClear();
+
+            setTimeout(() => {
+                bank.forEach(target => {
+                    if (!Composite.get(world, target.id, 'body')) return;
+                    target.plugin.hit = false;
+                    target.plugin.resetting = false;
+                    target.render.fillStyle = target.plugin.homeColor;
+                    Body.setPosition(target, {
+                        x: target.plugin.homeX,
+                        y: target.plugin.homeY
+                    });
+                });
+            }, 2200);
         }
 
         // Collisions
@@ -3445,6 +3668,15 @@
                     updateScoreDisplay();
                     createScorePopup(missionRamp.position.x, missionRamp.position.y, rampPts);
                 }
+
+                const bonusLane = bodyA.label === 'bonus-lane' ? bodyA : bodyB.label === 'bonus-lane' ? bodyB : null;
+                if (isBall && bonusLane) scoreReferenceFeature(bonusLane, 'lane');
+
+                const featureRamp = bodyA.label === 'feature-ramp' ? bodyA : bodyB.label === 'feature-ramp' ? bodyB : null;
+                if (isBall && featureRamp) scoreReferenceFeature(featureRamp, 'ramp', 'sling');
+
+                const standup = bodyA.label === 'standup-target' ? bodyA : bodyB.label === 'standup-target' ? bodyB : null;
+                if (isBall && standup) scoreReferenceFeature(standup, 'target');
 
                 // POWER target bank -> armed core -> weighted capsule draw.
                 const powerTarget = bodyA.label === 'power-target' ? bodyA : bodyB.label === 'power-target' ? bodyB : null;
@@ -3537,7 +3769,10 @@
                     createScorePopup(dt.position.x, dt.position.y, dtPts);
                     sfxBumper(dtPts);
                     advanceMission('target', 1, dt.position);
-                    if (climbMode.active) {
+                    if (dt.plugin.referenceBank) {
+                        checkReferenceBank(dt.plugin.bankId, dt.position);
+                    }
+                    if (climbMode.active && !dt.plugin.referenceBank) {
                         const floorTargets = climbMode.dropTargets.filter(t => t.plugin.floor === dt.plugin.floor);
                         if (floorTargets.every(t => t.plugin.hit)) {
                             const bonus = 1000 * scoreMultiplier;
@@ -3599,7 +3834,7 @@
                     const saveBaseY = floorY(saveFloor);
                     if (saveFloor === 0) {
                         // Floor 0's plunger lane is the only functional one — return to plunger
-                        Body.setPosition(ball, { x: CONFIG.width - 25, y: saveBaseY + CONFIG.height - boardY(50) });
+                        Body.setPosition(ball, { x: CONFIG.width - boardX(25), y: saveBaseY + CONFIG.height - boardY(50) });
                         Body.setVelocity(ball, { x: 0, y: 0 });
                         Body.setAngularVelocity(ball, 0);
                         gameState.ballLaunched = false;
@@ -3644,8 +3879,8 @@
             if (!isInUpperLevel || !ball) return;
             const elapsed = Date.now() - upperLevelTimer;
             if (ball.position.y < -20) {
-                if (ball.position.x < 30) Body.setVelocity(ball, { x: Math.abs(ball.velocity.x) + 2, y: ball.velocity.y });
-                if (ball.position.x > CONFIG.width - 30) Body.setVelocity(ball, { x: -Math.abs(ball.velocity.x) - 2, y: ball.velocity.y });
+                if (ball.position.x < boardX(30)) Body.setVelocity(ball, { x: Math.abs(ball.velocity.x) + 2, y: ball.velocity.y });
+                if (ball.position.x > CONFIG.width - boardX(30)) Body.setVelocity(ball, { x: -Math.abs(ball.velocity.x) - 2, y: ball.velocity.y });
                 if (ball.position.y < -100) Body.setVelocity(ball, { x: ball.velocity.x, y: Math.abs(ball.velocity.y) + 1 });
             }
             if (elapsed > UPPER_LEVEL_DURATION) exitUpperLevel();
@@ -3654,7 +3889,7 @@
         function exitUpperLevel() {
             if (!ball) return;
             isInUpperLevel = false;
-            const dropX = 100 + Math.random() * (CONFIG.width - 200);
+            const dropX = boardX(100) + Math.random() * (CONFIG.width - boardX(200));
             Body.setPosition(ball, { x: dropX, y: 50 });
             Body.setVelocity(ball, { x: (Math.random() - 0.5) * 3, y: 3 });
             gameState.score += 250; updateScoreDisplay();
@@ -3676,9 +3911,29 @@
         function updateClimbMode() {
             if (!climbMode.active || !ball || !gameState.isPlaying) return;
 
-            // Track which floor the ball is on
-            const ballFloor = Math.max(0, Math.floor(-ball.position.y / CONFIG.height + 1));
-            const actualFloor = ball.position.y > 0 ? 0 : ballFloor;
+            // Resolve crossings against the floor the ball was last confirmed
+            // on. A floor may only be entered through its breached ceiling, and
+            // even an extreme one-frame velocity may advance at most one floor.
+            const trackedFloor = Math.max(0, climbMode.currentBallFloor || 0);
+            const trackedGate = climbFloorGate(trackedFloor);
+            const boundary = PinballLayout.resolveClimbBoundary({
+                width: CONFIG.width,
+                height: CONFIG.height,
+                currentFloor: trackedFloor,
+                position: { x: ball.position.x, y: ball.position.y },
+                velocity: { x: ball.velocity.x, y: ball.velocity.y },
+                gateBreached: trackedGate.breached,
+                ballRadius: CONFIG.ball.radius
+            });
+            if (boundary.corrected) {
+                Body.setPosition(ball, boundary.position);
+                Body.setVelocity(ball, boundary.velocity);
+                if (boundary.blocked && Date.now() - (climbMode._lastBoundaryGuard || 0) > 700) {
+                    climbMode._lastBoundaryGuard = Date.now();
+                    createParticles(boundary.position.x, boundary.position.y, POWER_TYPES[trackedGate.element].color);
+                }
+            }
+            const actualFloor = boundary.floor;
             climbMode.currentBallFloor = actualFloor;
 
             if (actualFloor > climbMode.highestFloor) {
@@ -4096,18 +4351,18 @@
             const plungerFloorBase = climbMode.active ? floorY(climbMode.ballSaveFloor || 0) : 0;
             const pH = CONFIG.height;
             ctx.fillStyle = level.theme.wall + '80';
-            ctx.fillRect(CONFIG.width - 38, plungerFloorBase + pH - 110, 26, 100);
+            ctx.fillRect(CONFIG.width - boardX(38), plungerFloorBase + pH - 110, 26, 100);
             const offset = plunger.charging ? plunger.power * 20 : 0;
             ctx.fillStyle = level.theme.accent;
-            ctx.beginPath(); ctx.arc(CONFIG.width - 25, plungerFloorBase + pH - 20 + offset, 10, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(CONFIG.width - boardX(25), plungerFloorBase + pH - 20 + offset, 10, 0, Math.PI * 2); ctx.fill();
             if (plunger.charging) {
                 plunger.power = Math.min(plunger.power + 0.03, 1);
                 ctx.fillStyle = `rgba(0,255,136,${plunger.power})`;
-                ctx.fillRect(CONFIG.width - 36, plungerFloorBase + pH - boardY(105), 22 * plunger.power, 5);
+                ctx.fillRect(CONFIG.width - boardX(36), plungerFloorBase + pH - boardY(105), 22 * plunger.power, 5);
             }
             if (!gameState.ballLaunched && gameState.ballInPlay) {
                 ctx.fillStyle = 'rgba(0,255,136,0.15)';
-                ctx.fillRect(CONFIG.width - 38, plungerFloorBase + pH - 110, 26, 90);
+                ctx.fillRect(CONFIG.width - boardX(38), plungerFloorBase + pH - 110, 26, 90);
             }
 
             // Editor drawing
@@ -4121,7 +4376,7 @@
             if (isEditing && !gameState.isPlaying) {
                 ctx.fillStyle = 'rgba(244, 114, 182, 0.2)'; ctx.strokeStyle = 'rgba(244, 114, 182, 0.5)';
                 ctx.setLineDash([5, 5]); ctx.lineWidth = 2;
-                ctx.beginPath(); ctx.rect(40, 50, CONFIG.width - 100, CONFIG.height - 150); ctx.stroke(); ctx.setLineDash([]);
+                ctx.beginPath(); ctx.rect(boardX(40), 50, CONFIG.width - boardX(100), CONFIG.height - 150); ctx.stroke(); ctx.setLineDash([]);
             }
 
             // Ramps
@@ -4172,12 +4427,12 @@
                 // Close plunger lane once ball exits into playfield
                 const plungerCheckFloor = climbMode.active ? (climbMode.ballSaveFloor || 0) : 0;
                 const plungerBaseY = floorY(plungerCheckFloor);
-                if (ball && gameState.ballLaunched && !plungerGate && ball.position.x < CONFIG.width - 55) {
+                if (ball && gameState.ballLaunched && !plungerGate && ball.position.x < CONFIG.width - boardX(55)) {
                     createPlungerGate(plungerCheckFloor);
                 }
                 // Detect ball in plunger lane - allow re-launch
                 if (ball && gameState.ballLaunched && gameState.ballInPlay &&
-                    ball.position.x > CONFIG.width - 40 &&
+                    ball.position.x > CONFIG.width - boardX(40) &&
                     Math.abs(ball.velocity.x) < 1 && Math.abs(ball.velocity.y) < 1) {
                     // In climb mode, check the plunger lane of whichever floor the ball is on
                     const checkFloor = climbMode.active
@@ -4278,6 +4533,7 @@
                 climbMode.boardNames = {};
                 climbMode.floorGates = {};
                 climbMode._lastSealHint = 0;
+                climbMode._lastBoundaryGuard = 0;
                 boardExtended = false;
                 cameraY = 0;
                 document.getElementById('climb-hud').style.display = 'block';

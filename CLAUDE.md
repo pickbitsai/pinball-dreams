@@ -8,6 +8,7 @@ There is **no build system** — no `package.json`, no bundler, no dev server, n
 
 - Run it: open `index.html`, or `python -m http.server 8777` and hit `http://localhost:8777/index.html`.
 - Matter.js 0.19 comes from cdnjs; Three.js is vendored in `assets/vendor/three/`.
+- Boundary/layout regression test: `node scripts/check-board-boundaries.mjs`.
 
 ## Layout
 
@@ -17,6 +18,9 @@ There is **no build system** — no `package.json`, no bundler, no dev server, n
 | `src/pinball-progress.js` | `PinballCareer` (lifetime stats) + `PinballAchievements` (catalog, unlock seam, toast). Local-first. |
 | `src/pickbits.js` | `PickBitsClient` — the PickBits SSO bridge (auth, leaderboard, cloud saves). |
 | `src/neon-pinball-3d.js` | Optional Three.js renderer layered over the Canvas2D playfield. Purely visual, holds no game state. |
+| `src/pinball-board-reference.js` | The 24-table research library and five procedural layout profiles used to add lanes, ramps, guides, spinners, and resetting banks. |
+| `src/pinball-layout.js` | Shared mirrored flipper geometry, Climb floor-boundary resolution, and launch scaling. Also loaded by the boundary regression test. |
+| `scripts/check-board-boundaries.mjs` | Deterministic geometry and high-velocity Climb boundary sweep. |
 | `assets/3d/` | `neon-pinball-kit.glb` is the only file loaded at runtime. The `.blend`, per-part `.glb`s, `roblox/*.fbx` and preview are build inputs — see `manifest.json` and `scripts/blender/`. |
 
 **Load order matters.** Both `src/` modules are script-tagged immediately *before* the inline game script and expose globals it calls into. Adding a module means inserting it in that same block, not in `<head>`.
