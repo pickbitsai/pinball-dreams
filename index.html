@@ -64,7 +64,7 @@
         }
 
         #game-over, #level-select {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: rgba(0, 0, 0, 0.95); padding: 25px; border-radius: 20px;
             text-align: center; z-index: 200; border: 3px solid #4a4a6a;
         }
@@ -242,7 +242,7 @@
         }
         #credits-btn:hover { border-color: #00ff88; color: #00ff88; }
         #credits-modal {
-            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
             background: rgba(0, 0, 0, 0.97); padding: 25px 30px; border-radius: 20px;
             text-align: center; z-index: 300; border: 3px solid #4a4a6a;
             display: none; min-width: 280px;
@@ -1344,7 +1344,7 @@
 
         /* ===== Achievements modal ===== */
         #achievements-modal {
-            position: absolute;
+            position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
@@ -1765,6 +1765,8 @@
 
         let ball = null, leftFlipper = null, rightFlipper = null;
         let bumpers = [], particles = [];
+        // Counts consecutive near-stationary frames for the stuck-ball watchdog.
+        let stuckFrames = 0;
         // Per-run tracking for achievements: score at the current ball's launch,
         // and which elemental balls have been collected this game.
         let ballStartScore = 0;
@@ -4403,6 +4405,35 @@
             }
         }
 
+        // Stuck-ball watchdog. The procedural climb boards pack drop banks,
+        // curved guides, standups and bumpers tightly together, so the ball can
+        // occasionally wedge into a pocket the flippers can't reach and sit
+        // there for good. If the ball stays nearly stationary in open play for
+        // about a second, give it escalating nudges until it's moving again.
+        // Cradles on the flippers, the plunger lane and the ceiling seam are
+        // left alone so normal play isn't disturbed.
+        function updateStuckWatchdog() {
+            if (!ball || !gameState.ballInPlay || !gameState.ballLaunched) { stuckFrames = 0; return; }
+            const H = CONFIG.height;
+            const localY = ((ball.position.y % H) + H) % H;   // y within the current floor
+            const inPlungerLane = ball.position.x > CONFIG.width - boardX(45);
+            const nearFlippers = localY > H - 220;            // leave cradles/drain alone
+            const nearCeiling = localY < 70;
+            const speed = Math.hypot(ball.velocity.x, ball.velocity.y);
+            if (speed > 0.6 || inPlungerLane || nearFlippers || nearCeiling) { stuckFrames = 0; return; }
+            stuckFrames++;
+            // ~1s of near-stillness before the first nudge, then repeat with
+            // growing force every ~0.4s until the ball breaks free.
+            if (stuckFrames > 60 && stuckFrames % 24 === 0) {
+                const kick = 3 + stuckFrames / 60;
+                Body.setVelocity(ball, {
+                    x: (Math.random() - 0.5) * kick * 2,
+                    y: -Math.abs(kick)
+                });
+                Body.setAngularVelocity(ball, (Math.random() - 0.5) * 0.4);
+            }
+        }
+
         function gameLoop() {
             if (paused) {
                 // Draw pause overlay on top of last rendered frame
@@ -4463,6 +4494,7 @@
                         Body.setVelocity(ball, { x: Math.abs(ball.velocity.x), y: ball.velocity.y });
                     }
                 }
+                updateStuckWatchdog();
                 updateParticles();
                 // Out-of-bounds safety net
                 if (ball && gameState.ballInPlay && (ball.position.x < -10 || ball.position.x > CONFIG.width + 30)) {
