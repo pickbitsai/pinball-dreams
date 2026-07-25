@@ -93,6 +93,28 @@ const descending = layout.resolveClimbBoundary({
 assert.equal(descending.floor, 0);
 assert.equal(descending.reason, 'descending');
 
+const leftRail = layout.resolveSideBoundary({
+    position: { x: -80, y: -height },
+    velocity: { x: -35, y: -8 },
+    minX: 47,
+    maxX: 573
+});
+assert.equal(leftRail.corrected, true);
+assert.equal(leftRail.reason, 'left-side-rail');
+assert.equal(leftRail.position.x, 47);
+assert.ok(leftRail.velocity.x > 0);
+
+const rightRail = layout.resolveSideBoundary({
+    position: { x: width + 80, y: -height },
+    velocity: { x: 35, y: -8 },
+    minX: 47,
+    maxX: 573
+});
+assert.equal(rightRail.corrected, true);
+assert.equal(rightRail.reason, 'right-side-rail');
+assert.equal(rightRail.position.x, 573);
+assert.ok(rightRail.velocity.x < 0);
+
 for (let x = -100; x <= width + 100; x += 20) {
     for (const speed of [-20, -60, -140]) {
         const sealedSweep = layout.resolveClimbBoundary({
@@ -120,4 +142,4 @@ for (let x = -100; x <= width + 100; x += 20) {
 assert.ok(layout.launchScale(height) < height / 860, 'launch force must not scale linearly with length');
 assert.ok(layout.launchScale(height) > 1, 'long boards still need a stronger launch');
 
-console.log('boundary sweep passed: mirrored flipper geometry + 252 climb cases');
+console.log('boundary sweep passed: mirrored flipper geometry + two-sided rail guards + 252 climb cases');

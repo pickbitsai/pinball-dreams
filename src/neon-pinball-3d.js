@@ -55,6 +55,8 @@
             });
             this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
             this.renderer.setSize(BOARD_WIDTH, BOARD_HEIGHT, false);
+            this.viewportWidth = BOARD_WIDTH;
+            this.viewportHeight = BOARD_HEIGHT;
             this.renderer.shadowMap.enabled = true;
             this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             this.renderer.outputEncoding = THREE.sRGBEncoding;
@@ -193,6 +195,9 @@
         resize(width, height) {
             const safeWidth = Math.max(1, Math.floor(width));
             const safeHeight = Math.max(1, Math.floor(height));
+            if (safeWidth === this.viewportWidth && safeHeight === this.viewportHeight) return;
+            this.viewportWidth = safeWidth;
+            this.viewportHeight = safeHeight;
             this.renderer.setSize(safeWidth, safeHeight, false);
             this.camera.aspect = safeWidth / safeHeight;
             this.camera.updateProjectionMatrix();

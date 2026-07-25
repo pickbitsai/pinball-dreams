@@ -8,7 +8,8 @@ There is **no build system** — no `package.json`, no bundler, no dev server, n
 
 - Run it: open `index.html`, or `python -m http.server 8777` and hit `http://localhost:8777/index.html`.
 - Matter.js 0.19 comes from cdnjs; Three.js is vendored in `assets/vendor/three/`.
-- Boundary/layout regression test: `node scripts/check-board-boundaries.mjs`.
+- Boundary/layout regression tests: `node scripts/check-board-boundaries.mjs` and
+  `node scripts/check-climb-autoplay.mjs`.
 
 ## Layout
 
@@ -21,6 +22,7 @@ There is **no build system** — no `package.json`, no bundler, no dev server, n
 | `src/pinball-board-reference.js` | The 24-table research library and five procedural layout profiles used to add lanes, ramps, guides, spinners, and resetting banks. |
 | `src/pinball-layout.js` | Shared mirrored flipper geometry, Climb floor-boundary resolution, and launch scaling. Also loaded by the boundary regression test. |
 | `scripts/check-board-boundaries.mjs` | Deterministic geometry and high-velocity Climb boundary sweep. |
+| `scripts/check-climb-autoplay.mjs` | Simulates all 20 Climb floors, including sealed overshoots and two-sided rail guards. |
 | `assets/3d/` | `neon-pinball-kit.glb` is the only file loaded at runtime. The `.blend`, per-part `.glb`s, `roblox/*.fbx` and preview are build inputs — see `manifest.json` and `scripts/blender/`. |
 
 **Load order matters.** Both `src/` modules are script-tagged immediately *before* the inline game script and expose globals it calls into. Adding a module means inserting it in that same block, not in `<head>`.
@@ -29,12 +31,13 @@ There is **no build system** — no `package.json`, no bundler, no dev server, n
 
 - `gameState` — score, balls, flags. `CONFIG` — dimensions, ball/flipper physics.
 - `LEVELS` — 7 tables, each with `theme`, `zone` (`fire`/`ice`/`rock`) and a `mission` (`{action, goal, reward, instruction}`).
-- `climbMode` — the 20-floor ascent. Floors spawn lazily via `spawnClimbBoard(floor)`, rotating `CLIMB_BOARDS`. Breaking a `floor-panel` ceiling tile spawns the next floor.
+- `climbMode` — the 20-floor ascent. Floors spawn lazily via `spawnClimbBoard(floor)`, rotating `CLIMB_BOARDS`. Breaking a `floor-panel` ceiling tile spawns the next floor; breaking floor 20's ceiling completes the run.
 - **Elemental seals** (`climbFloorGate`) — every climb floor's ceiling is locked to its board's `zone` element. Work that floor's task (a halved version of the board's mission) to break the seal, which also *hands you* that element; the ceiling then only shatters while that power is live (`canBreachFloor`). If it lapses first, `respawnSealCapsule()` drops a guaranteed re-arm so the task never has to be redone. Gates advance from inside `advanceMission()` — one seam, so mission and seal actions can't drift apart.
 - **Board mastery** is a PickBits perk: anonymous runs re-earn every seal, signed-in players start mastered boards pre-unsealed (`climbBoardMastered`). Mastery is still *recorded* while anonymous, so signing in later pays it out retroactively.
 - `powerSystem` — timed `fire`/`ice`/`rock` ball powers from `rollPowerCapsule()` → `activatePower()`. `powerScoreMultiplier(action)` maps each power to the actions it boosts.
 - `missionSystem` — light 3 lanes → shoot the ramp → complete the board's mission.
 - **Plunger menu** — the title screen is a zoomed playfield section: each option is a staggered falling-card target and the ball stays parked above the pulled-back spring. Keyboard, mouse and touch all funnel through `launchMenu()`, and `menuActions` is the single map of what each option does. Completion is owned by `setTimeout`, not `requestAnimationFrame`, so a backgrounded tab can't strand the menu mid-launch.
+- **Browser automation** — `?automation=climb` runs the real gate, breach, spawn, boundary, and completion seams for all 20 floors and writes a PASS/FAIL report to `#automation-report`.
 - `loseBall()` — **the single drain seam.** All three drain paths (sensor, out-of-bounds, fallback) funnel through it. Put per-ball logic here, not in the collision handler.
 - Screens are DOM overlays toggled by `display`. Any new overlay must be added to the hide-lists in `showTitleScreen()`, `showLevelSelect()`, `startGame()` **and** `endGame()`, or it bleeds across screens.
 

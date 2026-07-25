@@ -139,6 +139,34 @@
         };
     }
 
+    function resolveSideBoundary({
+        position,
+        velocity,
+        minX,
+        maxX
+    }) {
+        const x = clamp(position.x, minX, maxX);
+        if (x === position.x) {
+            return {
+                corrected: false,
+                position,
+                velocity,
+                reason: 'inside-side-rails'
+            };
+        }
+
+        const hitLeft = position.x < minX;
+        return {
+            corrected: true,
+            position: { x, y: position.y },
+            velocity: {
+                x: hitLeft ? Math.abs(velocity.x) : -Math.abs(velocity.x),
+                y: velocity.y
+            },
+            reason: hitLeft ? 'left-side-rail' : 'right-side-rail'
+        };
+    }
+
     function launchScale(height, originalHeight = 860) {
         return Math.sqrt(height / originalHeight);
     }
@@ -151,6 +179,7 @@
         flipperAssembly,
         climbFloorForY,
         resolveClimbBoundary,
+        resolveSideBoundary,
         launchScale
     };
 }));

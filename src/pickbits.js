@@ -49,6 +49,7 @@ const PickBitsClient = (() => {
     let writeTimer = null;
     let chipEl = null;
     let stateEl = null;
+    let loginPending = false;
 
     // ---- Environment gate ---------------------------------------------------
     function onPickBitsOrigin() {
@@ -97,6 +98,7 @@ const PickBitsClient = (() => {
     // ---- Auth ---------------------------------------------------------------
     function onAuth(u) {
         user = u || null;
+        loginPending = false;
         renderChip();
         if (user) {
             identify();
@@ -129,11 +131,26 @@ const PickBitsClient = (() => {
     // Send the player to the lightweight dedicated login page. It mints the
     // relay token and bounces back here with ?pb_token=, which the SDK
     // exchanges and strips.
+    function loginUrl() {
+        const returnUrl = new URL(location.href);
+        // Relay and automation parameters are one-shot state. Sending them
+        // through another login round can create a redirect loop.
+        returnUrl.searchParams.delete('pb_token');
+        returnUrl.searchParams.delete('automation');
+        return 'https://pickbits.ai/login?redirect=' + encodeURIComponent(returnUrl.href);
+    }
+
     function promptLogin() {
+        if (loginPending) return;
+        loginPending = true;
+        renderChip();
+        trackEvent('pinball_sign_in_requested');
         try {
-            window.location.href = 'https://pickbits.ai/login?redirect=' +
-                encodeURIComponent(location.href);
-        } catch (e) {}
+            window.location.assign(loginUrl());
+        } catch (e) {
+            loginPending = false;
+            renderChip();
+        }
     }
 
     function isSubscriber() {
@@ -410,12 +427,17 @@ const PickBitsClient = (() => {
             const name = user.display_name || user.username || user.email || 'player';
             label.textContent = name;
             label.style.display = '';
+            btn.disabled = false;
+            btn.setAttribute('aria-busy', 'false');
             btn.style.display = 'none';
             if (stateEl) stateEl.textContent = user.username || name;
         } else {
             label.style.display = 'none';
             btn.style.display = '';
-            if (stateEl) stateEl.textContent = 'anon';
+            btn.disabled = loginPending;
+            btn.textContent = loginPending ? 'OPENING...' : 'SIGN IN';
+            btn.setAttribute('aria-busy', String(loginPending));
+            if (stateEl) stateEl.textContent = loginPending ? 'opening' : 'anon';
         }
     }
 

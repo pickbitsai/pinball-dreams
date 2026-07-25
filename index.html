@@ -21,7 +21,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
     <script src="assets/vendor/three/three.min.js"></script>
     <script src="assets/vendor/three/GLTFLoader.js"></script>
-    <script src="src/neon-pinball-3d.js"></script>
+    <script src="src/neon-pinball-3d.js?v=20260725b"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; touch-action: manipulation; }
         body {
@@ -447,14 +447,14 @@
             position: fixed;
             inset: 0;
             width: 100vw;
-            height: 100svh;
+            height: var(--app-height, 100svh);
             display: block;
         }
         body.game-active #game-3d-canvas {
             position: fixed;
             inset: 0;
             width: 100vw;
-            height: 100svh;
+            height: var(--app-height, 100svh);
             border: 0;
             border-radius: 0;
             box-shadow: none;
@@ -464,7 +464,7 @@
             position: fixed;
             inset: 0;
             width: 100vw;
-            height: 100svh;
+            height: var(--app-height, 100svh);
             transform: none !important;
         }
         body.game-active #score-display {
@@ -639,7 +639,7 @@
             position: fixed;
             inset: 0;
             width: 100vw;
-            height: 100svh;
+            height: var(--app-height, 100svh);
             min-width: 0;
             padding: clamp(48px, 7vw, 100px);
             transform: none;
@@ -1268,8 +1268,7 @@
                 inset 0 0 110px rgba(255, 47, 186, 0.08),
                 0 0 12px rgba(26, 200, 255, 0.68),
                 0 34px 70px rgba(0, 0, 0, 0.62);
-            transform: rotateX(2.5deg);
-            transform-origin: center bottom;
+            transform: none;
         }
         #menu-rig::before {
             content: '';
@@ -1733,6 +1732,24 @@
             background: #3dffa8;
             box-shadow: 0 0 7px #3dffa8;
         }
+        #automation-report {
+            position: fixed;
+            left: 18px;
+            bottom: 18px;
+            z-index: 12000;
+            max-width: min(520px, calc(100vw - 36px));
+            padding: 12px 15px;
+            color: #dff8ff;
+            border: 1px solid var(--cyan);
+            border-radius: 6px;
+            background: rgba(2, 7, 18, 0.94);
+            box-shadow: 0 0 18px rgba(26, 200, 255, 0.38);
+            font: 700 10px/1.45 'Orbitron', sans-serif;
+            letter-spacing: 0.08em;
+            white-space: pre-wrap;
+        }
+        #automation-report[data-status="PASS"] { border-color: #3dffa8; color: #baffdc; }
+        #automation-report[data-status="FAIL"] { border-color: #ff5d87; color: #ffb3c7; }
 
         /* ===== Achievement toast ===== */
         #ach-toast {
@@ -2031,11 +2048,11 @@
         </div>
 
         <div id="game-over">
-            <h2>GAME OVER</h2>
+            <h2 id="game-over-title">GAME OVER</h2>
             <div id="new-high-score-msg">★ NEW HIGH SCORE! ★</div>
             <p style="color:#fff">Final Score:</p>
             <div id="final-score">0</div>
-            <div id="final-floor">Reached Floor: <span id="final-floor-num">1</span></div>
+            <div id="final-floor"><span id="final-floor-label">Reached Floor:</span> <span id="final-floor-num">1</span></div>
             <div id="final-rank"></div>
             <div id="game-over-buttons">
                 <button id="restart-btn">PLAY AGAIN</button>
@@ -2053,9 +2070,9 @@
     <!-- Career stats + achievements (local-first), then the PickBits bridge.
          Both must load before the game script below, which calls into them. -->
     <script src="src/pinball-progress.js"></script>
-    <script src="src/pickbits.js"></script>
+    <script src="src/pickbits.js?v=20260725b"></script>
     <script src="src/pinball-board-reference.js"></script>
-    <script src="src/pinball-layout.js"></script>
+    <script src="src/pinball-layout.js?v=20260725b"></script>
 
     <script>
         const { Engine, Bodies, Body, Composite, Constraint, Events } = Matter;
@@ -2139,12 +2156,15 @@
         // Climb mode state
         // Board types that rotate in climb mode (indices into LEVELS)
         const CLIMB_BOARDS = [0, 1, 2, 3, 4]; // Classic, Vortex, Diamond, Castle, Wave
+        const CLIMB_TARGET_FLOORS = 20;
 
         let climbMode = {
             active: false,
             totalFloors: 5,
             highestFloor: 0,
             currentBallFloor: 0,
+            completed: false,
+            boundaryViolations: [],
             elementalBall: 'normal',
             elementalBallTimer: 0,
             checkpointFlippers: [],
@@ -3309,6 +3329,7 @@
         // Spawn a new board at the given floor, using rotating level layouts
         function spawnClimbBoard(floor) {
             const cm = climbMode;
+            if (floor < 0 || floor >= CLIMB_TARGET_FLOORS) return;
             if (cm.spawnedFloors.has(floor)) return;
             cm.spawnedFloors.add(floor);
 
@@ -4063,6 +4084,56 @@
             }, 2200);
         }
 
+        function completeClimbRun(origin) {
+            if (!climbMode.active || climbMode.completed) return;
+            climbMode.completed = true;
+            climbMode.highestFloor = CLIMB_TARGET_FLOORS - 1;
+            climbMode.currentBallFloor = CLIMB_TARGET_FLOORS - 1;
+            gameState.score += 50000;
+            updateScoreDisplay();
+            if (origin) createScorePopup(origin.x, origin.y, 'CLIMB COMPLETE');
+            endGame();
+        }
+
+        function breachFloorPanel(panel, options = {}) {
+            if (!panel || panel.label !== 'floor-panel' || !panel.plugin || panel.plugin.hit) {
+                return { ok: false, reason: 'invalid-panel' };
+            }
+
+            const gate = climbMode.active ? climbFloorGate(panel.plugin.floor) : null;
+            if (gate && !canBreachFloor(gate)) {
+                if (!options.quiet) repelFromSeal(panel, gate);
+                return { ok: false, reason: 'sealed' };
+            }
+
+            panel.plugin.hit = true;
+            if (gate) {
+                gate.breached = true;
+                PinballAchievements.unlock('first-breach');
+            }
+            PinballCareer.bump('panelsBroken');
+            PinballAchievements.check();
+            const points = Math.round(panel.plugin.score * scoreMultiplier * powerScoreMultiplier('panel'));
+            gameState.score += points;
+            updateScoreDisplay();
+            if (!options.quiet) {
+                createScorePopup(panel.position.x, panel.position.y, points);
+                const panelColor = panel.plugin.score >= 500 ? '#ffcc00' : '#4a90d9';
+                createParticles(panel.position.x, panel.position.y, panelColor);
+                sfxBumper(points);
+            }
+            Composite.remove(world, panel);
+
+            if (climbMode.active) {
+                if (panel.plugin.floor + 1 >= CLIMB_TARGET_FLOORS) {
+                    completeClimbRun(panel.position);
+                    return { ok: true, completed: true, floor: panel.plugin.floor };
+                }
+                spawnClimbBoard(panel.plugin.floor + 1);
+            }
+            return { ok: true, completed: false, floor: panel.plugin.floor };
+        }
+
         // Collisions
         Events.on(engine, 'collisionStart', (event) => {
             event.pairs.forEach(({ bodyA, bodyB }) => {
@@ -4236,29 +4307,7 @@
                 // Floor panels - breakable ceiling panels at floor transitions
                 const fp = bodyA.label === 'floor-panel' ? bodyA : bodyB.label === 'floor-panel' ? bodyB : null;
                 if (fp && fp.plugin && !fp.plugin.hit && isBall) {
-                    // In Climb the ceiling is an elemental seal: work the floor's
-                    // task to break it, then carry that element to shatter it.
-                    const gate = climbMode.active ? climbFloorGate(fp.plugin.floor) : null;
-                    if (gate && !canBreachFloor(gate)) {
-                        repelFromSeal(fp, gate);
-                        return;
-                    }
-                    fp.plugin.hit = true;
-                    if (gate) {
-                        gate.breached = true;
-                        PinballAchievements.unlock('first-breach');
-                    }
-                    PinballCareer.bump('panelsBroken');
-                    PinballAchievements.check();
-                    const fpPts = Math.round(fp.plugin.score * scoreMultiplier * powerScoreMultiplier('panel'));
-                    gameState.score += fpPts;
-                    updateScoreDisplay();
-                    createScorePopup(fp.position.x, fp.position.y, fpPts);
-                    const panelColor = fp.plugin.score >= 500 ? '#ffcc00' : '#4a90d9';
-                    createParticles(fp.position.x, fp.position.y, panelColor);
-                    sfxBumper(fpPts);
-                    Composite.remove(world, fp);
-                    if (climbMode.active) spawnClimbBoard(fp.plugin.floor + 1);
+                    breachFloorPanel(fp);
                 }
 
                 // Spinner
@@ -4351,6 +4400,30 @@
         function checkTopTransition() {
             if (!ball || !gameState.isPlaying || !gameState.ballInPlay || isInUpperLevel) return;
             if (ball.position.y < -10) triggerTopTransition();
+        }
+
+        function constrainBallToSideRails() {
+            if (!ball || !gameState.ballInPlay) return;
+            const radius = CONFIG.ball.radius;
+            const sideBoundary = PinballLayout.resolveSideBoundary({
+                position: { x: ball.position.x, y: ball.position.y },
+                velocity: { x: ball.velocity.x, y: ball.velocity.y },
+                minX: boardX(20) + 7 + radius,
+                maxX: CONFIG.width - boardX(8) - 5 - radius
+            });
+            if (!sideBoundary.corrected) return;
+
+            if (climbMode.active) {
+                climbMode.boundaryViolations.push({
+                    reason: sideBoundary.reason,
+                    floor: climbMode.currentBallFloor,
+                    x: Math.round(ball.position.x * 100) / 100,
+                    y: Math.round(ball.position.y * 100) / 100
+                });
+                if (climbMode.boundaryViolations.length > 50) climbMode.boundaryViolations.shift();
+            }
+            Body.setPosition(ball, sideBoundary.position);
+            Body.setVelocity(ball, sideBoundary.velocity);
         }
 
         // Climb mode updates
@@ -4585,7 +4658,7 @@
             ctx.fillStyle = level.theme.bg;
             if (climbMode.active) {
                 // Draw backgrounds for all spawned floors with per-board themes
-                const maxFloor = climbMode.highestFloor + 1;
+                const maxFloor = Math.min(CLIMB_TARGET_FLOORS - 1, climbMode.highestFloor + 1);
                 for (let f = maxFloor; f >= 0; f--) {
                     const fy = floorY(f);
                     const boardIdx = f % CLIMB_BOARDS.length;
@@ -4893,22 +4966,16 @@
                         document.getElementById('launch-indicator').style.display = 'block';
                     }
                 }
-                if (climbMode.active) {
-                    updateClimbMode();
-                } else if (!boardExtended) {
+                if (!climbMode.active && !boardExtended) {
                     updateUpperLevel();
                     checkTopTransition();
                 }
                 Engine.update(engine, 1000 / 60);
-                // Anti-tunneling: if ball clips past a side wall, push it back in
-                if (ball) {
-                    const r = CONFIG.ball.radius;
-                    const leftBound = 27 + r;   // left wall inner edge (x=20, thickness 14)
-                    if (ball.position.x < leftBound) {
-                        Body.setPosition(ball, { x: leftBound, y: ball.position.y });
-                        Body.setVelocity(ball, { x: Math.abs(ball.velocity.x), y: ball.velocity.y });
-                    }
-                }
+                // Resolve both side rails and Climb floor transitions after the
+                // physics step. Doing this before Engine.update left one frame
+                // where a fast ball could render outside the board or skip up.
+                constrainBallToSideRails();
+                if (climbMode.active) updateClimbMode();
                 updateParticles();
                 // Out-of-bounds safety net
                 if (ball && gameState.ballInPlay && (ball.position.x < -10 || ball.position.x > CONFIG.width + 30)) {
@@ -4935,12 +5002,12 @@
                     },
                     floorThemes: climbMode.active
                         ? Array.from(
-                            { length: Math.max(2, climbMode.highestFloor + 2) },
+                            { length: Math.min(CLIMB_TARGET_FLOORS, Math.max(2, climbMode.highestFloor + 2)) },
                             (_, floor) => LEVELS[CLIMB_BOARDS[floor % CLIMB_BOARDS.length]].theme
                         )
                         : [LEVELS[currentLevel].theme],
                     floorCount: climbMode.active
-                        ? Math.max(2, climbMode.highestFloor + 2)
+                        ? Math.min(CLIMB_TARGET_FLOORS, Math.max(2, climbMode.highestFloor + 2))
                         : (boardExtended ? 2 : 1)
                 });
             }
@@ -4971,6 +5038,8 @@
                 climbMode.totalFloors = 1;
                 climbMode.highestFloor = 0;
                 climbMode.currentBallFloor = 0;
+                climbMode.completed = false;
+                climbMode.boundaryViolations = [];
                 climbMode.elementalBall = 'normal';
                 climbMode.elementalBallTimer = 0;
                 climbMode.ballSaveGate = null;
@@ -4996,6 +5065,8 @@
             createDrainSensor(); createBall();
             updateScoreDisplay(); updateBallsDisplay(); updateHighScore();
             document.getElementById('game-over').style.display = 'none';
+            document.getElementById('game-over-title').textContent = 'GAME OVER';
+            document.getElementById('final-floor-label').textContent = 'Reached Floor:';
             document.getElementById('level-select').style.display = 'none';
             document.getElementById('achievements-modal').style.display = 'none';
             document.getElementById('menu-btn').style.display = 'block';
@@ -5022,8 +5093,13 @@
             if (climbMode.active) {
                 document.getElementById('final-floor').style.display = 'block';
                 document.getElementById('final-floor-num').textContent = climbMode.highestFloor + 1;
+                document.getElementById('game-over-title').textContent =
+                    climbMode.completed ? 'CLIMB COMPLETE' : 'GAME OVER';
+                document.getElementById('final-floor-label').textContent =
+                    climbMode.completed ? 'Floors Cleared:' : 'Reached Floor:';
             } else {
                 document.getElementById('final-floor').style.display = 'none';
+                document.getElementById('game-over-title').textContent = 'GAME OVER';
             }
 
             // Career roll-up + PickBits. Runs before climbMode.active is cleared
@@ -5163,17 +5239,21 @@
         canvas.addEventListener('mouseup', () => { if (!isEditing || editorMode === 'play') return; draggedBumper = null; draggedFlipper = null; draggedRamp = null; finishEditorDrawing(); });
         canvas.addEventListener('mouseleave', () => { draggedBumper = null; draggedFlipper = null; draggedRamp = null; finishEditorDrawing(); });
 
+        let resizeTimer = null;
         function handleResize() {
+            const viewportWidth = Math.max(1, document.documentElement.clientWidth || window.innerWidth);
+            const viewportHeight = Math.max(1, document.documentElement.clientHeight || window.innerHeight);
+            document.documentElement.style.setProperty('--app-height', `${viewportHeight}px`);
             if (document.body.classList.contains('game-active')) {
                 [canvas, canvas3D].forEach(target => {
                     if (!target) return;
                     target.style.transform = 'none';
                     target.style.transformOrigin = 'center';
                 });
-                if (pinball3D) pinball3D.resize(window.innerWidth, window.innerHeight);
+                if (pinball3D) pinball3D.resize(viewportWidth, viewportHeight);
                 return;
             }
-            const scale = Math.min((window.innerWidth - 20) / CONFIG.width, (window.innerHeight - 120) / CONFIG.height, 1);
+            const scale = Math.min((viewportWidth - 20) / CONFIG.width, (viewportHeight - 120) / CONFIG.height, 1);
             [canvas, canvas3D].forEach(target => {
                 if (!target) return;
                 target.style.transform = `scale(${scale})`;
@@ -5181,7 +5261,14 @@
             });
             if (pinball3D) pinball3D.resize(CONFIG.width, CONFIG.height);
         }
-        window.addEventListener('resize', handleResize); handleResize();
+        window.addEventListener('resize', () => {
+            if (resizeTimer) clearTimeout(resizeTimer);
+            resizeTimer = setTimeout(() => {
+                resizeTimer = null;
+                handleResize();
+            }, 80);
+        });
+        handleResize();
 
         // Loading screen animation
         function runLoadingScreen() {
@@ -5231,10 +5318,14 @@
             if (typeof selectMenu === 'function') selectMenu(menuIndex);
             const rig = document.getElementById('menu-rig');
             if (rig) {
+                if (menuCardsTimer) clearTimeout(menuCardsTimer);
                 rig.classList.remove('cards-entering');
                 void rig.offsetWidth;
                 rig.classList.add('cards-entering');
-                setTimeout(() => rig.classList.remove('cards-entering'), 1150);
+                menuCardsTimer = setTimeout(() => {
+                    rig.classList.remove('cards-entering');
+                    menuCardsTimer = null;
+                }, 1150);
             }
         }
 
@@ -5275,16 +5366,46 @@
         let menuFiring = false;
         let menuChargeRAF = null;
         let menuChargeStart = 0;
+        let menuCardsTimer = null;
 
         function menuOpen() {
             return document.getElementById('title-screen').style.display === 'block' && !menuFiring;
         }
 
+        // Read stable layout coordinates instead of transformed viewport
+        // rectangles. The falling cards and their decorative rotations are
+        // visual only; they must never change the shot's physics.
+        function menuLocalBox(element) {
+            let x = 0;
+            let y = 0;
+            let node = element;
+            while (node && node !== menuRig) {
+                x += node.offsetLeft || 0;
+                y += node.offsetTop || 0;
+                node = node.offsetParent;
+            }
+            return {
+                left: x,
+                top: y,
+                right: x + element.offsetWidth,
+                bottom: y + element.offsetHeight,
+                width: element.offsetWidth,
+                height: element.offsetHeight
+            };
+        }
+
+        function settleMenuCards() {
+            if (menuCardsTimer) {
+                clearTimeout(menuCardsTimer);
+                menuCardsTimer = null;
+            }
+            menuRig.classList.remove('cards-entering');
+        }
+
         // Muzzle of the plunger, in #menu-rig coordinates.
         function menuMuzzle() {
-            const rig = menuRig.getBoundingClientRect();
-            const p = menuPlunger.getBoundingClientRect();
-            return { x: p.left + p.width / 2 - rig.left, y: p.top - rig.top };
+            const p = menuLocalBox(menuPlunger);
+            return { x: p.left + p.width / 2, y: p.top };
         }
 
         function parkMenuBall() {
@@ -5298,14 +5419,13 @@
         function selectMenu(i) {
             menuIndex = (i + menuItems.length) % menuItems.length;
             menuItems.forEach((el, n) => el.dataset.selected = String(n === menuIndex));
-            const rig = menuRig.getBoundingClientRect();
-            const t = menuItems[menuIndex].getBoundingClientRect();
+            const t = menuLocalBox(menuItems[menuIndex]);
             const from = menuMuzzle();
             // Aim at the target's right edge, where the ball will strike.
-            const tx = t.right - rig.left, ty = t.top + t.height / 2 - rig.top;
+            const tx = t.right, ty = t.top + t.height / 2;
             const dx = tx - from.x, dy = ty - from.y;
             menuAim.style.width = Math.hypot(dx, dy) + 'px';
-            menuAim.style.right = (rig.width - from.x) + 'px';
+            menuAim.style.right = (menuRig.clientWidth - from.x) + 'px';
             menuAim.style.top = from.y + 'px';
             menuAim.style.transform = `rotate(${Math.atan2(dy, dx) * 180 / Math.PI + 180}deg)`;
             parkMenuBall();
@@ -5318,6 +5438,7 @@
 
         function startCharge() {
             if (!menuOpen() || menuCharging) return;
+            settleMenuCards();
             menuCharging = true;
             menuRig.dataset.armed = 'true';
             menuChargeStart = performance.now();
@@ -5339,17 +5460,20 @@
 
         function launchMenu(power) {
             if (menuFiring || !menuItems[menuIndex]) return;
+            settleMenuCards();
             menuFiring = true;
             const target = menuItems[menuIndex];
             const action = menuActions[target.dataset.menu];
+            menuCharging = false;
+            if (menuChargeRAF) cancelAnimationFrame(menuChargeRAF);
+            menuChargeRAF = null;
             setPull(0);
             menuRig.dataset.armed = 'false';
             sfxPlungerRelease(power);
 
-            const rig = menuRig.getBoundingClientRect();
-            const t = target.getBoundingClientRect();
+            const t = menuLocalBox(target);
             const from = menuMuzzle();
-            const to = { x: t.right - rig.left - 10, y: t.top + t.height / 2 - rig.top };
+            const to = { x: t.right - 10, y: t.top + t.height / 2 };
             // Quadratic arc: a harder pull throws a flatter, faster shot.
             const ctrl = { x: from.x + (to.x - from.x) * 0.25, y: from.y - 40 - 70 * power };
             const dur = 620 - 260 * power;
@@ -5415,7 +5539,9 @@
         window.addEventListener('pointercancel', () => {
             menuCharging = false;
             if (menuChargeRAF) cancelAnimationFrame(menuChargeRAF);
+            menuChargeRAF = null;
             setPull(0);
+            menuRig.dataset.armed = 'false';
         });
 
         document.addEventListener('keydown', (e) => {
@@ -5480,11 +5606,125 @@
             PinballAchievements.check();
         });
 
+        function writeAutomationReport(report) {
+            let output = document.getElementById('automation-report');
+            if (!output) {
+                output = document.createElement('output');
+                output.id = 'automation-report';
+                output.setAttribute('role', 'status');
+                document.body.appendChild(output);
+            }
+            output.dataset.status = report.status;
+            output.textContent = [
+                `CLIMB AUTOMATION: ${report.status}`,
+                `Floors cleared: ${report.floorsCleared}/${CLIMB_TARGET_FLOORS}`,
+                `Transitions: ${report.transitions}`,
+                `Off-board errors: ${report.offBoardErrors}`,
+                `Runtime errors: ${report.runtimeErrors.length}`,
+                report.message
+            ].join('\n');
+            window.PinballAutomationResult = report;
+        }
+
+        function runClimbAutomation() {
+            const runtimeErrors = [];
+            const report = {
+                status: 'FAIL',
+                floorsCleared: 0,
+                transitions: 0,
+                offBoardErrors: 0,
+                runtimeErrors,
+                message: 'Automation did not finish.'
+            };
+            window.addEventListener('error', event => {
+                runtimeErrors.push(event.message || 'Unknown runtime error');
+                report.status = 'FAIL';
+                report.message = runtimeErrors[runtimeErrors.length - 1];
+                writeAutomationReport(report);
+            });
+
+            const previousMute = sfxMuted;
+            sfxMuted = true;
+            try {
+                document.getElementById('loading-screen').style.display = 'none';
+                document.getElementById('title-screen').style.display = 'none';
+                currentLevel = 6;
+                startGame();
+                gameState.ballLaunched = true;
+                document.getElementById('launch-indicator').style.display = 'none';
+
+                for (let floor = 0; floor < CLIMB_TARGET_FLOORS; floor++) {
+                    if (climbMode.currentBallFloor !== floor) {
+                        throw new Error(`Expected floor ${floor + 1}, found ${climbMode.currentBallFloor + 1}`);
+                    }
+
+                    const gate = climbFloorGate(floor);
+                    advanceClimbGate(gate.action, gate.goal, ball.position);
+                    if (!gate.unsealed || !canBreachFloor(gate)) {
+                        throw new Error(`Floor ${floor + 1} elemental seal did not arm`);
+                    }
+
+                    const panel = Composite.allBodies(world).find(body =>
+                        body.label === 'floor-panel' &&
+                        body.plugin?.floor === floor &&
+                        !body.plugin.hit
+                    );
+                    if (!panel) throw new Error(`Floor ${floor + 1} ceiling panel missing`);
+                    const breach = breachFloorPanel(panel, { quiet: true });
+                    if (!breach.ok) throw new Error(`Floor ${floor + 1} breach failed: ${breach.reason}`);
+                    report.floorsCleared = floor + 1;
+
+                    if (floor === CLIMB_TARGET_FLOORS - 1) {
+                        if (!breach.completed || !climbMode.completed) {
+                            throw new Error('Final ceiling did not complete Climb mode');
+                        }
+                        break;
+                    }
+
+                    Body.setPosition(ball, {
+                        x: CONFIG.width / 2,
+                        y: floorY(floor + 1) + boardY(45)
+                    });
+                    Body.setVelocity(ball, { x: 0, y: 2 });
+                    constrainBallToSideRails();
+                    updateClimbMode();
+                    report.transitions++;
+
+                    if (climbMode.currentBallFloor !== floor + 1) {
+                        throw new Error(`Transition skipped from floor ${floor + 1} to ${climbMode.currentBallFloor + 1}`);
+                    }
+                    if (climbMode.boundaryViolations.length) {
+                        throw new Error(`Off-board correction on floor ${floor + 2}`);
+                    }
+                }
+
+                report.offBoardErrors = climbMode.boundaryViolations.length;
+                if (report.floorsCleared !== CLIMB_TARGET_FLOORS ||
+                    report.transitions !== CLIMB_TARGET_FLOORS - 1 ||
+                    report.offBoardErrors !== 0 ||
+                    runtimeErrors.length !== 0 ||
+                    document.getElementById('game-over-title').textContent !== 'CLIMB COMPLETE') {
+                    throw new Error('Climb completion contract failed');
+                }
+                report.status = 'PASS';
+                report.message = 'All 20 elemental seals and board transitions cleared cleanly.';
+            } catch (error) {
+                report.status = 'FAIL';
+                report.offBoardErrors = climbMode.boundaryViolations?.length || 0;
+                report.message = error.message || String(error);
+            } finally {
+                sfxMuted = previousMute;
+                writeAutomationReport(report);
+            }
+        }
+
         window.onload = () => {
             document.getElementById('mute-btn').textContent = sfxMuted ? '🔇' : '🔊';
             gameState.highScore = PinballCareer.get().bestScore;
             updateHighScore();
-            runLoadingScreen();
+            const automationMode = new URLSearchParams(location.search).get('automation');
+            if (automationMode === 'climb') runClimbAutomation();
+            else runLoadingScreen();
             gameLoop();
         };
     </script>
