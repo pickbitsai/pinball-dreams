@@ -802,120 +802,6 @@
             font: 600 7px/1 'Orbitron', sans-serif;
             letter-spacing: 0.16em;
         }
-        .hero-visual {
-            position: relative;
-            min-height: min(78vh, 760px);
-            perspective: 1200px;
-        }
-        .hero-visual::before {
-            content: '';
-            position: absolute;
-            inset: 7% 5% 4%;
-            border: 1px solid rgba(26, 200, 255, 0.2);
-            border-radius: 48% 48% 20% 20%;
-            transform: rotate(-5deg);
-            box-shadow: inset 0 0 50px rgba(26, 200, 255, 0.1);
-        }
-        .hero-table {
-            position: absolute;
-            top: 5%;
-            left: 50%;
-            width: min(390px, 42vw);
-            aspect-ratio: 0.69;
-            overflow: hidden;
-            transform: translateX(-50%) rotateX(18deg) rotateZ(7deg);
-            transform-style: preserve-3d;
-            clip-path: polygon(13% 0, 87% 0, 100% 100%, 0 100%);
-            background:
-                radial-gradient(circle at 50% 58%, rgba(255, 138, 51, 0.4), transparent 13%),
-                radial-gradient(circle at 33% 36%, rgba(26, 200, 255, 0.32), transparent 10%),
-                linear-gradient(145deg, rgba(255, 47, 186, 0.18), transparent 28%),
-                repeating-linear-gradient(90deg, transparent 0 39px, rgba(26, 200, 255, 0.08) 40px),
-                repeating-linear-gradient(0deg, transparent 0 39px, rgba(26, 200, 255, 0.06) 40px),
-                #050817;
-            border: 2px solid var(--cyan);
-            box-shadow: inset 0 0 35px rgba(26, 200, 255, 0.2), inset 0 0 80px rgba(255, 47, 186, 0.12), 0 0 10px var(--cyan), 0 35px 50px rgba(0, 0, 0, 0.72);
-        }
-        .hero-table::before,
-        .hero-table::after {
-            content: '';
-            position: absolute;
-            inset: 8% 10%;
-            border: 8px double var(--pink);
-            border-radius: 44% 44% 28% 28%;
-            box-shadow: inset 0 0 15px var(--pink), 0 0 12px var(--pink);
-        }
-        .hero-table::after {
-            inset: 20% 22% 24%;
-            border-color: var(--cyan);
-            border-width: 4px;
-            border-radius: 50%;
-            box-shadow: inset 0 0 15px var(--cyan), 0 0 12px var(--cyan);
-        }
-        .hero-bumper,
-        .hero-core,
-        .hero-flipper { position: absolute; z-index: 2; display: block; }
-        .hero-bumper {
-            width: 42px;
-            height: 42px;
-            border: 5px solid var(--pink);
-            border-radius: 50%;
-            background: radial-gradient(circle, white 0 11%, var(--cyan) 13% 26%, #060a18 29%);
-            box-shadow: 0 0 10px var(--pink), inset 0 0 9px var(--cyan);
-        }
-        .hero-bumper.b1 { top: 28%; left: 25%; }
-        .hero-bumper.b2 { top: 22%; right: 23%; }
-        .hero-bumper.b3 { top: 43%; left: 43%; }
-        .hero-core {
-            left: 50%;
-            bottom: 24%;
-            width: 76px;
-            height: 76px;
-            transform: translateX(-50%);
-            border: 5px double var(--amber);
-            border-radius: 50%;
-            background: radial-gradient(circle, #fff 0 4%, var(--amber) 8% 20%, #231025 23% 56%, var(--pink) 60% 64%, transparent 67%);
-            box-shadow: 0 0 18px var(--amber), inset 0 0 18px var(--pink);
-        }
-        .hero-flipper {
-            bottom: 11%;
-            width: 92px;
-            height: 18px;
-            border: 2px solid #ffb7e9;
-            border-radius: 20px;
-            background: linear-gradient(180deg, #ff76d2, #9b145f);
-            box-shadow: 0 0 10px var(--pink);
-        }
-        .hero-flipper.left { left: 22%; transform: rotate(21deg); }
-        .hero-flipper.right { right: 22%; transform: rotate(-21deg); }
-        .hero-ball {
-            position: absolute;
-            z-index: 3;
-            top: 14%;
-            right: 20%;
-            width: 18px;
-            height: 18px;
-            border-radius: 50%;
-            background: radial-gradient(circle at 30% 25%, white, #9de9ff 24%, #1e5a8a 70%, #08101f);
-            box-shadow: 0 0 12px white, -30px 38px 0 -5px rgba(255, 255, 255, 0.7), -58px 80px 0 -6px rgba(255, 255, 255, 0.4);
-        }
-        .hero-caption {
-            position: absolute;
-            right: 1%;
-            bottom: 5%;
-            color: rgba(188, 224, 240, 0.78);
-            font: 600 9px/1.5 'Orbitron', sans-serif;
-            letter-spacing: 0.14em;
-            text-align: right;
-            text-transform: uppercase;
-        }
-        .hero-caption strong {
-            display: block;
-            color: var(--pink);
-            font-size: 21px;
-            letter-spacing: 0.04em;
-            text-shadow: 0 0 9px var(--pink);
-        }
         #level-select,
         #game-over,
         #credits-modal,
@@ -1051,7 +937,6 @@
             .arcade-kicker { margin-bottom: 28px; }
             #title-screen .game-title { font-size: clamp(46px, 14vw, 82px); }
             #title-screen .tagline { margin-top: 28px; }
-            .hero-visual { display: none; }
             #credits-btn { left: 28px; bottom: 18px; }
             #title-screen .title-version { right: 28px; bottom: 18px; }
         }
@@ -1250,8 +1135,548 @@
             .menu-hint { font-size: 11px; }
         }
         @media (prefers-reduced-motion: reduce) {
-            .menu-ball { display: none; }
-            .menu-target, .menu-plunger { transition: none; }
+            .menu-ball,
+            .menu-target,
+            .menu-plunger { transition: none; }
+        }
+
+        /* ===== Zoomed title-board composition =====
+           The title screen is now one pinball cabinet close-up. The copy reads
+           like the backglass while the menu occupies a playable board section. */
+        #title-screen {
+            padding: clamp(34px, 4.5vw, 72px);
+            background:
+                linear-gradient(90deg, rgba(2, 5, 15, 0.98) 0%, rgba(2, 5, 15, 0.9) 32%, rgba(2, 5, 15, 0.42) 72%, rgba(2, 5, 15, 0.76)),
+                radial-gradient(circle at 72% 45%, rgba(255, 47, 186, 0.2), transparent 28%),
+                radial-gradient(circle at 58% 62%, rgba(26, 200, 255, 0.15), transparent 31%),
+                repeating-linear-gradient(90deg, transparent 0 63px, rgba(26, 200, 255, 0.035) 64px 65px),
+                repeating-linear-gradient(0deg, transparent 0 63px, rgba(255, 255, 255, 0.025) 64px 65px),
+                #02050e;
+        }
+        #title-screen::before {
+            inset: -12% -6%;
+            opacity: 0.9;
+            background:
+                radial-gradient(circle at 78% 23%, transparent 0 76px, rgba(26, 200, 255, 0.24) 77px 79px, transparent 80px 114px, rgba(255, 47, 186, 0.18) 115px 117px, transparent 118px),
+                linear-gradient(112deg, transparent 0 53%, rgba(26, 200, 255, 0.08) 53.2% 53.55%, transparent 53.8%),
+                linear-gradient(72deg, transparent 0 68%, rgba(255, 47, 186, 0.075) 68.2% 68.55%, transparent 68.8%);
+        }
+        #title-screen::after {
+            content: '';
+            position: absolute;
+            z-index: 0;
+            left: 37%;
+            top: -22%;
+            width: 68%;
+            height: 142%;
+            pointer-events: none;
+            border: 2px solid rgba(26, 200, 255, 0.22);
+            border-radius: 48% 44% 30% 34%;
+            transform: rotate(7deg);
+            box-shadow:
+                inset 0 0 60px rgba(26, 200, 255, 0.08),
+                0 0 16px rgba(26, 200, 255, 0.16);
+        }
+        .title-shell {
+            width: min(1540px, 100%);
+            grid-template-columns: minmax(320px, 0.72fr) minmax(560px, 1.28fr);
+            gap: clamp(26px, 4vw, 72px);
+        }
+        .title-copy {
+            position: relative;
+            z-index: 4;
+            width: min(500px, 100%);
+            padding: clamp(22px, 3vw, 42px);
+            border: 1px solid rgba(26, 200, 255, 0.2);
+            border-radius: 24px 6px 24px 6px;
+            background:
+                linear-gradient(145deg, rgba(9, 15, 34, 0.94), rgba(2, 5, 14, 0.68)),
+                repeating-linear-gradient(0deg, transparent 0 26px, rgba(26, 200, 255, 0.025) 27px);
+            box-shadow:
+                inset 0 0 34px rgba(26, 200, 255, 0.08),
+                0 24px 60px rgba(0, 0, 0, 0.36);
+            backdrop-filter: blur(12px);
+        }
+        .title-copy::before,
+        .title-copy::after {
+            content: '';
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 30%, white, #5f7787 48%, #101825 55%);
+            box-shadow: 0 0 7px rgba(208, 244, 255, 0.55);
+        }
+        .title-copy::before { left: 12px; top: 12px; }
+        .title-copy::after { right: 12px; bottom: 12px; }
+        .arcade-kicker { margin-bottom: clamp(18px, 3vh, 30px); }
+        #title-screen .game-title {
+            font-size: clamp(48px, 5.5vw, 88px);
+            line-height: 0.82;
+        }
+        #title-screen .tagline { margin-top: clamp(24px, 4vh, 38px); }
+        .title-copy .feature-strip {
+            width: 100%;
+            margin-top: clamp(24px, 4vh, 38px);
+            border-radius: 10px;
+            background: rgba(1, 5, 14, 0.58);
+        }
+
+        .menu-stage {
+            position: relative;
+            z-index: 3;
+            align-self: center;
+            min-width: 0;
+            perspective: 1400px;
+        }
+        .menu-stage-label {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 18px;
+            margin: 0 18px 10px;
+            color: rgba(158, 205, 226, 0.7);
+            font: 600 clamp(7px, 0.65vw, 10px)/1 'Orbitron', sans-serif;
+            letter-spacing: 0.16em;
+        }
+        .menu-stage-label b {
+            color: var(--amber);
+            font-size: 1.15em;
+            text-shadow: 0 0 10px rgba(255, 138, 51, 0.8);
+        }
+        #menu-rig {
+            position: relative;
+            display: block;
+            width: 100%;
+            height: min(76vh, 720px);
+            min-height: 570px;
+            margin: 0;
+            overflow: hidden;
+            isolation: isolate;
+            border: 2px solid rgba(26, 200, 255, 0.76);
+            border-radius: 46px 46px 88px 88px;
+            background:
+                radial-gradient(circle at 52% 62%, rgba(255, 138, 51, 0.2), transparent 11%),
+                radial-gradient(circle at 24% 24%, rgba(255, 47, 186, 0.2), transparent 10%),
+                radial-gradient(circle at 78% 31%, rgba(26, 200, 255, 0.18), transparent 9%),
+                linear-gradient(118deg, rgba(255, 47, 186, 0.08), transparent 30%),
+                repeating-linear-gradient(90deg, transparent 0 42px, rgba(26, 200, 255, 0.045) 43px 44px),
+                repeating-linear-gradient(0deg, transparent 0 42px, rgba(26, 200, 255, 0.035) 43px 44px),
+                linear-gradient(160deg, #071326, #030711 68%);
+            box-shadow:
+                inset 0 0 34px rgba(26, 200, 255, 0.18),
+                inset 0 0 110px rgba(255, 47, 186, 0.08),
+                0 0 12px rgba(26, 200, 255, 0.68),
+                0 34px 70px rgba(0, 0, 0, 0.62);
+            transform: rotateX(2.5deg);
+            transform-origin: center bottom;
+        }
+        #menu-rig::before {
+            content: '';
+            position: absolute;
+            z-index: 0;
+            inset: 22px 106px 52px 22px;
+            pointer-events: none;
+            border: 8px double rgba(255, 47, 186, 0.42);
+            border-radius: 34px 46% 42% 64px;
+            box-shadow:
+                inset 0 0 18px rgba(255, 47, 186, 0.22),
+                0 0 14px rgba(255, 47, 186, 0.3);
+        }
+        #menu-rig::after {
+            content: '';
+            position: absolute;
+            z-index: 0;
+            left: 44%;
+            bottom: 13%;
+            width: 96px;
+            height: 96px;
+            pointer-events: none;
+            transform: translateX(-50%);
+            border: 5px double rgba(255, 138, 51, 0.66);
+            border-radius: 50%;
+            background: radial-gradient(circle, #fff 0 3%, var(--amber) 5% 13%, #1b1021 15% 54%, rgba(255, 47, 186, 0.7) 57% 61%, transparent 64%);
+            box-shadow: 0 0 20px rgba(255, 138, 51, 0.48), inset 0 0 16px rgba(255, 47, 186, 0.36);
+        }
+
+        .menu-board-hardware,
+        .menu-targets { position: absolute; inset: 0; }
+        .menu-board-hardware { z-index: 1; pointer-events: none; }
+        .menu-orbit,
+        .menu-bumper,
+        .menu-post,
+        .menu-flipper { position: absolute; display: block; }
+        .menu-orbit {
+            border: 3px solid transparent;
+            border-left-color: var(--cyan);
+            border-radius: 50%;
+            filter: drop-shadow(0 0 6px rgba(26, 200, 255, 0.7));
+        }
+        .menu-orbit.orbit-a {
+            left: 4%;
+            top: 8%;
+            width: 38%;
+            height: 70%;
+            transform: rotate(-10deg);
+        }
+        .menu-orbit.orbit-b {
+            right: 13%;
+            top: 3%;
+            width: 28%;
+            height: 44%;
+            transform: rotate(18deg) scaleX(-1);
+            border-left-color: var(--pink);
+            filter: drop-shadow(0 0 6px rgba(255, 47, 186, 0.65));
+        }
+        .menu-bumper {
+            width: 42px;
+            height: 42px;
+            border: 5px solid var(--pink);
+            border-radius: 50%;
+            background: radial-gradient(circle, white 0 9%, var(--cyan) 11% 24%, #070c19 27% 60%, var(--pink) 64%);
+            box-shadow: 0 0 13px rgba(255, 47, 186, 0.72), inset 0 0 9px rgba(26, 200, 255, 0.7);
+        }
+        .menu-bumper-a { right: 23%; top: 15%; }
+        .menu-bumper-b { left: 11%; bottom: 18%; transform: scale(0.78); }
+        .menu-post {
+            width: 10px;
+            height: 10px;
+            border: 2px solid #dff8ff;
+            border-radius: 50%;
+            background: #132536;
+            box-shadow: 0 0 8px var(--cyan);
+        }
+        .menu-post.post-a { left: 12%; top: 10%; }
+        .menu-post.post-b { right: 19%; bottom: 25%; }
+        .menu-flipper {
+            z-index: 2;
+            bottom: 8%;
+            width: 78px;
+            height: 15px;
+            border: 2px solid #ffb6e7;
+            border-radius: 20px;
+            background: linear-gradient(180deg, #ff73cd, #8e1759);
+            box-shadow: 0 0 11px rgba(255, 47, 186, 0.8);
+        }
+        .menu-flipper-left { left: 27%; transform: rotate(19deg); }
+        .menu-flipper-right { left: 50%; transform: rotate(-19deg); }
+
+        #menu-rig .menu-targets {
+            z-index: 4;
+            inset: 70px 122px 104px 30px;
+            display: block;
+            min-width: 0;
+        }
+        #menu-rig #climb-btn,
+        #menu-rig #levels-btn,
+        #menu-rig #achievements-btn,
+        #menu-rig #credits-btn {
+            --card-accent: var(--cyan);
+            --card-tilt: 0deg;
+            --card-left: 5%;
+            --card-top: 0px;
+            position: absolute;
+            top: var(--card-top);
+            left: var(--card-left);
+            bottom: auto;
+            display: grid;
+            grid-template-columns: 54px minmax(0, 1fr) 36px;
+            align-items: center;
+            gap: 13px;
+            width: min(440px, 84%);
+            height: 82px;
+            min-width: 0;
+            margin: 0;
+            padding: 11px 15px 11px 12px;
+            overflow: visible;
+            color: #ecfaff;
+            text-align: left;
+            border: 1px solid color-mix(in srgb, var(--card-accent) 82%, white 18%);
+            border-radius: 5px;
+            clip-path: polygon(0 0, 92% 0, 100% 20%, 100% 100%, 8% 100%, 0 80%);
+            background:
+                linear-gradient(95deg, color-mix(in srgb, var(--card-accent) 16%, transparent), rgba(4, 10, 22, 0.94) 34%),
+                repeating-linear-gradient(0deg, transparent 0 17px, rgba(255, 255, 255, 0.025) 18px),
+                #07101f;
+            box-shadow:
+                7px 9px 0 rgba(0, 0, 0, 0.52),
+                9px 12px 18px rgba(0, 0, 0, 0.46),
+                inset 0 0 16px color-mix(in srgb, var(--card-accent) 9%, transparent);
+            transform: rotate(var(--card-tilt));
+            transform-origin: 50% 50%;
+            transition:
+                transform 0.2s cubic-bezier(.2, .8, .2, 1),
+                box-shadow 0.2s ease,
+                border-color 0.2s ease,
+                background 0.2s ease;
+        }
+        #menu-rig #climb-btn {
+            --card-accent: var(--pink);
+            --card-tilt: -3.5deg;
+            --card-left: 4%;
+            --card-top: 0px;
+        }
+        #menu-rig #levels-btn {
+            --card-accent: var(--cyan);
+            --card-tilt: 2deg;
+            --card-left: 17%;
+            --card-top: 104px;
+        }
+        #menu-rig #achievements-btn {
+            --card-accent: var(--amber);
+            --card-tilt: -1.8deg;
+            --card-left: 2%;
+            --card-top: 208px;
+        }
+        #menu-rig #credits-btn {
+            --card-accent: #a874ff;
+            --card-tilt: 3.2deg;
+            --card-left: 14%;
+            --card-top: 312px;
+        }
+        .menu-card-no {
+            display: grid;
+            place-items: center;
+            align-self: stretch;
+            color: var(--card-accent);
+            font: 800 15px/1 'Orbitron', sans-serif;
+            border-right: 1px solid color-mix(in srgb, var(--card-accent) 45%, transparent);
+            text-shadow: 0 0 8px var(--card-accent);
+        }
+        .menu-card-copy { min-width: 0; }
+        .menu-card-copy strong {
+            display: block;
+            overflow: hidden;
+            color: white;
+            font: 700 clamp(11px, 1vw, 15px)/1.1 'Orbitron', sans-serif;
+            letter-spacing: 0.14em;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .menu-card-copy small {
+            display: block;
+            margin-top: 8px;
+            overflow: hidden;
+            color: rgba(179, 213, 228, 0.76);
+            font: 600 clamp(9px, 0.8vw, 12px)/1 'Rajdhani', sans-serif;
+            letter-spacing: 0.08em;
+            text-overflow: ellipsis;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+        .menu-card-shot {
+            display: grid;
+            place-items: center;
+            width: 31px;
+            height: 31px;
+            color: var(--card-accent);
+            font: 700 18px/1 'Orbitron', sans-serif;
+            border: 1px solid currentColor;
+            border-radius: 50%;
+            box-shadow: 0 0 10px color-mix(in srgb, var(--card-accent) 48%, transparent);
+        }
+        #menu-rig .menu-target::before {
+            content: '';
+            position: absolute;
+            left: 13px;
+            top: 8px;
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 30%, white, #718897 52%, #111a26 57%);
+            box-shadow: 0 0 5px rgba(218, 247, 255, 0.5);
+        }
+        #menu-rig .menu-target[data-selected="true"] {
+            transform: translate3d(13px, -3px, 0) rotate(var(--card-tilt)) scale(1.025);
+            border-color: white !important;
+            background:
+                linear-gradient(95deg, color-mix(in srgb, var(--card-accent) 28%, transparent), rgba(6, 14, 29, 0.98) 40%),
+                #081222 !important;
+            box-shadow:
+                7px 10px 0 color-mix(in srgb, var(--card-accent) 25%, #02040a),
+                0 0 26px color-mix(in srgb, var(--card-accent) 62%, transparent),
+                inset 0 0 22px color-mix(in srgb, var(--card-accent) 16%, transparent) !important;
+        }
+        #menu-rig .menu-target[data-selected="true"]::after {
+            right: -13px;
+            width: 9px;
+            height: 9px;
+            background: var(--card-accent);
+            box-shadow: 0 0 13px var(--card-accent);
+        }
+        #menu-rig .menu-target.menu-hit {
+            transform: translate3d(20px, -8px, 0) rotate(var(--card-tilt)) scale(1.05);
+            color: #12070f !important;
+            background: var(--card-accent) !important;
+            box-shadow: 0 0 38px var(--card-accent) !important;
+        }
+        #menu-rig .menu-target:focus-visible {
+            outline: 2px solid white;
+            outline-offset: 4px;
+        }
+        #menu-rig.cards-entering .menu-target {
+            animation: menu-card-fall 720ms cubic-bezier(.16, .84, .24, 1) both;
+        }
+        #menu-rig.cards-entering .menu-target:nth-child(1) { animation-delay: 40ms; }
+        #menu-rig.cards-entering .menu-target:nth-child(2) { animation-delay: 120ms; }
+        #menu-rig.cards-entering .menu-target:nth-child(3) { animation-delay: 200ms; }
+        #menu-rig.cards-entering .menu-target:nth-child(4) { animation-delay: 280ms; }
+        @keyframes menu-card-fall {
+            0% {
+                opacity: 0;
+                transform: translate3d(-30px, -150px, 0) rotate(calc(var(--card-tilt) - 10deg)) scale(0.92);
+            }
+            72% { opacity: 1; transform: translate3d(5px, 7px, 0) rotate(calc(var(--card-tilt) + 1deg)); }
+            100% { opacity: 1; transform: rotate(var(--card-tilt)); }
+        }
+
+        #menu-rig .menu-lane {
+            position: absolute;
+            z-index: 5;
+            top: 38px;
+            right: 24px;
+            bottom: 40px;
+            display: flex;
+            width: 82px;
+            align-items: flex-end;
+            justify-content: center;
+            overflow: visible;
+            border: 1px solid rgba(26, 200, 255, 0.42);
+            border-radius: 36px 36px 22px 22px;
+            background:
+                linear-gradient(90deg, rgba(26, 200, 255, 0.08), transparent 22% 78%, rgba(255, 47, 186, 0.1)),
+                rgba(2, 7, 18, 0.66);
+            box-shadow: inset 0 0 18px rgba(26, 200, 255, 0.12);
+        }
+        .menu-lane::before,
+        .menu-lane::after {
+            content: '';
+            position: absolute;
+            top: 18px;
+            bottom: 18px;
+            width: 3px;
+            border-radius: 4px;
+            background: linear-gradient(180deg, var(--cyan), rgba(26, 200, 255, 0.2), var(--pink));
+            box-shadow: 0 0 8px currentColor;
+        }
+        .menu-lane::before { left: 9px; }
+        .menu-lane::after { right: 9px; }
+        .menu-lane-label {
+            position: absolute;
+            top: 18px;
+            left: 50%;
+            color: rgba(180, 226, 242, 0.72);
+            font: 600 7px/1 'Orbitron', sans-serif;
+            letter-spacing: 0.18em;
+            transform: translateX(-50%) rotate(90deg);
+            transform-origin: 50% 50%;
+        }
+        #menu-rig .menu-aim { z-index: 2; }
+        #menu-rig .menu-ball {
+            z-index: 8;
+            left: 0;
+            top: 0;
+            width: 18px;
+            height: 18px;
+            opacity: 1;
+            background:
+                radial-gradient(circle at 30% 26%, #fff 0 12%, #daf6ff 13% 26%, #91adbc 42%, #304452 70%, #0d1620);
+            box-shadow: 0 0 12px #fff, 0 0 23px rgba(26, 200, 255, 0.6);
+        }
+        #menu-rig .menu-plunger {
+            z-index: 7;
+            margin-bottom: 7px;
+            cursor: grab;
+            filter: drop-shadow(0 0 7px rgba(255, 138, 51, 0.45));
+        }
+        #menu-rig[data-armed="true"] .menu-plunger { cursor: grabbing; }
+        #menu-rig .menu-hint {
+            position: absolute;
+            z-index: 7;
+            left: 34px;
+            right: 124px;
+            bottom: 20px;
+            margin: 0;
+            color: rgba(170, 207, 224, 0.7);
+            font-size: 11px;
+            text-transform: uppercase;
+        }
+
+        @media (max-width: 980px) {
+            #title-screen {
+                padding: 50px 24px 36px;
+                overflow-y: auto;
+            }
+            .title-shell {
+                grid-template-columns: 1fr;
+                height: auto;
+                min-height: 100%;
+                align-items: start;
+                gap: 26px;
+            }
+            .title-copy {
+                width: min(720px, 100%);
+                margin: 0 auto;
+                padding: 24px 28px;
+            }
+            .title-copy .feature-strip { display: none; }
+            .arcade-kicker { margin-bottom: 20px; }
+            #title-screen .game-title { font-size: clamp(44px, 11vw, 76px); }
+            #title-screen .tagline { margin-top: 22px; }
+            .menu-stage { width: min(760px, 100%); margin: 0 auto; }
+            #menu-rig { height: 610px; min-height: 610px; }
+            #title-screen .title-version { display: none; }
+        }
+        @media (max-width: 600px) {
+            #title-screen { padding: 50px 12px 24px; }
+            .title-copy { padding: 20px 18px; }
+            .arcade-kicker { font-size: 7px; letter-spacing: 0.28em; }
+            #title-screen .game-title { font-size: clamp(38px, 14vw, 58px); }
+            #title-screen .tagline { margin-top: 19px; font-size: 15px; }
+            .menu-stage-label { margin-inline: 8px; font-size: 6px; }
+            #menu-rig {
+                height: 520px;
+                min-height: 520px;
+                border-radius: 28px 28px 56px 56px;
+            }
+            #menu-rig::before { inset: 16px 70px 44px 14px; border-width: 5px; }
+            #menu-rig::after { width: 70px; height: 70px; bottom: 14%; }
+            #menu-rig .menu-targets { inset: 58px 76px 82px 10px; }
+            #menu-rig #climb-btn,
+            #menu-rig #levels-btn,
+            #menu-rig #achievements-btn,
+            #menu-rig #credits-btn {
+                grid-template-columns: 38px minmax(0, 1fr) 27px;
+                gap: 8px;
+                width: 94%;
+                height: 70px;
+                padding: 9px 10px 9px 8px;
+            }
+            #menu-rig #climb-btn { --card-left: 1%; --card-top: 0px; }
+            #menu-rig #levels-btn { --card-left: 5%; --card-top: 88px; }
+            #menu-rig #achievements-btn { --card-left: 0%; --card-top: 176px; }
+            #menu-rig #credits-btn { --card-left: 4%; --card-top: 264px; }
+            .menu-card-no { font-size: 11px; }
+            .menu-card-copy strong { font-size: clamp(8px, 2.7vw, 11px); letter-spacing: 0.08em; }
+            .menu-card-copy small { margin-top: 6px; font-size: clamp(7px, 2.2vw, 9px); }
+            .menu-card-shot { width: 25px; height: 25px; font-size: 13px; }
+            #menu-rig .menu-lane { top: 28px; right: 8px; bottom: 34px; width: 56px; }
+            .menu-lane-label { display: none; }
+            #menu-rig .menu-ball { width: 15px; height: 15px; }
+            #menu-rig .menu-hint {
+                left: 16px;
+                right: 72px;
+                bottom: 12px;
+                font-size: 8px;
+                line-height: 1.35;
+            }
+            .menu-bumper { transform: scale(0.68); }
+            .menu-flipper { width: 58px; height: 12px; }
+            .menu-flipper-left { left: 24%; }
+            .menu-flipper-right { left: 48%; }
+        }
+        @media (prefers-reduced-motion: reduce) {
+            #menu-rig.cards-entering .menu-target { animation: none; }
         }
 
         /* ===== PickBits account chip ===== */
@@ -1403,7 +1828,6 @@
             #title-screen .game-title { font-size: clamp(48px, 7vw, 82px); }
             #title-screen .tagline { margin-top: 28px; }
             .feature-strip { margin-top: 24px; }
-            .hero-visual { min-height: 620px; transform: scale(0.88); }
         }
     </style>
     <!-- PostHog Analytics -->
@@ -1479,43 +1903,65 @@
                     <div class="arcade-kicker">PICKBITS ARCADE</div>
                     <div class="game-title">PINBALL<span class="dreams">DREAMS</span></div>
                     <div class="tagline">Build the table.<span>Chase the impossible shot.</span></div>
-                    <!-- Plunger menu: the options are drop targets, the spring
-                         below is held back and aimed at whichever is selected. -->
-                    <div class="title-actions" id="menu-rig">
-                        <div class="menu-targets" id="menu-targets" role="menu">
-                            <button class="menu-target" id="climb-btn" role="menuitem" data-menu="climb">START CLIMB</button>
-                            <button class="menu-target" id="levels-btn" role="menuitem" data-menu="levels">SELECT TABLE</button>
-                            <button class="menu-target" id="achievements-btn" role="menuitem" data-menu="achievements">ACHIEVEMENTS</button>
-                            <button class="menu-target" id="credits-btn" role="menuitem" data-menu="credits">CREDITS</button>
-                        </div>
-                        <div class="menu-lane" aria-hidden="true">
-                            <div class="menu-aim" id="menu-aim"></div>
-                            <div class="menu-ball" id="menu-ball"></div>
-                            <div class="menu-plunger" id="menu-plunger">
-                                <div class="plunger-rod"></div>
-                                <div class="plunger-spring"></div>
-                                <div class="plunger-knob"></div>
-                            </div>
-                        </div>
-                        <p class="menu-hint" id="menu-hint">↑↓ aim · hold <b>SPACE</b> to pull the plunger · release to launch</p>
-                    </div>
                     <div class="feature-strip" aria-label="Game features">
                         <div class="feature"><span class="feature-mark">◎</span>Matter.js Physics</div>
                         <div class="feature"><span class="feature-mark">◇</span>Table Editor</div>
                         <div class="feature"><span class="feature-mark">↑</span>Climb Mode</div>
                     </div>
                 </div>
-                <div class="hero-visual" aria-hidden="true">
-                    <div class="hero-table">
-                        <span class="hero-bumper b1"></span>
-                        <span class="hero-bumper b2"></span>
-                        <span class="hero-bumper b3"></span>
-                        <span class="hero-core"></span>
-                        <span class="hero-flipper left"></span>
-                        <span class="hero-flipper right"></span>
-                        <span class="hero-ball"></span>
+                <div class="menu-stage">
+                    <div class="menu-stage-label" aria-hidden="true">
+                        <span>BOARD VIEW // MENU CIRCUIT</span>
+                        <b>SELECT A SHOT</b>
                     </div>
-                    <div class="hero-caption"><strong>20</strong>floors of neon<br>after midnight</div>
+                    <!-- The main menu is a close-up playfield. Each option is a
+                         falling card target and the pulled plunger fires the
+                         parked ball into the currently lit card. -->
+                    <div class="title-actions" id="menu-rig">
+                        <div class="menu-board-hardware" aria-hidden="true">
+                            <span class="menu-orbit orbit-a"></span>
+                            <span class="menu-orbit orbit-b"></span>
+                            <span class="menu-bumper menu-bumper-a"></span>
+                            <span class="menu-bumper menu-bumper-b"></span>
+                            <span class="menu-post post-a"></span>
+                            <span class="menu-post post-b"></span>
+                            <span class="menu-flipper menu-flipper-left"></span>
+                            <span class="menu-flipper menu-flipper-right"></span>
+                        </div>
+                        <div class="menu-targets" id="menu-targets" role="menu">
+                            <button class="menu-target" id="climb-btn" role="menuitem" data-menu="climb">
+                                <span class="menu-card-no">01</span>
+                                <span class="menu-card-copy"><strong>START CLIMB</strong><small>20-floor elemental ascent</small></span>
+                                <span class="menu-card-shot">↑</span>
+                            </button>
+                            <button class="menu-target" id="levels-btn" role="menuitem" data-menu="levels">
+                                <span class="menu-card-no">02</span>
+                                <span class="menu-card-copy"><strong>SELECT TABLE</strong><small>five procedural board recipes</small></span>
+                                <span class="menu-card-shot">◇</span>
+                            </button>
+                            <button class="menu-target" id="achievements-btn" role="menuitem" data-menu="achievements">
+                                <span class="menu-card-no">03</span>
+                                <span class="menu-card-copy"><strong>ACHIEVEMENTS</strong><small>career seals and cloud progress</small></span>
+                                <span class="menu-card-shot">◎</span>
+                            </button>
+                            <button class="menu-target" id="credits-btn" role="menuitem" data-menu="credits">
+                                <span class="menu-card-no">04</span>
+                                <span class="menu-card-copy"><strong>CREDITS</strong><small>operators, tools, and soundtrack</small></span>
+                                <span class="menu-card-shot">＋</span>
+                            </button>
+                        </div>
+                        <div class="menu-lane" aria-hidden="true">
+                            <div class="menu-lane-label">LAUNCH</div>
+                            <div class="menu-plunger" id="menu-plunger">
+                                <div class="plunger-rod"></div>
+                                <div class="plunger-spring"></div>
+                                <div class="plunger-knob"></div>
+                            </div>
+                        </div>
+                        <div class="menu-aim" id="menu-aim" aria-hidden="true"></div>
+                        <div class="menu-ball" id="menu-ball" aria-hidden="true"></div>
+                        <p class="menu-hint" id="menu-hint">↑↓ aim · hold <b>SPACE</b> to pull the plunger · release to launch</p>
+                    </div>
                 </div>
             </div>
             <div class="title-version">A PICKBITS.AI GAME / 2026</div>
@@ -4783,6 +5229,13 @@
             // change above plus getBoundingClientRect forces the reflow, and a
             // rAF here would never fire while the tab is backgrounded.
             if (typeof selectMenu === 'function') selectMenu(menuIndex);
+            const rig = document.getElementById('menu-rig');
+            if (rig) {
+                rig.classList.remove('cards-entering');
+                void rig.offsetWidth;
+                rig.classList.add('cards-entering');
+                setTimeout(() => rig.classList.remove('cards-entering'), 1150);
+            }
         }
 
         // ====== MENU PLUNGER ======
@@ -4834,6 +5287,14 @@
             return { x: p.left + p.width / 2 - rig.left, y: p.top - rig.top };
         }
 
+        function parkMenuBall() {
+            if (menuFiring) return;
+            const from = menuMuzzle();
+            const half = (menuBall.offsetWidth || 18) / 2;
+            menuBall.style.opacity = '1';
+            menuBall.style.transform = `translate(${from.x - half}px, ${from.y - half - 2}px)`;
+        }
+
         function selectMenu(i) {
             menuIndex = (i + menuItems.length) % menuItems.length;
             menuItems.forEach((el, n) => el.dataset.selected = String(n === menuIndex));
@@ -4847,6 +5308,7 @@
             menuAim.style.right = (rig.width - from.x) + 'px';
             menuAim.style.top = from.y + 'px';
             menuAim.style.transform = `rotate(${Math.atan2(dy, dx) * 180 / Math.PI + 180}deg)`;
+            parkMenuBall();
         }
 
         function setPull(v) {
@@ -4893,6 +5355,7 @@
             const dur = 620 - 260 * power;
             const t0 = performance.now();
             menuBall.style.opacity = '1';
+            const ballHalf = (menuBall.offsetWidth || 18) / 2;
 
             // rAF only draws the flight. Completion is owned by timers, because
             // rAF stops ticking in a backgrounded tab and the menu must never be
@@ -4902,7 +5365,7 @@
                 const inv = 1 - k;
                 const x = inv * inv * from.x + 2 * inv * k * ctrl.x + k * k * to.x;
                 const y = inv * inv * from.y + 2 * inv * k * ctrl.y + k * k * to.y;
-                menuBall.style.transform = `translate(${x - 7.5}px, ${y - 7.5}px)`;
+                menuBall.style.transform = `translate(${x - ballHalf}px, ${y - ballHalf}px)`;
                 if (k < 1) requestAnimationFrame(fly);
             };
             requestAnimationFrame(fly);
@@ -4968,8 +5431,7 @@
         window.addEventListener('resize', () => { if (menuOpen()) selectMenu(menuIndex); });
 
         document.getElementById('credits-close').addEventListener('click', () => {
-            document.getElementById('credits-modal').style.display = 'none';
-            document.getElementById('title-screen').style.display = 'block';
+            showTitleScreen();
         });
 
         document.getElementById('mute-btn').addEventListener('click', toggleMute);
@@ -5002,8 +5464,7 @@
 
         // The ACHIEVEMENTS entry point lives in the plunger menu (menuActions).
         document.getElementById('achievements-close').addEventListener('click', () => {
-            document.getElementById('achievements-modal').style.display = 'none';
-            document.getElementById('title-screen').style.display = 'block';
+            showTitleScreen();
         });
 
         // A cloud save was merged into local storage — re-read everything that

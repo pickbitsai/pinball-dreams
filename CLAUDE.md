@@ -34,7 +34,7 @@ There is **no build system** — no `package.json`, no bundler, no dev server, n
 - **Board mastery** is a PickBits perk: anonymous runs re-earn every seal, signed-in players start mastered boards pre-unsealed (`climbBoardMastered`). Mastery is still *recorded* while anonymous, so signing in later pays it out retroactively.
 - `powerSystem` — timed `fire`/`ice`/`rock` ball powers from `rollPowerCapsule()` → `activatePower()`. `powerScoreMultiplier(action)` maps each power to the actions it boosts.
 - `missionSystem` — light 3 lanes → shoot the ramp → complete the board's mission.
-- **Plunger menu** — the title screen is a small table: each option is a drop target and the spring below is cocked at the selection. Keyboard, mouse and touch all funnel through `launchMenu()`, and `menuActions` is the single map of what each option does. Completion is owned by `setTimeout`, not `requestAnimationFrame`, so a backgrounded tab can't strand the menu mid-launch.
+- **Plunger menu** — the title screen is a zoomed playfield section: each option is a staggered falling-card target and the ball stays parked above the pulled-back spring. Keyboard, mouse and touch all funnel through `launchMenu()`, and `menuActions` is the single map of what each option does. Completion is owned by `setTimeout`, not `requestAnimationFrame`, so a backgrounded tab can't strand the menu mid-launch.
 - `loseBall()` — **the single drain seam.** All three drain paths (sensor, out-of-bounds, fallback) funnel through it. Put per-ball logic here, not in the collision handler.
 - Screens are DOM overlays toggled by `display`. Any new overlay must be added to the hide-lists in `showTitleScreen()`, `showLevelSelect()`, `startGame()` **and** `endGame()`, or it bleeds across screens.
 
