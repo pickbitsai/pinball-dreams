@@ -1062,19 +1062,30 @@
             justify-content: center;
             border-left: 1px dashed rgba(26, 200, 255, 0.22);
         }
-        /* Tracer from the plunger to the selected target. Rotated about its
-           right edge, which sits at the plunger's muzzle. */
+        /* The SVG guide shares the ball's route: up the full launch tube, then
+           around its curved exit and into the selected target. */
         .menu-aim {
             position: absolute;
-            right: 50%;
-            height: 1px;
-            transform-origin: 100% 50%;
-            background: linear-gradient(90deg, transparent, rgba(255, 138, 51, 0.75));
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            overflow: visible;
             opacity: 0.42;
             pointer-events: none;
             transition: opacity 0.2s ease;
         }
-        #menu-rig[data-armed="true"] .menu-aim { opacity: 1; height: 2px; }
+        .menu-aim path {
+            fill: none;
+            stroke: rgba(255, 138, 51, 0.72);
+            stroke-width: 1;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-dasharray: 4 6;
+            vector-effect: non-scaling-stroke;
+            filter: drop-shadow(0 0 4px rgba(255, 138, 51, 0.62));
+        }
+        #menu-rig[data-armed="true"] .menu-aim { opacity: 1; }
+        #menu-rig[data-armed="true"] .menu-aim path { stroke-width: 2; }
 
         .menu-ball {
             position: absolute;
@@ -1975,7 +1986,9 @@
                                 <div class="plunger-knob"></div>
                             </div>
                         </div>
-                        <div class="menu-aim" id="menu-aim" aria-hidden="true"></div>
+                        <svg class="menu-aim" id="menu-aim" aria-hidden="true" preserveAspectRatio="none">
+                            <path id="menu-aim-path"></path>
+                        </svg>
                         <div class="menu-ball" id="menu-ball" aria-hidden="true"></div>
                         <p class="menu-hint" id="menu-hint">↑↓ aim · hold <b>SPACE</b> to pull the plunger · release to launch</p>
                     </div>
@@ -5358,6 +5371,8 @@
         const menuRig = document.getElementById('menu-rig');
         const menuBall = document.getElementById('menu-ball');
         const menuAim = document.getElementById('menu-aim');
+        const menuAimPath = document.getElementById('menu-aim-path');
+        const menuLane = menuRig.querySelector('.menu-lane');
         const menuPlunger = document.getElementById('menu-plunger');
         const menuItems = Array.from(document.querySelectorAll('.menu-target'));
         let menuIndex = 0;
@@ -5416,18 +5431,35 @@
             menuBall.style.transform = `translate(${from.x - half}px, ${from.y - half - 2}px)`;
         }
 
+        function menuShotRoute(target) {
+            const t = menuLocalBox(target);
+            const lane = menuLocalBox(menuLane);
+            const from = menuMuzzle();
+            const to = { x: t.right - 10, y: t.top + t.height / 2 };
+            // All shots clear the full tube before branching. The first curve
+            // control stays above its mouth; the second shares the target row,
+            // so the ball arrives horizontally instead of dropping onto a card.
+            const exit = { x: from.x, y: lane.top + 28 };
+            const c1 = { x: from.x, y: lane.top - 12 };
+            const horizontalRun = Math.max(0, from.x - to.x);
+            const c2 = {
+                x: Math.min(from.x - 12, to.x + Math.max(32, horizontalRun * 0.45)),
+                y: to.y
+            };
+            return { from, exit, c1, c2, to };
+        }
+
         function selectMenu(i) {
             menuIndex = (i + menuItems.length) % menuItems.length;
             menuItems.forEach((el, n) => el.dataset.selected = String(n === menuIndex));
-            const t = menuLocalBox(menuItems[menuIndex]);
-            const from = menuMuzzle();
-            // Aim at the target's right edge, where the ball will strike.
-            const tx = t.right, ty = t.top + t.height / 2;
-            const dx = tx - from.x, dy = ty - from.y;
-            menuAim.style.width = Math.hypot(dx, dy) + 'px';
-            menuAim.style.right = (menuRig.clientWidth - from.x) + 'px';
-            menuAim.style.top = from.y + 'px';
-            menuAim.style.transform = `rotate(${Math.atan2(dy, dx) * 180 / Math.PI + 180}deg)`;
+            const route = menuShotRoute(menuItems[menuIndex]);
+            menuAim.setAttribute('viewBox', `0 0 ${menuRig.clientWidth} ${menuRig.clientHeight}`);
+            menuAimPath.setAttribute(
+                'd',
+                `M ${route.from.x} ${route.from.y} ` +
+                `L ${route.exit.x} ${route.exit.y} ` +
+                `C ${route.c1.x} ${route.c1.y}, ${route.c2.x} ${route.c2.y}, ${route.to.x} ${route.to.y}`
+            );
             parkMenuBall();
         }
 
@@ -5471,12 +5503,8 @@
             menuRig.dataset.armed = 'false';
             sfxPlungerRelease(power);
 
-            const t = menuLocalBox(target);
-            const from = menuMuzzle();
-            const to = { x: t.right - 10, y: t.top + t.height / 2 };
-            // Quadratic arc: a harder pull throws a flatter, faster shot.
-            const ctrl = { x: from.x + (to.x - from.x) * 0.25, y: from.y - 40 - 70 * power };
-            const dur = 620 - 260 * power;
+            const { from, exit, c1, c2, to } = menuShotRoute(target);
+            const dur = 920 - 240 * power;
             const t0 = performance.now();
             menuBall.style.opacity = '1';
             const ballHalf = (menuBall.offsetWidth || 18) / 2;
@@ -5486,9 +5514,25 @@
             // left stuck mid-launch.
             const fly = (now) => {
                 const k = Math.min(1, (now - t0) / dur);
-                const inv = 1 - k;
-                const x = inv * inv * from.x + 2 * inv * k * ctrl.x + k * k * to.x;
-                const y = inv * inv * from.y + 2 * inv * k * ctrl.y + k * k * to.y;
+                const tubeShare = 0.44;
+                let x;
+                let y;
+                if (k <= tubeShare) {
+                    const u = k / tubeShare;
+                    x = from.x + (exit.x - from.x) * u;
+                    y = from.y + (exit.y - from.y) * u;
+                } else {
+                    const u = (k - tubeShare) / (1 - tubeShare);
+                    const inv = 1 - u;
+                    x = inv ** 3 * exit.x
+                        + 3 * inv ** 2 * u * c1.x
+                        + 3 * inv * u ** 2 * c2.x
+                        + u ** 3 * to.x;
+                    y = inv ** 3 * exit.y
+                        + 3 * inv ** 2 * u * c1.y
+                        + 3 * inv * u ** 2 * c2.y
+                        + u ** 3 * to.y;
+                }
                 menuBall.style.transform = `translate(${x - ballHalf}px, ${y - ballHalf}px)`;
                 if (k < 1) requestAnimationFrame(fly);
             };
