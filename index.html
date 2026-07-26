@@ -1197,6 +1197,7 @@
             position: relative;
             z-index: 4;
             width: min(500px, 100%);
+            container-type: inline-size;
             padding: clamp(22px, 3vw, 42px);
             border: 1px solid rgba(26, 200, 255, 0.2);
             border-radius: 24px 6px 24px 6px;
@@ -1222,8 +1223,10 @@
         .title-copy::after { right: 12px; bottom: 12px; }
         .arcade-kicker { margin-bottom: clamp(18px, 3vh, 30px); }
         #title-screen .game-title {
-            font-size: clamp(48px, 5.5vw, 88px);
+            width: 100%;
+            font-size: clamp(44px, 4.6vw, 88px);
             line-height: 0.82;
+            white-space: nowrap;
         }
         #title-screen .tagline { margin-top: clamp(24px, 4vh, 38px); }
         .title-copy .feature-strip {
@@ -1845,15 +1848,249 @@
         }
         #final-rank b { color: var(--cyan); text-shadow: 0 0 9px rgba(26, 200, 255, 0.6); }
 
+        /* ===== Viewport modal system =====
+           Secondary screens live inside the tall game container, but belong to
+           the viewport. Fixed positioning keeps each screen centered everywhere. */
+        #level-select,
+        #game-over,
+        #credits-modal,
+        #achievements-modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            z-index: 300;
+            margin: 0;
+            max-height: calc(var(--app-height, 100svh) - 40px);
+            transform: translate(-50%, -50%);
+            overflow-x: hidden;
+            overflow-y: auto;
+            overscroll-behavior: contain;
+            scrollbar-gutter: stable;
+            box-shadow:
+                inset 0 0 28px rgba(26, 200, 255, 0.08),
+                0 0 18px rgba(26, 200, 255, 0.3),
+                0 0 42px rgba(255, 47, 186, 0.16),
+                0 0 0 100vmax rgba(1, 3, 10, 0.78);
+        }
+        #level-select,
+        #achievements-modal { width: min(760px, calc(100vw - 48px)); }
+        #credits-modal,
+        #game-over { width: min(520px, calc(100vw - 48px)); }
+        #level-select::before,
+        #game-over::before,
+        #credits-modal::before,
+        #achievements-modal::before {
+            content: '';
+            position: absolute;
+            top: 11px;
+            left: 12px;
+            width: 42px;
+            height: 2px;
+            background: linear-gradient(90deg, var(--cyan), transparent);
+            box-shadow: 0 0 8px var(--cyan);
+        }
+        .modal-kicker {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin: 0 0 12px;
+            color: var(--muted);
+            font: 600 7px/1 'Orbitron', sans-serif;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+        }
+        .modal-kicker b {
+            color: var(--amber);
+            font: inherit;
+            text-shadow: 0 0 8px rgba(255, 138, 51, 0.72);
+        }
+        .modal-lede {
+            width: min(520px, 100%);
+            margin: 9px auto 0;
+            color: var(--muted);
+            font: 500 13px/1.35 'Rajdhani', sans-serif;
+            letter-spacing: 0.04em;
+        }
+        .modal-actions {
+            position: sticky;
+            bottom: -1px;
+            z-index: 3;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 18px;
+            padding: 14px 0 1px;
+            background: linear-gradient(180deg, transparent, rgba(2, 5, 14, 0.98) 34%);
+        }
+        #level-select .level-grid { margin-top: 18px; }
+        #level-select .level-btn {
+            --level-accent: var(--cyan);
+            position: relative;
+            display: grid;
+            grid-template-columns: 38px minmax(0, 1fr);
+            grid-template-rows: auto auto;
+            gap: 3px 10px;
+            align-content: center;
+            min-height: 94px;
+            padding: 13px 12px;
+            overflow: hidden;
+            text-align: left;
+        }
+        #level-select .level-btn::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            opacity: 0;
+            background: linear-gradient(115deg, color-mix(in srgb, var(--level-accent) 18%, transparent), transparent 58%);
+            transition: opacity 0.2s ease;
+        }
+        #level-select .level-btn::after {
+            content: 'READY';
+            position: absolute;
+            top: 7px;
+            right: 7px;
+            color: var(--level-accent);
+            font: 600 5px/1 'Orbitron', sans-serif;
+            letter-spacing: 0.14em;
+            opacity: 0;
+        }
+        #level-select .level-btn:hover,
+        #level-select .level-btn.selected {
+            border-color: var(--level-accent);
+            box-shadow:
+                inset 0 0 16px color-mix(in srgb, var(--level-accent) 13%, transparent),
+                0 0 11px color-mix(in srgb, var(--level-accent) 28%, transparent);
+        }
+        #level-select .level-btn:hover::before,
+        #level-select .level-btn.selected::before,
+        #level-select .level-btn.selected::after { opacity: 1; }
+        #level-select .level-icon {
+            position: relative;
+            z-index: 1;
+            grid-row: 1 / span 2;
+            display: grid;
+            width: 36px;
+            height: 36px;
+            margin: 0;
+            place-items: center;
+            color: var(--level-accent);
+            border: 1px solid color-mix(in srgb, var(--level-accent) 58%, transparent);
+            border-radius: 50%;
+            background: color-mix(in srgb, var(--level-accent) 8%, transparent);
+        }
+        #level-select .level-icon::before {
+            color: inherit;
+            font-size: 19px;
+        }
+        #level-select .level-name,
+        #level-select .level-desc {
+            position: relative;
+            z-index: 1;
+        }
+        #level-select .level-name {
+            align-self: end;
+            font-size: 10px;
+        }
+        #level-select .level-desc {
+            align-self: start;
+            margin-top: 1px;
+            padding-right: 4px;
+        }
+        #level-select .level-btn[data-affinity="fire"] { --level-accent: #ff6c3d; }
+        #level-select .level-btn[data-affinity="ice"] { --level-accent: #55ddff; }
+        #level-select .level-btn[data-affinity="rock"] { --level-accent: #ffb44d; }
+        #level-select .level-btn[data-affinity="custom"] { --level-accent: var(--pink); }
+        #level-select .level-btn[data-affinity="climb"] { --level-accent: #65ffac; }
+        #level-select .level-btn.climb-btn { min-height: 78px; }
+        #level-select .level-btn.climb-btn .level-desc { max-width: 520px; }
+        #level-select .level-btn[data-level="0"] .level-icon::before { content: '\25CE'; }
+        #level-select .level-btn[data-level="1"] .level-icon::before { content: '\25C9'; }
+        #level-select .level-btn[data-level="2"] .level-icon::before { content: '\25C7'; }
+        #level-select .level-btn[data-level="3"] .level-icon::before { content: '\265C'; }
+        #level-select .level-btn[data-level="4"] .level-icon::before { content: '\224B'; }
+        #level-select .level-btn[data-level="5"] .level-icon::before { content: '\2301'; }
+        #level-select .level-btn[data-level="6"] .level-icon::before { content: '\2191'; }
+        #level-back-btn {
+            padding: 14px 24px;
+            color: var(--cyan-soft);
+            border: 1px solid var(--cyan);
+            border-radius: 4px;
+            background: rgba(26, 200, 255, 0.08);
+            font: 700 10px/1 'Orbitron', sans-serif;
+            cursor: pointer;
+        }
+        #level-back-btn:hover {
+            color: #06131d;
+            background: var(--cyan);
+            box-shadow: 0 0 14px rgba(26, 200, 255, 0.45);
+        }
+        #game-over .final-score-label {
+            margin-top: 18px;
+            color: var(--muted);
+            font: 600 9px/1 'Orbitron', sans-serif;
+            letter-spacing: 0.16em;
+            text-transform: uppercase;
+        }
+        #game-over-buttons {
+            position: static;
+            margin-top: 18px;
+            padding-top: 0;
+            background: none;
+        }
+        #credits-modal .credits-line { margin: 10px 0; }
+        #credits-modal .credits-copy {
+            padding-top: 14px;
+            border-top: 1px solid rgba(26, 200, 255, 0.14);
+        }
+
         @media (max-width: 520px) {
             .ach-grid { grid-template-columns: 1fr; }
             #pbAuth { top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); }
+            #level-select,
+            #game-over,
+            #credits-modal,
+            #achievements-modal {
+                width: calc(100vw - 22px);
+                max-height: calc(var(--app-height, 100svh) - 22px);
+                padding: 20px 14px;
+                border-radius: 14px;
+            }
+            .modal-kicker {
+                gap: 8px;
+                font-size: 6px;
+                letter-spacing: 0.13em;
+            }
+            #level-select .level-grid {
+                gap: 8px;
+                margin: 15px 0 10px;
+            }
+            #level-select .level-btn {
+                grid-template-columns: 31px minmax(0, 1fr);
+                gap: 2px 8px;
+                min-height: 84px;
+                padding: 10px 8px;
+            }
+            #level-select .level-icon {
+                width: 30px;
+                height: 30px;
+            }
+            #level-select .level-icon::before { font-size: 16px; }
+            #level-select .level-name { font-size: 8px; }
+            #level-select .level-desc { font-size: 10px; }
+            #level-select .level-btn.climb-btn { min-height: 70px; }
+            .modal-actions {
+                margin-top: 10px;
+                padding-top: 12px;
+            }
         }
 
         @media (max-height: 720px) and (min-width: 861px) {
             #title-screen { padding-top: 46px; padding-bottom: 46px; }
             .arcade-kicker { margin-bottom: 20px; }
-            #title-screen .game-title { font-size: clamp(48px, 7vw, 82px); }
+            #title-screen .game-title { font-size: clamp(44px, 4.6vw, 64px); }
             #title-screen .tagline { margin-top: 28px; }
             .feature-strip { margin-top: 24px; }
         }
@@ -1998,16 +2235,20 @@
         </div>
 
         <!-- Achievements Modal -->
-        <div id="achievements-modal">
-            <h2>ACHIEVEMENTS</h2>
+        <div id="achievements-modal" role="dialog" aria-modal="true" aria-labelledby="achievements-title">
+            <div class="modal-kicker"><span>CAREER ARCHIVE</span><b>PICKBITS SYNC</b></div>
+            <h2 id="achievements-title">ACHIEVEMENTS</h2>
             <div id="ach-progress">0 / 0 UNLOCKED</div>
             <div class="ach-grid" id="ach-grid"></div>
-            <button id="achievements-close">BACK</button>
+            <div class="modal-actions">
+                <button id="achievements-close">BACK</button>
+            </div>
         </div>
 
         <!-- Credits Modal -->
-        <div id="credits-modal">
-            <h2>CREDITS</h2>
+        <div id="credits-modal" role="dialog" aria-modal="true" aria-labelledby="credits-title">
+            <div class="modal-kicker"><span>OPERATOR LOG</span><b>BUILD 2026</b></div>
+            <h2 id="credits-title">CREDITS</h2>
             <div class="credits-line"><span class="credits-label">Game</span><br><span class="credits-value">Pinball Dreams</span></div>
             <div class="credits-line"><span class="credits-label">Engine</span><br><span class="credits-value">Matter.js</span></div>
             <div class="credits-line"><span class="credits-label">Font</span><br><span class="credits-value">Press Start 2P</span></div>
@@ -2015,59 +2256,67 @@
             <div class="credits-line"><span class="credits-label">Music</span><br><span class="credits-value">30 Crimson / 49 Arpeggios / 53 Flight</span></div>
             <div class="credits-line"><span class="credits-label">License</span><br><span class="credits-value">Royalty-Free</span></div>
             <div class="credits-copy">&copy; 2026 Pinball Dreams</div>
-            <button id="credits-close">BACK</button>
+            <div class="modal-actions">
+                <button id="credits-close">BACK</button>
+            </div>
         </div>
 
-        <div id="level-select">
-            <h2 style="font-size: 16px;">SELECT TABLE</h2>
+        <div id="level-select" role="dialog" aria-modal="true" aria-labelledby="level-select-title">
+            <div class="modal-kicker"><span>TABLE ARCHIVE</span><b>07 ROUTES ONLINE</b></div>
+            <h2 id="level-select-title">SELECT TABLE</h2>
+            <p class="modal-lede">Choose a board recipe, match its elemental zone, then launch into the high-score circuit.</p>
             <div class="level-grid">
-                <button class="level-btn selected" data-level="0">
-                    <div class="level-icon">🎯</div>
+                <button class="level-btn selected" data-level="0" data-affinity="fire">
+                    <div class="level-icon" aria-hidden="true">🎯</div>
                     <span class="level-name">Classic</span>
                     <span class="level-desc">Neon Foundry · Fire zone</span>
                 </button>
-                <button class="level-btn" data-level="1">
-                    <div class="level-icon">🌀</div>
+                <button class="level-btn" data-level="1" data-affinity="ice">
+                    <div class="level-icon" aria-hidden="true">🌀</div>
                     <span class="level-name">Vortex</span>
                     <span class="level-desc">Cryo Spiral · Ice zone</span>
                 </button>
-                <button class="level-btn" data-level="2">
-                    <div class="level-icon">💎</div>
+                <button class="level-btn" data-level="2" data-affinity="rock">
+                    <div class="level-icon" aria-hidden="true">💎</div>
                     <span class="level-name">Diamond</span>
                     <span class="level-desc">Prism Quarry · Rock zone</span>
                 </button>
-                <button class="level-btn" data-level="3">
-                    <div class="level-icon">🏰</div>
+                <button class="level-btn" data-level="3" data-affinity="fire">
+                    <div class="level-icon" aria-hidden="true">🏰</div>
                     <span class="level-name">Castle</span>
                     <span class="level-desc">Ember Citadel · Fire zone</span>
                 </button>
-                <button class="level-btn" data-level="4">
-                    <div class="level-icon">🌊</div>
+                <button class="level-btn" data-level="4" data-affinity="ice">
+                    <div class="level-icon" aria-hidden="true">🌊</div>
                     <span class="level-name">Wave</span>
                     <span class="level-desc">Tidal Array · Ice zone</span>
                 </button>
-                <button class="level-btn" data-level="5">
-                    <div class="level-icon">🎨</div>
+                <button class="level-btn" data-level="5" data-affinity="custom">
+                    <div class="level-icon" aria-hidden="true">🎨</div>
                     <span class="level-name">Custom</span>
                     <span class="level-desc">Build your own!</span>
                 </button>
-                <button class="level-btn climb-btn" data-level="6" style="grid-column: span 2;">
-                    <div class="level-icon">🧗</div>
+                <button class="level-btn climb-btn" data-level="6" data-affinity="climb">
+                    <div class="level-icon" aria-hidden="true">🧗</div>
                     <span class="level-name">Climb Mode</span>
                     <span class="level-desc">Ice Climbers meets Pinball! Scale 20 floors with elemental balls!</span>
                 </button>
             </div>
-            <button id="play-btn">PLAY</button>
+            <div class="modal-actions">
+                <button id="level-back-btn">BACK</button>
+                <button id="play-btn">LAUNCH TABLE</button>
+            </div>
         </div>
 
-        <div id="game-over">
+        <div id="game-over" role="dialog" aria-modal="true" aria-labelledby="game-over-title">
+            <div class="modal-kicker"><span>RUN REPORT</span><b>FINAL TILT</b></div>
             <h2 id="game-over-title">GAME OVER</h2>
             <div id="new-high-score-msg">★ NEW HIGH SCORE! ★</div>
-            <p style="color:#fff">Final Score:</p>
+            <p class="final-score-label">Final Score</p>
             <div id="final-score">0</div>
             <div id="final-floor"><span id="final-floor-label">Reached Floor:</span> <span id="final-floor-num">1</span></div>
             <div id="final-rank"></div>
-            <div id="game-over-buttons">
+            <div id="game-over-buttons" class="modal-actions">
                 <button id="restart-btn">PLAY AGAIN</button>
                 <button id="menu-from-over-btn">MENU</button>
             </div>
@@ -5182,6 +5431,7 @@
             if (currentLevel === 5) startCustomEditor();
             else startGame();
         });
+        document.getElementById('level-back-btn').addEventListener('click', showTitleScreen);
         document.getElementById('restart-btn').addEventListener('click', startGame);
         document.getElementById('menu-from-over-btn').addEventListener('click', showLevelSelect);
         document.getElementById('menu-btn').addEventListener('click', () => {
