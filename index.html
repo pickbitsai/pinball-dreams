@@ -439,6 +439,19 @@
             border-color: transparent;
             box-shadow: none;
         }
+        html[data-renderer="2d"] #game-canvas {
+            opacity: 1;
+        }
+        html[data-renderer="2d"] #game-3d-canvas {
+            visibility: hidden;
+        }
+        html[data-performance-tier="mobile"] body {
+            background-attachment: scroll;
+        }
+        html[data-performance-tier="mobile"] #score-display {
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+        }
         body.game-active {
             display: block;
             overflow: hidden;
@@ -2469,6 +2482,15 @@
             ballsRemaining: CONFIG.totalBalls, isPlaying: false, ballInPlay: false, ballLaunched: false
         };
 
+        const mobilePerformanceTier = (() => {
+            const compactViewport = window.innerWidth <= 900;
+            const coarsePointer = window.matchMedia?.('(pointer: coarse)').matches || false;
+            const limitedMemory = Number(navigator.deviceMemory || 8) <= 4;
+            const limitedCpu = Number(navigator.hardwareConcurrency || 8) <= 4;
+            return compactViewport || coarsePointer || limitedMemory || limitedCpu;
+        })();
+        document.documentElement.dataset.performanceTier = mobilePerformanceTier ? 'mobile' : 'desktop';
+
         const engine = Engine.create({ gravity: { x: 0, y: 0.8 } });
         const world = engine.world;
         const canvas = document.getElementById('game-canvas');
@@ -2482,12 +2504,15 @@
                 pinball3D = new window.NeonPinball3D({
                     canvas: canvas3D,
                     assetUrl: 'assets/3d/neon-pinball-kit.glb',
-                    backdropUrl: 'assets/neon-city-background.png'
+                    backdropUrl: 'assets/neon-city-background.png',
+                    quality: mobilePerformanceTier ? 'mobile' : 'high'
                 });
             } catch (error) {
                 console.warn('3D renderer unavailable; physics renderer remains active.', error);
             }
         }
+        document.documentElement.dataset.renderer = pinball3D ? '3d' : '2d';
+        canvas.dataset.renderActive = pinball3D ? 'false' : 'true';
 
         const CATEGORY = { WALL: 0x0001, BALL: 0x0002, FLIPPER: 0x0004, BUMPER: 0x0008, SENSOR: 0x0020 };
 
@@ -2511,6 +2536,30 @@
 
         // ====== PAUSE ======
         let paused = false;
+        const PHYSICS_STEP_MS = 1000 / 60;
+        const MAX_FRAME_DELTA_MS = 100;
+        const MAX_PHYSICS_STEPS = 6;
+        const MOBILE_3D_FRAME_MS = 1000 / 30;
+        let lastGameFrameTime = performance.now();
+        let physicsAccumulator = 0;
+        let last3DRenderTime = 0;
+        const performanceDiagnostics = {
+            tier: mobilePerformanceTier ? 'mobile' : 'desktop',
+            renderer: pinball3D ? '3d' : '2d',
+            quality: pinball3D?.quality || '2d',
+            target3DFps: mobilePerformanceTier ? 30 : 60,
+            fps: 0,
+            physicsHz: 0,
+            threeDFps: 0,
+            twoDFps: 0,
+            activeBodyMeshes: 0,
+            sampleStartedAt: lastGameFrameTime,
+            sampleFrames: 0,
+            samplePhysicsSteps: 0,
+            sample3DFrames: 0,
+            sample2DFrames: 0
+        };
+        window.PinballPerformance = performanceDiagnostics;
 
         // ====== AUDIO SYSTEM ======
         let audioCtx = null, musicAudio = null, sfxMuted = false, currentMusicTrack = 'menu';
@@ -3028,6 +3077,8 @@
         function togglePause() {
             if (!gameState.isPlaying) return;
             paused = !paused;
+            physicsAccumulator = 0;
+            lastGameFrameTime = performance.now();
             document.getElementById('pause-overlay').style.display = paused ? 'flex' : 'none';
             if (paused) stopMusic();
             else playMusic(currentMusicTrack);
@@ -5137,7 +5188,6 @@
             ctx.fillStyle = level.theme.accent;
             ctx.beginPath(); ctx.arc(CONFIG.width - boardX(25), plungerFloorBase + pH - 20 + offset, 10, 0, Math.PI * 2); ctx.fill();
             if (plunger.charging) {
-                plunger.power = Math.min(plunger.power + 0.03, 1);
                 ctx.fillStyle = `rgba(0,255,136,${plunger.power})`;
                 ctx.fillRect(CONFIG.width - boardX(36), plungerFloorBase + pH - boardY(105), 22 * plunger.power, 5);
             }
@@ -5184,27 +5234,45 @@
             }
         }
 
-        function gameLoop() {
+        function updatePerformanceDiagnostics(now) {
+            performanceDiagnostics.sampleFrames++;
+            const elapsed = now - performanceDiagnostics.sampleStartedAt;
+            if (elapsed < 1000) return;
+            const scale = 1000 / elapsed;
+            performanceDiagnostics.fps = Math.round(performanceDiagnostics.sampleFrames * scale);
+            performanceDiagnostics.physicsHz = Math.round(performanceDiagnostics.samplePhysicsSteps * scale);
+            performanceDiagnostics.threeDFps = Math.round(performanceDiagnostics.sample3DFrames * scale);
+            performanceDiagnostics.twoDFps = Math.round(performanceDiagnostics.sample2DFrames * scale);
+            performanceDiagnostics.activeBodyMeshes = pinball3D?.bodyMeshes?.size || 0;
+            document.documentElement.dataset.perfFps = String(performanceDiagnostics.fps);
+            document.documentElement.dataset.perfPhysicsHz = String(performanceDiagnostics.physicsHz);
+            document.documentElement.dataset.perf3dFps = String(performanceDiagnostics.threeDFps);
+            document.documentElement.dataset.perf2dFps = String(performanceDiagnostics.twoDFps);
+            document.documentElement.dataset.perfBodyMeshes = String(performanceDiagnostics.activeBodyMeshes);
+            performanceDiagnostics.sampleStartedAt = now;
+            performanceDiagnostics.sampleFrames = 0;
+            performanceDiagnostics.samplePhysicsSteps = 0;
+            performanceDiagnostics.sample3DFrames = 0;
+            performanceDiagnostics.sample2DFrames = 0;
+        }
+
+        function gameLoop(frameTime) {
+            const now = Number.isFinite(frameTime) ? frameTime : performance.now();
+            const frameDelta = Math.min(MAX_FRAME_DELTA_MS, Math.max(0, now - lastGameFrameTime));
+            lastGameFrameTime = now;
+            updatePerformanceDiagnostics(now);
+
             if (paused) {
-                // Draw pause overlay on top of last rendered frame
-                ctx.save();
-                ctx.fillStyle = 'rgba(0,0,0,0.55)';
-                ctx.fillRect(0, 0, CONFIG.width, CONFIG.height);
-                ctx.fillStyle = '#00ff88';
-                ctx.font = 'bold 20px "Press Start 2P", monospace';
-                ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                ctx.fillText('PAUSED', CONFIG.width / 2, CONFIG.height / 2 - 14);
-                ctx.font = '9px "Press Start 2P", monospace';
-                ctx.fillStyle = '#8888aa';
-                ctx.fillText('PRESS P TO RESUME', CONFIG.width / 2, CONFIG.height / 2 + 18);
-                ctx.restore();
+                physicsAccumulator = 0;
                 requestAnimationFrame(gameLoop);
                 return;
             }
             if (gameState.isPlaying) {
                 checkComboTimeout();
-                applyElementalEffects();
                 updateFlippers();
+                if (plunger.charging) {
+                    plunger.power = Math.min(plunger.power + frameDelta / 555, 1);
+                }
                 // Close plunger lane once ball exits into playfield
                 const plungerCheckFloor = climbMode.active ? (climbMode.ballSaveFloor || 0) : 0;
                 const plungerBaseY = floorY(plungerCheckFloor);
@@ -5232,13 +5300,23 @@
                     updateUpperLevel();
                     checkTopTransition();
                 }
-                Engine.update(engine, 1000 / 60);
-                // Resolve both side rails and Climb floor transitions after the
-                // physics step. Doing this before Engine.update left one frame
-                // where a fast ball could render outside the board or skip up.
-                constrainBallToSideRails();
-                if (climbMode.active) updateClimbMode();
-                updateParticles();
+                physicsAccumulator = Math.min(
+                    physicsAccumulator + frameDelta,
+                    PHYSICS_STEP_MS * MAX_PHYSICS_STEPS
+                );
+                let physicsSteps = 0;
+                while (physicsAccumulator >= PHYSICS_STEP_MS - 0.001 && physicsSteps < MAX_PHYSICS_STEPS) {
+                    applyElementalEffects();
+                    Engine.update(engine, PHYSICS_STEP_MS);
+                    // Resolve rails and floor transitions after every fixed step,
+                    // including catch-up steps on a device that missed a frame.
+                    constrainBallToSideRails();
+                    if (climbMode.active) updateClimbMode();
+                    updateParticles();
+                    physicsAccumulator = Math.max(0, physicsAccumulator - PHYSICS_STEP_MS);
+                    physicsSteps++;
+                }
+                performanceDiagnostics.samplePhysicsSteps += physicsSteps;
                 // Out-of-bounds safety net
                 if (ball && gameState.ballInPlay && (ball.position.x < -10 || ball.position.x > CONFIG.width + 30)) {
                     loseBall();
@@ -5247,10 +5325,24 @@
                 if (ball && gameState.ballInPlay && ball.position.y > CONFIG.height + 50) {
                     loseBall();
                 }
+            } else {
+                physicsAccumulator = 0;
             }
             updateCamera();
-            render();
-            if (pinball3D) {
+            if (!pinball3D) {
+                render();
+                performanceDiagnostics.sample2DFrames++;
+            }
+            const shouldRender3D = pinball3D && (
+                !mobilePerformanceTier ||
+                !last3DRenderTime ||
+                now - last3DRenderTime >= MOBILE_3D_FRAME_MS - 1
+            );
+            if (shouldRender3D) {
+                const renderDeltaSeconds = last3DRenderTime
+                    ? Math.max(1 / 240, (now - last3DRenderTime) / 1000)
+                    : 1 / 60;
+                last3DRenderTime = now;
                 pinball3D.render({
                     bodies: Composite.allBodies(world),
                     level: LEVELS[currentLevel],
@@ -5271,7 +5363,8 @@
                     floorCount: climbMode.active
                         ? Math.min(CLIMB_TARGET_FLOORS, Math.max(2, climbMode.highestFloor + 2))
                         : (boardExtended ? 2 : 1)
-                });
+                }, renderDeltaSeconds);
+                performanceDiagnostics.sample3DFrames++;
             }
             requestAnimationFrame(gameLoop);
         }
@@ -5279,6 +5372,9 @@
         function startGame() {
             document.body.classList.add('game-active');
             handleResize();
+            physicsAccumulator = 0;
+            lastGameFrameTime = performance.now();
+            last3DRenderTime = 0;
             gameState.score = 0; gameState.ballsRemaining = CONFIG.totalBalls;
             gameState.isPlaying = true; gameState.ballInPlay = false;
             isInUpperLevel = false; paused = false;

@@ -42,6 +42,9 @@
             this.canvas = options.canvas;
             this.assetUrl = options.assetUrl;
             this.backdropUrl = options.backdropUrl;
+            this.quality = options.quality === 'mobile' ? 'mobile' : 'high';
+            this.mobileQuality = this.quality === 'mobile';
+            this.dynamicLights = !this.mobileQuality;
             this.bodyMeshes = new Map();
             this.assetNodes = new Map();
             this.floorKey = '';
@@ -49,19 +52,20 @@
 
             this.renderer = new THREE.WebGLRenderer({
                 canvas: this.canvas,
-                antialias: true,
+                antialias: !this.mobileQuality,
                 alpha: false,
                 powerPreference: 'high-performance',
             });
-            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.5));
+            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, this.mobileQuality ? 1 : 1.5));
             this.renderer.setSize(BOARD_WIDTH, BOARD_HEIGHT, false);
             this.viewportWidth = BOARD_WIDTH;
             this.viewportHeight = BOARD_HEIGHT;
-            this.renderer.shadowMap.enabled = true;
+            this.renderer.shadowMap.enabled = !this.mobileQuality;
             this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
             this.renderer.outputEncoding = THREE.sRGBEncoding;
             this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
             this.renderer.toneMappingExposure = 1.12;
+            this.canvas.dataset.quality = this.quality;
 
             this.scene = new THREE.Scene();
             this.scene.background = new THREE.Color(0x02040b);
@@ -147,15 +151,17 @@
             const key = new THREE.SpotLight(0x24cfff, 4.1, WORLD_LENGTH * 1.7, Math.PI / 5.5, 0.48, 1.1);
             key.position.set(-6.5, 11, 3);
             key.target.position.set(0, 0, -1);
-            key.castShadow = true;
-            key.shadow.mapSize.set(1024, 1024);
+            key.castShadow = !this.mobileQuality;
+            key.shadow.mapSize.set(this.mobileQuality ? 512 : 1024, this.mobileQuality ? 512 : 1024);
             this.scene.add(key, key.target);
 
-            const pink = new THREE.PointLight(0xff208f, 3.2, 24, 1.4);
-            pink.position.set(5.2, 5.5, -2.5);
-            const amber = new THREE.PointLight(0xff6d20, 2.3, 17, 1.55);
-            amber.position.set(-1.2, 2.8, 4.2);
-            this.scene.add(pink, amber);
+            if (this.dynamicLights) {
+                const pink = new THREE.PointLight(0xff208f, 3.2, 24, 1.4);
+                pink.position.set(5.2, 5.5, -2.5);
+                const amber = new THREE.PointLight(0xff6d20, 2.3, 17, 1.55);
+                amber.position.set(-1.2, 2.8, 4.2);
+                this.scene.add(pink, amber);
+            }
 
             const horizon = new THREE.Mesh(
                 new THREE.PlaneGeometry(38, 20),
@@ -215,8 +221,8 @@
                     });
                     gltf.scene.traverse((child) => {
                         if (!child.isMesh) return;
-                        child.castShadow = true;
-                        child.receiveShadow = true;
+                        child.castShadow = !this.mobileQuality;
+                        child.receiveShadow = !this.mobileQuality;
                         child.userData.sharedGeometry = true;
                         child.userData.sharedMaterial = true;
                     });
@@ -240,8 +246,8 @@
             clone.scale.set(1, 1, 1);
             clone.traverse((child) => {
                 if (!child.isMesh) return;
-                child.castShadow = true;
-                child.receiveShadow = true;
+                child.castShadow = !this.mobileQuality;
+                child.receiveShadow = !this.mobileQuality;
                 child.userData.sharedGeometry = true;
                 if (!primaryTint) {
                     child.userData.sharedMaterial = true;
@@ -305,7 +311,12 @@
             surface.receiveShadow = true;
             floor.add(surface);
 
-            const grid = new THREE.GridHelper(WORLD_LENGTH - 0.35, 56, color(theme.wall, '#1ac8ff'), color(theme.wall, '#1ac8ff'));
+            const grid = new THREE.GridHelper(
+                WORLD_LENGTH - 0.35,
+                this.mobileQuality ? 28 : 56,
+                color(theme.wall, '#1ac8ff'),
+                color(theme.wall, '#1ac8ff')
+            );
             grid.scale.x = WORLD_WIDTH / WORLD_LENGTH;
             grid.position.y = 0.086;
             grid.material.transparent = true;
@@ -317,8 +328,9 @@
             const pink = this.neonMaterial(theme.bumper, 3.6);
             const amber = this.neonMaterial(theme.accent, 3.2);
 
-            const edgeGeometryLong = new THREE.CylinderGeometry(0.055, 0.055, WORLD_LENGTH + 0.1, 14);
-            const edgeGeometryShort = new THREE.CylinderGeometry(0.055, 0.055, WORLD_WIDTH + 0.1, 14);
+            const edgeSegments = this.mobileQuality ? 8 : 14;
+            const edgeGeometryLong = new THREE.CylinderGeometry(0.055, 0.055, WORLD_LENGTH + 0.1, edgeSegments);
+            const edgeGeometryShort = new THREE.CylinderGeometry(0.055, 0.055, WORLD_WIDTH + 0.1, edgeSegments);
             const addEdge = (geometry, material, x, z, rotationZ, rotationX) => {
                 const edge = new THREE.Mesh(geometry, material);
                 edge.position.set(x, 0.16, z);
@@ -330,9 +342,11 @@
             addEdge(edgeGeometryLong, pink, WORLD_WIDTH / 2 + 0.15, 0, 0, Math.PI / 2);
             addEdge(edgeGeometryShort, amber, 0, -WORLD_LENGTH / 2 - 0.15, Math.PI / 2, 0);
 
-            const underGlow = new THREE.PointLight(color(theme.bumper, '#ff2fba'), 2.4, 8, 1.7);
-            underGlow.position.set(0, 0.55, WORLD_LENGTH * 0.12);
-            floor.add(underGlow);
+            if (this.dynamicLights) {
+                const underGlow = new THREE.PointLight(color(theme.bumper, '#ff2fba'), 2.4, 8, 1.7);
+                underGlow.position.set(0, 0.55, WORLD_LENGTH * 0.12);
+                floor.add(underGlow);
+            }
 
             const reactor = this.cloneAsset('Reactor', theme.accent, theme.wall);
             if (reactor) {
@@ -491,9 +505,11 @@
                 ring.position.y = 0.38;
                 group.add(base, ring);
             }
-            const light = new THREE.PointLight(color(tint, '#ff2fba'), 1.3, 3.3, 1.8);
-            light.position.y = 0.66;
-            group.add(light);
+            if (this.dynamicLights) {
+                const light = new THREE.PointLight(color(tint, '#ff2fba'), 1.3, 3.3, 1.8);
+                light.position.y = 0.66;
+                group.add(light);
+            }
             group.userData.flashable = true;
             group.userData.baseScale = group.scale.clone();
             return group;
@@ -534,13 +550,13 @@
                 emissiveIntensity: 0.52,
             });
             const ballMesh = new THREE.Mesh(
-                new THREE.SphereGeometry(radius, 32, 24),
+                new THREE.SphereGeometry(radius, this.mobileQuality ? 20 : 32, this.mobileQuality ? 14 : 24),
                 ballMaterial
             );
             ballMesh.position.y = radius + 0.18;
-            ballMesh.castShadow = true;
-            const glow = new THREE.PointLight(0xa8efff, 1.1, 3.2, 1.7);
-            glow.position.y = radius + 0.32;
+            ballMesh.castShadow = !this.mobileQuality;
+            const glow = this.dynamicLights ? new THREE.PointLight(0xa8efff, 1.1, 3.2, 1.7) : null;
+            if (glow) glow.position.y = radius + 0.32;
 
             const fire = new THREE.Group();
             const fireMaterial = this.neonMaterial('#ff5a24', 4.6, 0.9);
@@ -597,7 +613,8 @@
             fire.visible = false;
             ice.visible = false;
             rock.visible = false;
-            group.add(ballMesh, glow, fire, ice, rock);
+            group.add(ballMesh, fire, ice, rock);
+            if (glow) group.add(glow);
             group.userData.ballFx = { ballMesh, glow, fire, fireRing, ice, iceShell, iceHalo, rock, rockRing, radius, type: 'normal' };
             return group;
         }
@@ -621,8 +638,10 @@
             fx.ballMesh.material.color.copy(color(palette.color, '#d7f6ff'));
             fx.ballMesh.material.emissive.copy(color(palette.emissive, '#173848'));
             fx.ballMesh.material.emissiveIntensity = type === 'normal' ? 0.52 : 1.3;
-            fx.glow.color.copy(color(palette.light, '#a8efff'));
-            fx.glow.intensity = type === 'normal' ? 1.1 : 2.8;
+            if (fx.glow) {
+                fx.glow.color.copy(color(palette.light, '#a8efff'));
+                fx.glow.intensity = type === 'normal' ? 1.1 : 2.8;
+            }
 
             const time = this.elapsed;
             if (type === 'fire') {
@@ -730,28 +749,32 @@
             const tint = palette[type] || '#1ac8ff';
             const radius = Math.max((body.circleRadius || 50) / PX, 0.5);
             const group = new THREE.Group();
+            const zoneSegments = this.mobileQuality ? 32 : 64;
             const field = new THREE.Mesh(
-                new THREE.CircleGeometry(radius, 64),
+                new THREE.CircleGeometry(radius, zoneSegments),
                 this.neonMaterial(tint, 0.85, 0.12)
             );
             field.rotation.x = -Math.PI / 2;
             field.position.y = 0.105;
             field.material.depthWrite = false;
             const outer = new THREE.Mesh(
-                new THREE.TorusGeometry(radius, 0.055, 10, 64),
+                new THREE.TorusGeometry(radius, 0.055, this.mobileQuality ? 6 : 10, zoneSegments),
                 this.neonMaterial(tint, 3.4, 0.82)
             );
             outer.rotation.x = Math.PI / 2;
             outer.position.y = 0.13;
             const inner = new THREE.Mesh(
-                new THREE.TorusGeometry(radius * 0.62, 0.026, 8, 48),
+                new THREE.TorusGeometry(radius * 0.62, 0.026, this.mobileQuality ? 6 : 8, this.mobileQuality ? 24 : 48),
                 this.neonMaterial(tint, 2.4, 0.55)
             );
             inner.rotation.x = Math.PI / 2;
             inner.position.y = 0.135;
-            const light = new THREE.PointLight(color(tint, '#1ac8ff'), 1.15, radius * 4.5, 1.8);
-            light.position.y = 0.36;
-            group.add(field, outer, inner, light);
+            const light = this.dynamicLights
+                ? new THREE.PointLight(color(tint, '#1ac8ff'), 1.15, radius * 4.5, 1.8)
+                : null;
+            if (light) light.position.y = 0.36;
+            group.add(field, outer, inner);
+            if (light) group.add(light);
             group.userData.zoneFx = { type, outer, inner, light };
             return group;
         }
@@ -896,7 +919,7 @@
                     const pulse = 1 + Math.sin(this.elapsed * (matched ? 7.5 : 3.2)) * (matched ? 0.1 : 0.035);
                     zoneFx.outer.scale.setScalar(pulse);
                     zoneFx.inner.rotation.z = this.elapsed * (matched ? -1.8 : -0.55);
-                    zoneFx.light.intensity = matched ? 3.2 : 1.15;
+                    if (zoneFx.light) zoneFx.light.intensity = matched ? 3.2 : 1.15;
                 }
                 if (mesh.userData.scoopFx) {
                     mesh.userData.scoopFx.rotation.z = this.elapsed * (powerState?.armed ? 3.4 : 0.8);
@@ -923,13 +946,21 @@
             });
         }
 
-        render(state) {
+        render(state, deltaSeconds) {
             if (!state || !state.level) return;
-            this.elapsed += 1 / 60;
+            this.elapsed += Math.min(Math.max(deltaSeconds || 1 / 60, 1 / 240), 0.08);
             const floorCount = Math.max(1, state.floorCount || 1);
             this.syncDecks(state.level.theme, floorCount, state.floorThemes);
             this.worldRoot.position.z = (state.cameraY || 0) / PX;
-            this.syncBodies(state.bodies || [], state.level.theme, state.powerState);
+            const cameraY = state.cameraY || 0;
+            const bodies = this.mobileQuality
+                ? (state.bodies || []).filter((body) => {
+                    if (body.label === 'ball') return true;
+                    const screenY = body.position.y + cameraY;
+                    return screenY > -BOARD_HEIGHT * 0.35 && screenY < BOARD_HEIGHT * 1.35;
+                })
+                : (state.bodies || []);
+            this.syncBodies(bodies, state.level.theme, state.powerState);
 
             const targetCameraX = state.ball
                 ? THREE.MathUtils.clamp((state.ball.position.x - BOARD_WIDTH / 2) / PX * 0.08, -0.25, 0.25)
