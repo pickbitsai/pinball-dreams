@@ -15,7 +15,9 @@ There is **no build system** — no `package.json`, no bundler, no dev server, n
 
 | Path | What |
 |---|---|
-| `index.html` | **The whole game.** CSS, DOM, and a single ~2700-line inline `<script>` holding every system. |
+| `index.html` | **The whole game.** CSS, DOM, and a single inline `<script>` holding every system. |
+| `src/pinball-templates.js` | **Every table's layout, as editable data.** One entry per table on a 400×700 grid. Hand-edit it and reload — this is where board changes go. |
+| `editor.html` | Standalone visual editor for those templates. Drag parts, save a localStorage preview, or download a replacement `pinball-templates.js`. |
 | `src/pinball-progress.js` | `PinballCareer` (lifetime stats) + `PinballAchievements` (catalog, unlock seam, toast). Local-first. |
 | `src/pickbits.js` | `PickBitsClient` — the PickBits SSO bridge (auth, leaderboard, cloud saves). |
 | `src/neon-pinball-3d.js` | Optional Three.js renderer layered over the Canvas2D playfield. Purely visual, holds no game state. |
@@ -26,6 +28,30 @@ There is **no build system** — no `package.json`, no bundler, no dev server, n
 | `assets/3d/` | `neon-pinball-kit.glb` is the only file loaded at runtime. The `.blend`, per-part `.glb`s, `roblox/*.fbx` and preview are build inputs — see `manifest.json` and `scripts/blender/`. |
 
 **Load order matters.** Both `src/` modules are script-tagged immediately *before* the inline game script and expose globals it calls into. Adding a module means inserting it in that same block, not in `<head>`.
+
+## Editing a table
+
+Board layout is **data, not code**. To move a bumper, a wall or a target, edit
+`src/pinball-templates.js` and reload — there is no build step.
+
+- Coordinates are a **400×700 grid**; sizes (`r`, `w`, `h`, `thickness`) are real
+  pixels. The rails sit at `x=20` and `x=350`, and the playfield centre — what
+  the flipper end mirrors about — is **`x=185`, not 200**, because the shooter
+  lane eats the right edge of the canvas.
+- `buildTemplate()` in `index.html` is the **only** place a part becomes a body.
+  Adding a part type is one `case` there plus one line in the template.
+- `lower` (the flipper end: return guide, slingshot, flipper, outlane width) is
+  authored **left-side only** and mirrored by `PinballLayout.lowerAssembly()`, so
+  the two sides can't drift apart. The outlane's outer wall is *derived* from
+  `returnGuide`, so moving the guide keeps the outlane the right width.
+- `editor.html` edits the same data visually. **Save preview** writes
+  `pinballDreamsTemplateOverrides` in localStorage, which `resolveTemplate()`
+  layers over the file — so a saved edit silently wins over your source changes
+  until you hit **Revert table** / **Clear all saved**. **Download .js** emits a
+  drop-in replacement for `src/pinball-templates.js`.
+- `node scripts/check-board-boundaries.mjs` validates every template: unknown
+  part types, missing keys, parts dragged off the grid, a closed outlane, a
+  guide tip that lets the inlane feed fall past the flipper, and broken mirroring.
 
 ## Key systems (all in `index.html`)
 

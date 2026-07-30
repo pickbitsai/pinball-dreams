@@ -7,6 +7,15 @@
 
     const BASE_WIDTH = 400;
     const BASE_HEIGHT = 700;
+    const RAIL_THICKNESS = 14;
+    const GUIDE_THICKNESS = 12;
+
+    // Playfield rails in base units. The plunger lane occupies the strip to the
+    // right of the right rail, so the playfield is NOT centred on the canvas.
+    // Everything in the lower third mirrors about the rails, never about
+    // width / 2 — otherwise the right outlane lands inside the shooter lane.
+    const RAIL_LEFT = 20;
+    const RAIL_RIGHT = 350;
 
     function clamp(value, min, max) {
         return Math.max(min, Math.min(max, value));
@@ -19,45 +28,137 @@
         };
     }
 
+    function playfield(width, height) {
+        const { x } = scales(width, height);
+        const leftRail = x(RAIL_LEFT);
+        const rightRail = x(RAIL_RIGHT);
+        return {
+            leftRail,
+            rightRail,
+            innerLeft: leftRail + RAIL_THICKNESS / 2,
+            innerRight: rightRail - RAIL_THICKNESS / 2,
+            centerX: (leftRail + rightRail) / 2,
+            railThickness: RAIL_THICKNESS
+        };
+    }
+
+    // Offset a guide path perpendicular to its direction of travel. `sign` is
+    // -1 on the left side (push outboard, toward the rail) and +1 on the right.
+    // Offsetting rather than hand-placing keeps the outlane a constant width
+    // down its whole length, the way a real wire guide does.
+    function offsetPath(points, distance, sign) {
+        return points.map((point, index) => {
+            const prev = points[Math.max(0, index - 1)];
+            const next = points[Math.min(points.length - 1, index + 1)];
+            const dx = next.x - prev.x;
+            const dy = next.y - prev.y;
+            const length = Math.sqrt(dx * dx + dy * dy) || 1;
+            return {
+                x: point.x + sign * (dy / length) * distance,
+                y: point.y - sign * (dx / length) * distance
+            };
+        });
+    }
+
     function flipperPlacement(width, height, side, baseY = 0) {
         const { x, y } = scales(width, height);
+        const field = playfield(width, height);
         const isLeft = side === 'left';
         const bodyOffset = x(50);
-        const bodyX = width / 2 + (isLeft ? -bodyOffset : bodyOffset);
+        const bodyX = field.centerX + (isLeft ? -bodyOffset : bodyOffset);
         const bodyY = baseY + height - y(65);
         const pivotX = bodyX + (isLeft ? -25 : 25);
         return { side, bodyX, bodyY, pivotX, pivotY: bodyY };
     }
 
-    function flipperAssembly(width, height, baseY = 0) {
+    // Offset the guide outboard to make the outlane's outer edge, then snap the
+    // head onto the rail so the two meet without a seam the ball could squeeze
+    // through. Only used when a template doesn't author the wall itself.
+    function deriveOutlaneWall(guide, distance, field) {
+        const path = offsetPath(guide, distance, -1);
+        path[0] = { x: field.leftRail, y: path[0].y };
+        return path;
+    }
+
+    // The flipper end, built from a template's editable `lower` block. Real
+    // tables split the lower third into an outlane hugging the rail and an
+    // inlane that feeds the flipper. The divider between them is a
+    // free-standing return guide: it starts at a rubber post level with the top
+    // of the slingshot and ends just outboard of the flipper pivot. It
+    // deliberately never touches the rail — that clear channel IS the outlane,
+    // and closing it is what stopped the ball ever draining down the side the
+    // way it does on a real machine.
+    //
+    // Only the LEFT side is authored. Everything right is mirrored here, so a
+    // hand edit or an editor drag can never leave the two sides out of step.
+    function lowerAssembly(lower, width, height, baseY = 0) {
         const { x, y } = scales(width, height);
-        const left = flipperPlacement(width, height, 'left', baseY);
-        const right = flipperPlacement(width, height, 'right', baseY);
-        const guideY = {
-            start: baseY + y(580),
-            mid: baseY + y(600),
-            end: left.bodyY - y(10)
+        const field = playfield(width, height);
+        const guideThickness = lower.guideThickness || GUIDE_THICKNESS;
+        const railThickness = lower.railThickness || RAIL_THICKNESS;
+        const toWorld = point => ({ x: x(point[0]), y: baseY + y(point[1]) });
+        const mirror = point => ({ x: 2 * field.centerX - point.x, y: point.y });
+
+        const bodyX = x(lower.flipper.x);
+        const bodyY = baseY + y(lower.flipper.y);
+        const left = { side: 'left', bodyX, bodyY, pivotX: bodyX - 25, pivotY: bodyY };
+        const right = {
+            side: 'right',
+            bodyX: 2 * field.centerX - bodyX,
+            bodyY,
+            pivotX: 2 * field.centerX - left.pivotX,
+            pivotY: bodyY
         };
-        const leftGuide = [
-            { x: x(50), y: guideY.start },
-            { x: x(70), y: guideY.mid },
-            { x: left.pivotX - x(25), y: guideY.end }
-        ];
-        const rightGuide = leftGuide.map(point => ({
-            x: width - point.x,
-            y: point.y
-        }));
-        const slingY = baseY + height - y(180);
-        const slingOffset = x(45);
+
+        const leftGuide = lower.returnGuide.map(toWorld);
+        const rightGuide = leftGuide.map(mirror);
+
+        // The outlane's outer wall is its own spline, so it can be shaped by
+        // hand independently of the guide. A template that omits it falls back
+        // to one offset from the guide at outlaneWidth, which is how all the
+        // built-in boards were originally authored.
+        const outlaneWidth = x(lower.outlaneWidth);
+        const leftOutlaneWall = lower.outlaneWall
+            ? lower.outlaneWall.map(toWorld)
+            : deriveOutlaneWall(leftGuide, outlaneWidth + guideThickness, field);
+        const rightOutlaneWall = leftOutlaneWall.map(mirror);
+
+        const leftSling = toWorld([lower.sling.x, lower.sling.y]);
 
         return {
             left,
             right,
             leftGuide,
             rightGuide,
-            leftSling: { x: left.pivotX - slingOffset, y: slingY },
-            rightSling: { x: right.pivotX + slingOffset, y: slingY }
+            leftOutlaneWall,
+            rightOutlaneWall,
+            leftPost: { x: leftGuide[0].x, y: leftGuide[0].y },
+            rightPost: { x: rightGuide[0].x, y: rightGuide[0].y },
+            leftSling,
+            rightSling: mirror(leftSling),
+            outlaneWidth,
+            guideThickness,
+            railThickness,
+            // Where the outlane wall branches off the rail.
+            railEndY: leftOutlaneWall[0].y,
+            playfield: field
         };
+    }
+
+    // The built-in geometry, kept here so the layout module stays testable on
+    // its own. src/pinball-templates.js ships the same numbers as an editable
+    // `lower` block; this is the fallback when a template omits one.
+    const DEFAULT_LOWER = {
+        outlaneWidth: 20,
+        guideThickness: GUIDE_THICKNESS,
+        railThickness: RAIL_THICKNESS,
+        flipper: { x: 135, y: 635 },
+        sling: { x: 95.33, y: 520 },
+        returnGuide: [[48.67, 468], [53.67, 541], [69.67, 590], [107.33, 625]]
+    };
+
+    function flipperAssembly(width, height, baseY = 0, lower = DEFAULT_LOWER) {
+        return lowerAssembly(lower, width, height, baseY);
     }
 
     function climbFloorForY(y, height) {
@@ -167,19 +268,43 @@
         };
     }
 
-    function launchScale(height, originalHeight = 860) {
-        return Math.sqrt(height / originalHeight);
+    // Matter integrates force as (force / mass) * delta^2, so gravity supplies
+    // gravity.y * gravity.scale * delta^2 pixels per step, per step. Inverting
+    // that gives the exact speed a plunge needs to carry the ball a given rise.
+    // Deriving it beats a tuned constant: the old fixed force let a short tap
+    // launch at roughly a third of the speed needed to clear the shooter lane,
+    // so the ball dribbled back down and the plunge had to be repeated.
+    function plungeSpeed({
+        rise,
+        power = 0,
+        gravityY = 0.8,
+        gravityScale = 0.001,
+        stepMs = 1000 / 60,
+        margin = 1.16,
+        range = 0.55
+    }) {
+        const accel = gravityY * gravityScale * stepMs * stepMs;
+        // `margin` covers air friction over the length of the lane, so the
+        // weakest possible plunge still crests the top instead of stalling.
+        const exitSpeed = Math.sqrt(2 * accel * Math.max(1, rise)) * margin;
+        return exitSpeed * (1 + range * clamp(power, 0, 1));
     }
 
     return {
         BASE_WIDTH,
         BASE_HEIGHT,
+        RAIL_THICKNESS,
+        GUIDE_THICKNESS,
         scales,
+        playfield,
+        offsetPath,
         flipperPlacement,
         flipperAssembly,
+        lowerAssembly,
+        DEFAULT_LOWER,
         climbFloorForY,
         resolveClimbBoundary,
         resolveSideBoundary,
-        launchScale
+        plungeSpeed
     };
 }));

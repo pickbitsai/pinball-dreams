@@ -1,0 +1,799 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pinball Dreams — Table Editor</title>
+<style>
+    :root {
+        --bg: #05080f; --panel: #0c1420; --line: #1c2c3e; --ink: #cfe6f5;
+        --dim: #6f8ba3; --hot: #1ac8ff; --warn: #ff2fba; --ok: #4ade80;
+    }
+    * { box-sizing: border-box; }
+    body {
+        margin: 0; background: var(--bg); color: var(--ink);
+        font: 13px/1.5 ui-monospace, "Cascadia Mono", Consolas, monospace;
+        display: flex; height: 100vh; overflow: hidden;
+    }
+    #stage { flex: 1; display: flex; align-items: center; justify-content: center; position: relative; }
+    canvas { background: #070c16; border: 1px solid var(--line); cursor: crosshair; }
+    #side {
+        width: 340px; background: var(--panel); border-left: 1px solid var(--line);
+        padding: 14px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px;
+    }
+    h1 { font-size: 14px; margin: 0; letter-spacing: .12em; color: var(--hot); text-transform: uppercase; }
+    h2 { font-size: 11px; margin: 0 0 6px; letter-spacing: .16em; color: var(--dim); text-transform: uppercase; }
+    section { border-top: 1px solid var(--line); padding-top: 12px; }
+    section:first-of-type { border-top: 0; padding-top: 0; }
+    select, input, button, textarea {
+        font: inherit; background: #0a121d; color: var(--ink);
+        border: 1px solid var(--line); border-radius: 3px; padding: 5px 7px;
+    }
+    select, textarea { width: 100%; }
+    button { cursor: pointer; }
+    button:hover { border-color: var(--hot); color: #fff; }
+    button.primary { background: #10344a; border-color: var(--hot); color: #eaf8ff; }
+    button.danger:hover { border-color: var(--warn); color: #fff; }
+    .row { display: flex; gap: 6px; flex-wrap: wrap; }
+    .row > button { flex: 1; min-width: 92px; }
+    .grid { display: grid; grid-template-columns: auto 1fr auto 1fr; gap: 6px 8px; align-items: center; }
+    .grid label { color: var(--dim); font-size: 11px; }
+    .grid input { width: 100%; }
+    .palette { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
+    .palette button { font-size: 11px; padding: 5px 2px; }
+    #status { color: var(--ok); min-height: 18px; font-size: 11px; }
+    #hint { color: var(--dim); font-size: 11px; }
+    #parts { max-height: 190px; overflow-y: auto; border: 1px solid var(--line); border-radius: 3px; }
+    .part { padding: 3px 8px; cursor: pointer; display: flex; justify-content: space-between; }
+    .part:hover { background: #10344a; }
+    .part.sel { background: #10344a; color: #fff; }
+    .part span { color: var(--dim); font-size: 11px; }
+    textarea { height: 120px; resize: vertical; font-size: 11px; }
+    kbd { background: #0a121d; border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; }
+</style>
+</head>
+<body>
+<div id="stage"><canvas id="c"></canvas></div>
+
+<div id="side">
+    <h1>Table Editor</h1>
+    <div id="hint">
+        Drag any part to move it. Walls, the return guide and the outlane wall
+        drag by their individual points. Drag empty space to pan, scroll to
+        zoom. <kbd>Del</kbd> removes the selection, <kbd>Esc</kbd> clears it,
+        hold <kbd>Shift</kbd> to bypass grid snap.
+    </div>
+
+    <section>
+        <h2>Table</h2>
+        <select id="table"></select>
+        <div id="override" style="display:none;margin-top:6px;font-size:11px;color:#ffb457"></div>
+    </section>
+
+    <section>
+        <h2>View</h2>
+        <div class="row">
+            <button id="zoomOut">&minus;</button>
+            <button id="zoomFit">Fit</button>
+            <button id="zoomIn">+</button>
+        </div>
+        <div id="zoomLabel" style="font-size:11px;color:var(--dim);margin-top:4px"></div>
+    </section>
+
+    <section>
+        <h2>Add part</h2>
+        <div class="palette" id="palette"></div>
+    </section>
+
+    <section>
+        <h2>Selection</h2>
+        <div class="grid" id="props"></div>
+        <div class="row" style="margin-top:8px">
+            <button id="dup">Duplicate</button>
+            <button id="del" class="danger">Delete</button>
+        </div>
+    </section>
+
+    <section>
+        <h2>Parts</h2>
+        <div id="parts"></div>
+    </section>
+
+    <section>
+        <h2>Apply</h2>
+        <div class="row">
+            <button id="save" class="primary">Save preview</button>
+            <button id="play">Play</button>
+        </div>
+        <div class="row" style="margin-top:6px">
+            <button id="copy">Copy template</button>
+            <button id="download">Download .js</button>
+        </div>
+        <div class="row" style="margin-top:6px">
+            <button id="revert" class="danger">Revert table</button>
+            <button id="clearAll" class="danger">Clear all saved</button>
+        </div>
+        <div id="status"></div>
+    </section>
+
+    <section>
+        <h2>Template JSON</h2>
+        <textarea id="json" spellcheck="false"></textarea>
+        <div class="row" style="margin-top:6px">
+            <button id="applyJson">Apply JSON</button>
+        </div>
+    </section>
+</div>
+
+<script src="src/pinball-layout.js?v=20260729a"></script>
+<script src="src/pinball-templates.js?v=20260729a"></script>
+<script>
+// The editor speaks the same 400x700 grid the templates do, and renders through
+// the real 600x1720 board so what you drag is what you get. It never builds
+// physics — it writes template data, and the game is the preview.
+const REAL_W = 600, REAL_H = 1720;
+const GRID_W = PinballTemplates.GRID_WIDTH;
+const GRID_H = PinballTemplates.GRID_HEIGHT;
+const CENTER = PinballTemplates.PLAYFIELD_CENTER;
+const OVERRIDE_KEY = 'pinballDreamsTemplateOverrides';
+const TABLES = Object.keys(PinballTemplates.TEMPLATES);
+const SNAP = 1;
+
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let fitView = 1;              // canvas px per real board px with the board fitted
+let zoom = 1;
+let pan = { x: 0, y: 0 };
+const view = () => fitView * zoom;
+let tableName = TABLES[0];
+let template = null;          // working copy
+let selection = null;         // {kind:'part'|'point'|'lower', index, pointIndex, field}
+let drag = null;
+let baseline = null;      // snapshot of the last saved state
+
+// ---- persistence -----------------------------------------------------------
+function loadOverrides() {
+    try { return JSON.parse(localStorage.getItem(OVERRIDE_KEY) || '{}') || {}; }
+    catch (err) { return {}; }
+}
+function clone(value) { return JSON.parse(JSON.stringify(value)); }
+
+function loadTable(name) {
+    tableName = name;
+    const base = PinballTemplates.templateFor(name);
+    const saved = loadOverrides()[name];
+    template = {
+        zone: base.zone,
+        cabinet: clone((saved && saved.cabinet) || base.cabinet),
+        lower: clone((saved && saved.lower) || base.lower),
+        parts: clone((saved && saved.parts) || base.parts)
+    };
+    // A preview saved before the outlane wall became its own spline has no
+    // outlaneWall, which would leave it underivable and undraggable. Backfill it
+    // from the offset the builder would have used, so old saves gain handles.
+    if (!template.lower.outlaneWall) {
+        const asm = PinballLayout.lowerAssembly(template.lower, REAL_W, REAL_H, 0);
+        template.lower.outlaneWall = asm.leftOutlaneWall.map(p => [
+            Math.round(p.x / sx * 100) / 100, Math.round(p.y / sy * 100) / 100
+        ]);
+    }
+    selection = null;
+    baseline = snapshot();
+    refresh();
+}
+
+// What Play would load, versus what is on screen. Comparing against a baseline
+// captured at load time rather than against the file keeps the outlaneWall
+// backfill above from reading as an unsaved edit.
+function snapshot() {
+    return JSON.stringify({ cabinet: template.cabinet, lower: template.lower, parts: template.parts });
+}
+function isDirty() { return baseline !== null && snapshot() !== baseline; }
+
+function saveTable(reason) {
+    const all = loadOverrides();
+    all[tableName] = { cabinet: template.cabinet, lower: template.lower, parts: template.parts };
+    localStorage.setItem(OVERRIDE_KEY, JSON.stringify(all));
+    baseline = snapshot();
+    refreshOverrideBadge();
+    if (reason) status(reason);
+}
+
+// ---- coordinate transforms -------------------------------------------------
+const sx = REAL_W / GRID_W, sy = REAL_H / GRID_H;
+const toCanvas = (gx, gy) => ({ x: gx * sx * view() + pan.x, y: gy * sy * view() + pan.y });
+const toGrid = (cx, cy) => ({ x: (cx - pan.x) / (sx * view()), y: (cy - pan.y) / (sy * view()) });
+const snap = (v, raw) => raw ? Math.round(v * 100) / 100 : Math.round(v / SNAP) * SNAP;
+
+function fitBoard() {
+    zoom = 1;
+    pan.x = (canvas.width - REAL_W * fitView) / 2;
+    pan.y = (canvas.height - REAL_H * fitView) / 2;
+}
+
+function resize() {
+    const stage = document.getElementById('stage');
+    canvas.width = Math.max(200, stage.clientWidth - 24);
+    canvas.height = Math.max(200, stage.clientHeight - 24);
+    fitView = Math.min(canvas.height / REAL_H, canvas.width / REAL_W);
+    fitBoard();
+    draw();
+}
+
+// Zoom about the cursor, so the thing you are pointing at stays put.
+function zoomAt(cx, cy, factor) {
+    const g = toGrid(cx, cy);
+    zoom = Math.min(8, Math.max(0.5, zoom * factor));
+    pan.x = cx - g.x * sx * view();
+    pan.y = cy - g.y * sy * view();
+    draw();
+}
+
+canvas.addEventListener('wheel', event => {
+    event.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    zoomAt(event.clientX - rect.left, event.clientY - rect.top, event.deltaY < 0 ? 1.12 : 1 / 1.12);
+}, { passive: false });
+
+// ---- rendering -------------------------------------------------------------
+const COLORS = {
+    rail: '#1ac8ff', accent: '#ff8a24', secondary: '#ffe45c', lane: '#2b6f8f',
+    bumper: '#ff2bb5', drop: '#ffe45c', standup: '#ffb457', spinner: '#7ee8ff',
+    ramp: '#ff8a24', bonus: '#3d7fa5', rollover: '#3d7fa5', powertarget: '#ffe45c',
+    missionramp: '#ff8a24', scoop: '#ffd166', zone: 'rgba(255,90,36,0.18)',
+    sling: '#ff8a24', guide: '#ffe45c', outlane: '#1ac8ff', post: '#ff3ea5', flipper: '#ffd166'
+};
+
+function strokePath(points, thickness, color, dim) {
+    if (points.length < 2) return;
+    ctx.beginPath();
+    points.forEach((p, i) => {
+        const c = toCanvas(p[0], p[1]);
+        i ? ctx.lineTo(c.x, c.y) : ctx.moveTo(c.x, c.y);
+    });
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.lineWidth = Math.max(1, thickness * view());
+    ctx.strokeStyle = color; ctx.globalAlpha = dim ? 0.35 : 1;
+    ctx.stroke(); ctx.globalAlpha = 1;
+}
+
+function box(gx, gy, w, h, angle, color, dim) {
+    const c = toCanvas(gx, gy);
+    ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(angle || 0);
+    ctx.fillStyle = color; ctx.globalAlpha = dim ? 0.35 : 0.9;
+    ctx.fillRect(-w * view() / 2, -h * view() / 2, w * view(), h * view());
+    ctx.globalAlpha = 1; ctx.restore();
+}
+
+function disc(gx, gy, r, color, dim) {
+    const c = toCanvas(gx, gy);
+    ctx.beginPath(); ctx.arc(c.x, c.y, Math.max(2, r * view()), 0, Math.PI * 2);
+    ctx.fillStyle = color; ctx.globalAlpha = dim ? 0.35 : 0.9; ctx.fill(); ctx.globalAlpha = 1;
+}
+
+function drawGrid() {
+    ctx.strokeStyle = '#0f1a28'; ctx.lineWidth = 1;
+    for (let gx = 0; gx <= GRID_W; gx += 20) {
+        const c = toCanvas(gx, 0);
+        ctx.beginPath(); ctx.moveTo(c.x, 0); ctx.lineTo(c.x, canvas.height); ctx.stroke();
+    }
+    for (let gy = 0; gy <= GRID_H; gy += 20) {
+        const c = toCanvas(0, gy);
+        ctx.beginPath(); ctx.moveTo(0, c.y); ctx.lineTo(canvas.width, c.y); ctx.stroke();
+    }
+    // playfield centre — what the flipper end mirrors about
+    const mid = toCanvas(CENTER, 0);
+    ctx.strokeStyle = '#25405c'; ctx.setLineDash([5, 7]);
+    ctx.beginPath(); ctx.moveTo(mid.x, 0); ctx.lineTo(mid.x, canvas.height); ctx.stroke();
+    ctx.setLineDash([]);
+}
+
+// A slingshot is a 3-gon in game, not a disc — Bodies.polygon puts its first
+// vertex at half a step round, so mirror that here or the editor lies about
+// which way the kicker faces.
+function poly(gx, gy, sides, radius, angle, color, dim) {
+    const c = toCanvas(gx, gy);
+    const step = 2 * Math.PI / sides;
+    ctx.beginPath();
+    for (let i = 0; i < sides; i++) {
+        const a = (angle || 0) + step * 0.5 + i * step;
+        const px = c.x + Math.cos(a) * radius * view();
+        const py = c.y + Math.sin(a) * radius * view();
+        i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+    }
+    ctx.closePath();
+    ctx.fillStyle = color; ctx.globalAlpha = dim ? 0.35 : 0.9; ctx.fill(); ctx.globalAlpha = 1;
+}
+
+// The flipper hangs off a pivot at its OUTER end and sits at the rest angle, so
+// drawing it as a centred horizontal bar put it in the wrong place entirely.
+function flipperShape(bodyGridX, isLeft, gridY, dim) {
+    const pivotX = bodyGridX + (isLeft ? -25 : 25) / sx;
+    const c = toCanvas(pivotX, gridY);
+    const rest = isLeft ? 0.5 : -0.5;
+    ctx.save();
+    ctx.translate(c.x, c.y);
+    ctx.rotate(rest);
+    ctx.fillStyle = COLORS.flipper; ctx.globalAlpha = dim ? 0.35 : 0.9;
+    const len = 60 * view(), thick = 12 * view();
+    ctx.fillRect(isLeft ? 0 : -len, -thick / 2, len, thick);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+    // the pivot itself, so you can see what the flipper swings around
+    ctx.beginPath(); ctx.arc(c.x, c.y, Math.max(2, 5 * view()), 0, Math.PI * 2);
+    ctx.fillStyle = dim ? '#3c5468' : '#7ee8ff'; ctx.fill();
+}
+
+// The lower third is authored left-only; this shows both sides the way the
+// builder will actually mirror them. returnGuide and outlaneWall are separate
+// splines — the clear channel between them is the outlane.
+function lowerPreview() {
+    const lower = template.lower;
+    const asm = PinballLayout.lowerAssembly(lower, REAL_W, REAL_H, 0);
+    const back = pts => pts.map(p => [p.x / sx, p.y / sy]);
+    const leftOutlane = lower.outlaneWall || back(asm.leftOutlaneWall);
+
+    strokePath(back(asm.rightGuide), lower.guideThickness, COLORS.guide, true);
+    strokePath(back(asm.rightOutlaneWall), lower.railThickness, COLORS.rail, true);
+    strokePath(leftOutlane, lower.railThickness, COLORS.outlane, false);
+    strokePath(lower.returnGuide, lower.guideThickness, COLORS.guide, false);
+
+    disc(asm.rightPost.x / sx, asm.rightPost.y / sy, 7, COLORS.post, true);
+    disc(lower.returnGuide[0][0], lower.returnGuide[0][1], 7, COLORS.post, false);
+
+    poly(asm.rightSling.x / sx, asm.rightSling.y / sy, 3, 30, 0, COLORS.sling, true);
+    poly(lower.sling.x, lower.sling.y, 3, 30, Math.PI, COLORS.sling, false);
+
+    flipperShape(asm.right.bodyX / sx, false, asm.right.bodyY / sy, true);
+    flipperShape(lower.flipper.x, true, lower.flipper.y, false);
+
+    // handles for the editable left-hand points
+    lower.returnGuide.forEach((p, i) => handle(p[0], p[1], isSel('lower', 'returnGuide', i)));
+    if (lower.outlaneWall) {
+        lower.outlaneWall.forEach((p, i) => handle(p[0], p[1], isSel('lower', 'outlaneWall', i)));
+    }
+    handle(lower.sling.x, lower.sling.y, isSel('lower', 'sling'));
+    handle(lower.flipper.x, lower.flipper.y, isSel('lower', 'flipper'));
+}
+
+function handle(gx, gy, on) {
+    const c = toCanvas(gx, gy);
+    ctx.beginPath(); ctx.arc(c.x, c.y, on ? 6 : 4, 0, Math.PI * 2);
+    ctx.fillStyle = on ? '#fff' : '#7ee8ff'; ctx.fill();
+    ctx.strokeStyle = '#04121c'; ctx.lineWidth = 1.5; ctx.stroke();
+}
+
+function drawPart(part, index) {
+    const on = selection && selection.kind === 'part' && selection.index === index;
+    const c = COLORS;
+    switch (part.type) {
+        case 'wall':
+            strokePath(part.points, part.thickness || 12, c[part.role] || c.rail, false);
+            part.points.forEach((p, i) => handle(p[0], p[1],
+                on && selection.pointIndex === i));
+            return;
+        case 'bumper': disc(part.x, part.y, part.r, c.bumper); break;
+        case 'spinner': disc(part.x, part.y, part.r || 13, c.spinner); break;
+        case 'scoop': disc(part.x, part.y, part.r || 18, c.scoop); break;
+        case 'zone': disc(part.x, part.y, part.r || 58, c.zone); break;
+        case 'drop': box(part.x, part.y, part.w || 18, part.h || 32, part.angle, c.drop); break;
+        case 'standup': box(part.x, part.y, part.w || 16, part.h || 30, part.angle, c.standup); break;
+        case 'ramp': box(part.x, part.y, part.w || 62, part.h || 20, part.angle, c.ramp); break;
+        case 'lane': box(part.x, part.y, part.w || 40, part.h || 11, part.angle, c.bonus); break;
+        case 'rollover': box(part.x, part.y, part.w || 42, part.h || 12, 0, c.rollover); break;
+        case 'powertarget': box(part.x, part.y, part.w || 18, part.h || 34, 0, c.powertarget); break;
+        case 'missionramp': box(part.x, part.y, part.w || 62, part.h || 20, part.angle, c.missionramp); break;
+        default: disc(part.x, part.y, 8, '#888');
+    }
+    if (on) {
+        const p = toCanvas(part.x, part.y);
+        ctx.beginPath(); ctx.arc(p.x, p.y, 13, 0, Math.PI * 2);
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.stroke();
+    }
+}
+
+function draw() {
+    if (!template) return;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawGrid();
+    // board outline, so a zoomed-in view still tells you where the edges are
+    const tl = toCanvas(0, 0), br = toCanvas(GRID_W, GRID_H);
+    ctx.strokeStyle = '#2c4a63'; ctx.lineWidth = 1;
+    ctx.strokeRect(tl.x, tl.y, br.x - tl.x, br.y - tl.y);
+    refreshZoom();
+    template.cabinet.forEach(part => strokePath(part.points, part.thickness, COLORS[part.role] || COLORS.rail, false));
+    lowerPreview();
+    template.parts.forEach(drawPart);
+}
+
+function isSel(kind, field, pointIndex) {
+    return selection && selection.kind === kind && selection.field === field
+        && (pointIndex === undefined || selection.pointIndex === pointIndex);
+}
+
+// ---- hit testing -----------------------------------------------------------
+// Nearest candidate wins rather than first-match, or a big sensor or a stray
+// spline tail sitting near a handle swallows every click aimed at its neighbour.
+function pick(g) {
+    // 16 screen pixels of grab radius, expressed in real board px so handles
+    // stay equally easy to hit at any zoom. Parts also grab within their own
+    // footprint, so clicking inside a bumper selects it.
+    const grab = 16 / view();
+    const distance = (ax, ay) => Math.hypot((ax - g.x) * sx, (ay - g.y) * sy);
+    let best = null;
+    const consider = (ax, ay, reach, hit) => {
+        const d = distance(ax, ay);
+        if (d > Math.max(grab, reach || 0)) return;
+        if (!best || d < best.d) best = { d, hit };
+    };
+
+    const lower = template.lower;
+    for (const field of ['returnGuide', 'outlaneWall']) {
+        const path = lower[field];
+        if (!path) continue;
+        path.forEach((p, i) => consider(p[0], p[1], 0, { kind: 'lower', field, pointIndex: i }));
+    }
+    consider(lower.sling.x, lower.sling.y, 0, { kind: 'lower', field: 'sling' });
+    consider(lower.flipper.x, lower.flipper.y, 0, { kind: 'lower', field: 'flipper' });
+
+    template.parts.forEach((part, i) => {
+        if (part.type === 'wall') {
+            part.points.forEach((p, pointIndex) =>
+                consider(p[0], p[1], 0, { kind: 'part', index: i, pointIndex }));
+        } else {
+            const reach = part.r !== undefined
+                ? part.r
+                : Math.hypot(part.w || 0, part.h || 0) / 2;
+            consider(part.x, part.y, reach, { kind: 'part', index: i });
+        }
+    });
+
+    return best ? best.hit : null;
+}
+
+// ---- interaction -----------------------------------------------------------
+let panning = null;
+
+canvas.addEventListener('mousedown', event => {
+    const rect = canvas.getBoundingClientRect();
+    const cx = event.clientX - rect.left, cy = event.clientY - rect.top;
+    const g = toGrid(cx, cy);
+    selection = pick(g);
+    if (selection) {
+        drag = { from: g };
+    } else {
+        // Empty space drags the board around, which is the only sane way to
+        // work once you are zoomed in past the edges.
+        panning = { cx, cy, pan: { x: pan.x, y: pan.y } };
+        drag = null;
+    }
+    refreshPanels(); draw();
+});
+
+canvas.addEventListener('mousemove', event => {
+    const rect = canvas.getBoundingClientRect();
+    if (panning) {
+        pan.x = panning.pan.x + (event.clientX - rect.left - panning.cx);
+        pan.y = panning.pan.y + (event.clientY - rect.top - panning.cy);
+        draw();
+        return;
+    }
+    if (!drag || !selection) return;
+    const g = toGrid(event.clientX - rect.left, event.clientY - rect.top);
+    const nx = snap(g.x, event.shiftKey), ny = snap(g.y, event.shiftKey);
+
+    if (selection.kind === 'lower') {
+        if (selection.pointIndex !== undefined) template.lower[selection.field][selection.pointIndex] = [nx, ny];
+        else template.lower[selection.field] = { x: nx, y: ny };
+    } else {
+        const part = template.parts[selection.index];
+        if (part.type === 'wall') part.points[selection.pointIndex] = [nx, ny];
+        else { part.x = nx; part.y = ny; }
+    }
+    draw(); refreshProps();
+});
+
+window.addEventListener('mouseup', () => { drag = null; panning = null; refreshJson(); refreshOverrideBadge(); });
+
+window.addEventListener('keydown', event => {
+    if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA') return;
+    if (event.key === 'Escape') { selection = null; refreshPanels(); draw(); }
+    if (event.key === 'Delete' || event.key === 'Backspace') { deleteSelection(); event.preventDefault(); }
+});
+
+function deleteSelection() {
+    if (!selection || selection.kind !== 'part') return;
+    const part = template.parts[selection.index];
+    if (part.type === 'wall' && selection.pointIndex !== undefined && part.points.length > 2) {
+        part.points.splice(selection.pointIndex, 1);
+    } else {
+        template.parts.splice(selection.index, 1);
+    }
+    selection = null; refresh();
+}
+
+// ---- palette ---------------------------------------------------------------
+const PALETTE = {
+    bumper: { type: 'bumper', r: 24 },
+    drop: { type: 'drop', w: 18, h: 32, angle: 0, score: 300, idx: 0 },
+    standup: { type: 'standup', w: 16, h: 30, angle: 0, score: 240 },
+    spinner: { type: 'spinner', r: 13, score: 90, phase: 0 },
+    ramp: { type: 'ramp', w: 62, h: 20, angle: 0, score: 550 },
+    lane: { type: 'lane', w: 40, h: 11, angle: 0, score: 180 },
+    rollover: { type: 'rollover', w: 42, h: 12, lane: 0 },
+    powertarget: { type: 'powertarget', w: 18, h: 34, score: 350, idx: 0 },
+    missionramp: { type: 'missionramp', w: 62, h: 20, angle: -0.46, score: 500 },
+    scoop: { type: 'scoop', r: 18 },
+    zone: { type: 'zone', r: 58 },
+    wall: { type: 'wall', thickness: 10, role: 'accent' }
+};
+
+function buildPalette() {
+    const host = document.getElementById('palette');
+    host.innerHTML = '';
+    Object.keys(PALETTE).forEach(key => {
+        const button = document.createElement('button');
+        button.textContent = key;
+        button.onclick = () => {
+            const part = clone(PALETTE[key]);
+            if (part.type === 'wall') part.points = [[160, 300], [220, 300]];
+            else { part.x = 200; part.y = 300; }
+            template.parts.push(part);
+            selection = { kind: 'part', index: template.parts.length - 1 };
+            refresh();
+        };
+        host.appendChild(button);
+    });
+}
+
+// ---- inspector -------------------------------------------------------------
+function refreshProps() {
+    const host = document.getElementById('props');
+    host.innerHTML = '';
+    if (!selection) { host.innerHTML = '<label>nothing selected</label>'; return; }
+
+    const target = selection.kind === 'lower'
+        ? (selection.pointIndex !== undefined
+            ? { x: template.lower[selection.field][selection.pointIndex][0], y: template.lower[selection.field][selection.pointIndex][1] }
+            : template.lower[selection.field])
+        : template.parts[selection.index];
+
+    const keys = selection.kind === 'lower' ? ['x', 'y']
+        : (target.type === 'wall'
+            ? ['thickness', 'role']
+            : Object.keys(target).filter(k => k !== 'type'));
+
+    if (selection.kind === 'part') {
+        const tag = document.createElement('label');
+        tag.textContent = 'type'; host.appendChild(tag);
+        const value = document.createElement('label');
+        value.textContent = target.type; value.style.color = '#fff';
+        host.appendChild(value);
+        host.appendChild(document.createElement('span'));
+        host.appendChild(document.createElement('span'));
+    }
+
+    keys.forEach(key => {
+        const label = document.createElement('label');
+        label.textContent = key;
+        const input = document.createElement('input');
+        input.value = target[key];
+        input.oninput = () => {
+            const raw = input.value;
+            const num = parseFloat(raw);
+            const next = (raw !== '' && !Number.isNaN(num) && key !== 'role' && key !== 'bank') ? num : raw;
+            if (selection.kind === 'lower' && selection.pointIndex !== undefined) {
+                template.lower[selection.field][selection.pointIndex][key === 'x' ? 0 : 1] = num;
+            } else if (selection.kind === 'lower') {
+                template.lower[selection.field][key] = num;
+            } else {
+                target[key] = next;
+            }
+            draw(); refreshJson(); refreshOverrideBadge();
+        };
+        host.appendChild(label); host.appendChild(input);
+    });
+}
+
+function refreshList() {
+    const host = document.getElementById('parts');
+    host.innerHTML = '';
+    template.parts.forEach((part, index) => {
+        const row = document.createElement('div');
+        row.className = 'part' + (selection && selection.kind === 'part' && selection.index === index ? ' sel' : '');
+        const where = part.type === 'wall'
+            ? `${part.points.length} pts`
+            : `${Math.round(part.x)}, ${Math.round(part.y)}`;
+        row.innerHTML = `<b>${part.type}</b><span>${where}</span>`;
+        row.onclick = () => { selection = { kind: 'part', index }; refreshPanels(); draw(); };
+        host.appendChild(row);
+    });
+}
+
+function refreshJson() {
+    document.getElementById('json').value = JSON.stringify(
+        { cabinet: template.cabinet, lower: template.lower, parts: template.parts }, null, 1
+    );
+}
+
+// A saved preview silently outranks the file for both the game and this editor,
+// so say so plainly rather than letting a stale override look like the source.
+function refreshOverrideBadge() {
+    const box = document.getElementById('override');
+    const saved = loadOverrides()[tableName];
+    const dirty = isDirty();
+    const lines = [];
+    if (dirty) lines.push('UNSAVED EDITS on screen. Play saves them first, so the game always matches this view.');
+    if (saved) {
+        lines.push(`This is a SAVED preview of ${tableName}. It overrides `
+            + 'src/pinball-templates.js in the game until you Revert.');
+    }
+    box.style.display = lines.length ? 'block' : 'none';
+    box.style.color = dirty ? '#ff6ec7' : '#ffb457';
+    box.textContent = lines.join(' ');
+}
+
+function refreshZoom() {
+    document.getElementById('zoomLabel').textContent = `${Math.round(zoom * 100)}%`;
+}
+
+function refreshPanels() { refreshProps(); refreshList(); refreshOverrideBadge(); refreshZoom(); }
+function refresh() { refreshPanels(); refreshJson(); draw(); }
+function status(message) {
+    document.getElementById('status').textContent = message;
+    setTimeout(() => { document.getElementById('status').textContent = ''; }, 4000);
+}
+
+// ---- apply -----------------------------------------------------------------
+document.getElementById('save').onclick = () =>
+    saveTable(`Saved ${tableName}. Reload the game to see it.`);
+
+// Play always saves first. Opening the game on the last saved state while the
+// screen showed newer edits was indistinguishable from the editor and the game
+// disagreeing about the board.
+document.getElementById('play').onclick = () => {
+    if (isDirty()) saveTable(null);
+    window.open('index.html', '_blank');
+};
+document.getElementById('revert').onclick = () => {
+    const all = loadOverrides();
+    delete all[tableName];
+    localStorage.setItem(OVERRIDE_KEY, JSON.stringify(all));
+    loadTable(tableName);
+    status(`${tableName} reverted to the file.`);
+};
+document.getElementById('clearAll').onclick = () => {
+    localStorage.removeItem(OVERRIDE_KEY);
+    loadTable(tableName);
+    status('All saved edits cleared.');
+};
+document.getElementById('dup').onclick = () => {
+    if (!selection || selection.kind !== 'part') return;
+    const copy = clone(template.parts[selection.index]);
+    if (copy.type === 'wall') copy.points = copy.points.map(p => [p[0] + 10, p[1] + 10]);
+    else { copy.x += 10; copy.y += 10; }
+    template.parts.push(copy);
+    selection = { kind: 'part', index: template.parts.length - 1 };
+    refresh();
+};
+document.getElementById('del').onclick = deleteSelection;
+document.getElementById('applyJson').onclick = () => {
+    try {
+        const next = JSON.parse(document.getElementById('json').value);
+        if (next.cabinet) template.cabinet = next.cabinet;
+        if (next.lower) template.lower = next.lower;
+        if (next.parts) template.parts = next.parts;
+        selection = null; refresh();
+        status('JSON applied.');
+    } catch (err) {
+        status('Bad JSON: ' + err.message);
+    }
+};
+
+// Emit the same shape src/pinball-templates.js already has, so the download is
+// a drop-in replacement rather than something you have to reconcile by hand.
+function emitFile() {
+    const fmt = (value, indent) => {
+        const pad = ' '.repeat(indent);
+        if (Array.isArray(value)) {
+            if (value.every(v => typeof v === 'number')) return '[' + value.join(', ') + ']';
+            if (value.every(v => Array.isArray(v) && v.every(n => typeof n === 'number'))) {
+                return '[' + value.map(v => '[' + v.join(', ') + ']').join(', ') + ']';
+            }
+            return '[\n' + value.map(v => pad + '  ' + fmt(v, indent + 2)).join(',\n') + '\n' + pad + ']';
+        }
+        if (value && typeof value === 'object') {
+            const keys = Object.keys(value);
+            const simple = v => typeof v !== 'object' || (Array.isArray(v) &&
+                v.every(n => typeof n === 'number' || (Array.isArray(n) && n.every(m => typeof m === 'number'))));
+            const body = keys.map(k => `${k}: ${fmt(value[k], indent + 2)}`);
+            if (keys.every(k => simple(value[k])) && body.join(', ').length < 150) return '{ ' + body.join(', ') + ' }';
+            return '{\n' + body.map(b => pad + '  ' + b).join(',\n') + '\n' + pad + '}';
+        }
+        return JSON.stringify(value);
+    };
+
+    const overrides = loadOverrides();
+    const merged = {};
+    TABLES.forEach(name => {
+        const base = PinballTemplates.templateFor(name);
+        const edit = name === tableName ? template : overrides[name];
+        merged[name] = {
+            zone: base.zone,
+            custom: base.custom,
+            climb: base.climb,
+            parts: (edit && edit.parts) || base.parts
+        };
+    });
+
+    const lower = template.lower;
+    const cabinet = template.cabinet;
+    let out = '';
+    out += '(function (root, factory) {\n';
+    out += '    const api = factory();\n';
+    out += "    if (typeof module === 'object' && module.exports) module.exports = api;\n";
+    out += '    if (root) root.PinballTemplates = api;\n';
+    out += "}(typeof globalThis !== 'undefined' ? globalThis : this, function () {\n";
+    out += "    'use strict';\n\n";
+    out += `    const GRID_WIDTH = ${GRID_W};\n    const GRID_HEIGHT = ${GRID_H};\n`;
+    out += `    const PLAYFIELD_CENTER = ${CENTER};\n\n`;
+    out += `    const CABINET = ${fmt(cabinet, 4)};\n\n`;
+    out += `    const LOWER = ${fmt(lower, 4)};\n\n`;
+    out += '    const TEMPLATES = {\n';
+    TABLES.forEach((name, i) => {
+        const t = merged[name];
+        out += `        ${name}: {\n            zone: ${JSON.stringify(t.zone)},\n`;
+        if (t.custom) out += '            custom: true,\n';
+        if (t.climb) out += '            climb: true,\n';
+        out += `            parts: ${fmt(t.parts, 12)}\n        }${i < TABLES.length - 1 ? ',' : ''}\n`;
+    });
+    out += '    };\n\n';
+    out += '    function templateFor(name) {\n';
+    out += '        const template = TEMPLATES[name] || TEMPLATES.Classic;\n';
+    out += '        return {\n';
+    out += '            zone: template.zone,\n            custom: !!template.custom,\n            climb: !!template.climb,\n';
+    out += '            cabinet: template.cabinet || CABINET,\n            lower: template.lower || LOWER,\n';
+    out += '            parts: template.parts || []\n        };\n    }\n\n';
+    out += '    function mirrorX(x) {\n        return 2 * PLAYFIELD_CENTER - x;\n    }\n\n';
+    out += '    return { GRID_WIDTH, GRID_HEIGHT, PLAYFIELD_CENTER, CABINET, LOWER, TEMPLATES, templateFor, mirrorX };\n';
+    out += '}));\n';
+    return out;
+}
+
+document.getElementById('copy').onclick = () => {
+    navigator.clipboard.writeText(document.getElementById('json').value)
+        .then(() => status('Template JSON copied.'), () => status('Clipboard blocked.'));
+};
+document.getElementById('download').onclick = () => {
+    const blob = new Blob([emitFile()], { type: 'text/javascript' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'pinball-templates.js';
+    link.click();
+    URL.revokeObjectURL(link.href);
+    status('Downloaded — replace src/pinball-templates.js with it.');
+};
+
+// ---- boot ------------------------------------------------------------------
+const picker = document.getElementById('table');
+TABLES.forEach(name => {
+    const option = document.createElement('option');
+    option.value = name; option.textContent = name;
+    picker.appendChild(option);
+});
+picker.onchange = () => {
+    if (isDirty()) saveTable(`Saved your ${tableName} edits before switching.`);
+    loadTable(picker.value);
+};
+
+document.getElementById('zoomIn').onclick = () => zoomAt(canvas.width / 2, canvas.height / 2, 1.25);
+document.getElementById('zoomOut').onclick = () => zoomAt(canvas.width / 2, canvas.height / 2, 1 / 1.25);
+document.getElementById('zoomFit').onclick = () => { fitBoard(); draw(); };
+
+buildPalette();
+loadTable(TABLES[0]);
+window.addEventListener('resize', resize);
+resize();
+</script>
+</body>
+</html>
