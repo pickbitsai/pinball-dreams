@@ -58,17 +58,24 @@
     // The flipper end. Written for the LEFT side only and mirrored about
     // PLAYFIELD_CENTER, so the two sides cannot drift apart. returnGuide and
     // outlaneWall are independent splines — the clear channel between them is the
-    // outlane, and check-board-boundaries.mjs fails if an edit closes it. Delete
+    // side lane, and check-board-boundaries.mjs fails if an edit closes it. Delete
     // outlaneWall to go back to one auto-offset from the guide at outlaneWidth.
     // A table can override the whole block with its own `lower`.
+    //
+    // BOTH lanes hand the ball to the flipper. The guide tip finishes *inboard*
+    // of the flipper pivot so the inlane drops onto the bat, and the outlane
+    // wall finishes hard against the pivot cap so the outer lane drops onto its
+    // outer end instead of into the gutter beside it. The side orbits feed this
+    // channel directly, so an outlane that spat past the flipper made every
+    // orbit shot an unplayable drain. The drain is the middle gap now.
     const LOWER = {
       outlaneWidth: 20,
       guideThickness: 12,
       railThickness: 14,
       flipper: { x: 135, y: 635 },
       sling: { x: 95.33, y: 520 },
-      returnGuide: [[48.67, 468], [53.67, 541], [69.67, 590], [107.33, 625]],
-      outlaneWall: [[20, 468.71], [25.82, 542.79], [43.58, 596.21], [83.93, 634.38]]
+      returnGuide: [[48.67, 468], [56, 537], [81.33, 586], [130, 618]],
+      outlaneWall: [[20, 469.11], [28.39, 539.85], [56.88, 594.33], [109.48, 629.63]]
     };
 
     const TEMPLATES = {

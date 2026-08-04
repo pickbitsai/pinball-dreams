@@ -84,10 +84,18 @@
     // tables split the lower third into an outlane hugging the rail and an
     // inlane that feeds the flipper. The divider between them is a
     // free-standing return guide: it starts at a rubber post level with the top
-    // of the slingshot and ends just outboard of the flipper pivot. It
+    // of the slingshot and finishes inboard of the flipper pivot. It
     // deliberately never touches the rail — that clear channel IS the outlane,
     // and closing it is what stopped the ball ever draining down the side the
     // way it does on a real machine.
+    //
+    // Both lanes discharge OVER the flipper. The side orbits empty straight
+    // into this channel, so a guide tip that stopped short of the pivot — and
+    // an outlane wall that stopped short of it too — dumped every orbit ball
+    // into the gutter beside the bat with nothing the player could do. The
+    // guide tip now lands the inlane feed on the bat, and the outlane wall ends
+    // hard against the pivot cap so the outer lane lands on its outer end. The
+    // gap between the flipper tips is the drain.
     //
     // Only the LEFT side is authored. Everything right is mirrored here, so a
     // hand edit or an editor drag can never leave the two sides out of step.
@@ -154,7 +162,7 @@
         railThickness: RAIL_THICKNESS,
         flipper: { x: 135, y: 635 },
         sling: { x: 95.33, y: 520 },
-        returnGuide: [[48.67, 468], [53.67, 541], [69.67, 590], [107.33, 625]]
+        returnGuide: [[48.67, 468], [56, 537], [81.33, 586], [130, 618]]
     };
 
     function flipperAssembly(width, height, baseY = 0, lower = DEFAULT_LOWER) {

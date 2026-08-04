@@ -44,14 +44,20 @@ Board layout is **data, not code**. To move a bumper, a wall or a target, edit
   authored **left-side only** and mirrored by `PinballLayout.lowerAssembly()`, so
   the two sides can't drift apart. The outlane's outer wall is *derived* from
   `returnGuide`, so moving the guide keeps the outlane the right width.
+- **Both side lanes discharge over the flipper.** The side orbits empty straight
+  into that channel, so a lane that ended outboard of the pivot turned every
+  orbit shot into an unplayable drain. `returnGuide` now finishes *inboard* of
+  the pivot (the inlane feed lands on the bat) and `outlaneWall` finishes hard
+  against the pivot cap, closer than a ball is wide (the outer lane lands on its
+  outer end). The gap between the flipper tips is the drain.
 - `editor.html` edits the same data visually. **Save preview** writes
   `pinballDreamsTemplateOverrides` in localStorage, which `resolveTemplate()`
   layers over the file — so a saved edit silently wins over your source changes
   until you hit **Revert table** / **Clear all saved**. **Download .js** emits a
   drop-in replacement for `src/pinball-templates.js`.
 - `node scripts/check-board-boundaries.mjs` validates every template: unknown
-  part types, missing keys, parts dragged off the grid, a closed outlane, a
-  guide tip that lets the inlane feed fall past the flipper, and broken mirroring.
+  part types, missing keys, parts dragged off the grid, a closed outlane, a side
+  lane that discharges past the flipper instead of onto it, and broken mirroring.
 
 ## Key systems (all in `index.html`)
 

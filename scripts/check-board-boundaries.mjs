@@ -80,16 +80,32 @@ for (let i = 1; i < assembly.leftGuide.length; i++) {
     );
 }
 
-// The inlane has to hand the ball to the flipper, not past it. The flipper is
-// pivoted at its outer end, so the opening between the guide tip and that end
-// must be narrower than the ball or the feed drops straight into the drain.
+// Both side lanes have to hand the ball to the flipper, not past it. The
+// flipper is pivoted at its outer end, so the guide tip has to finish inboard
+// of that pivot (the inlane feed lands on the bat) and the outlane wall has to
+// finish hard against it (the outer lane lands on its outer end). The side
+// orbits empty straight into this channel, so a lane that discharged outboard
+// of the pivot made every orbit shot an unplayable drain.
 const flipperCapRadius = 6;
-const tipGap = assembly.left.pivotX - assembly.leftGuide.at(-1).x
-    - assembly.guideThickness / 2 - flipperCapRadius;
+const flipperReach = 55;
+const tipOverhang = assembly.leftGuide.at(-1).x - assembly.left.pivotX;
 assert.ok(
-    tipGap > 0 && tipGap < ballRadius * 2,
-    `guide tip leaves a ${tipGap.toFixed(1)}px opening beside the flipper — must be positive and under one ball`
+    tipOverhang > 0 && tipOverhang < flipperReach / 2,
+    `guide tip sits ${tipOverhang.toFixed(1)}px inboard of the flipper pivot — must be over the bat but clear of its swing`
 );
+const sealGap = sideLaneSeal(assembly);
+assert.ok(
+    sealGap < ballRadius * 2,
+    `outlane wall ends ${sealGap.toFixed(1)}px from the flipper's outer end — the ball drops past the bat`
+);
+
+// The end of the outlane wall and the flipper's outer cap have to be closer
+// together than the ball is wide, or the outer lane empties into the gutter.
+function sideLaneSeal(built) {
+    const tip = built.leftOutlaneWall.at(-1);
+    return Math.hypot(tip.x - built.left.pivotX, tip.y - built.left.pivotY)
+        - built.railThickness / 2 - flipperCapRadius;
+}
 
 // The slingshot has to leave an inlane between itself and the return guide.
 const slingRadius = 30;
@@ -311,10 +327,17 @@ for (const name of Object.keys(templates.TEMPLATES)) {
         clear >= ballRadius * 2 * 1.1,
         `${name}: the outlane closes to ${clear.toFixed(1)}px — the ball can no longer drain down the side`
     );
-    const gap = built.left.pivotX - built.leftGuide.at(-1).x - built.guideThickness / 2 - flipperCapRadius;
+    const overhang = built.leftGuide.at(-1).x - built.left.pivotX;
     assert.ok(
-        gap > 0 && gap < ballRadius * 2,
-        `${name}: the guide tip leaves a ${gap.toFixed(1)}px opening beside the flipper`
+        overhang > 0 && overhang < flipperReach / 2,
+        `${name}: the guide tip sits ${overhang.toFixed(1)}px inboard of the flipper pivot — ` +
+        'it must finish over the bat but clear of its swing'
+    );
+    const seal = sideLaneSeal(built);
+    assert.ok(
+        seal < ballRadius * 2,
+        `${name}: the outlane wall ends ${seal.toFixed(1)}px from the flipper's outer end — ` +
+        'the outer lane would dump the ball past the bat'
     );
     assert.equal(
         built.leftGuide[0].x + built.rightGuide[0].x,
