@@ -12,3 +12,5 @@ dist/
 *.blend[0-9]*
 assets/3d/roblox/
 assets/3d/neon-pinball-kit-preview.png
+
+.vercel
