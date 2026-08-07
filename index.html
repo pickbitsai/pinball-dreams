@@ -35,14 +35,24 @@
             overflow: hidden;
             user-select: none;
         }
-        #game-container { position: relative; display: flex; flex-direction: column; align-items: center; }
+        /* The 600px design space, made explicit. Do NOT change this to a
+           viewport-relative width: #game-canvas is absolutely positioned at
+           left:0 with a 600px layout box and scaled about transform-origin
+           300px, so its visual centre is containerLeft + 300. The container
+           centring at -103px on a 393px phone is exactly what puts the table
+           on the screen's centre line. Narrowing the container shifts the
+           whole table right by 103px. */
+        #game-container { position: relative; display: flex; flex-direction: column; align-items: center; width: 600px; }
         #score-display {
             background: linear-gradient(180deg, #2d2d44 0%, #1a1a2e 100%);
             border: 3px solid #4a4a6a;
             border-radius: 0;
             padding: 10px 20px;
             width: 100%;
-            max-width: 600px;
+            /* Clamp to the viewport so the readouts stay on screen. Centred in
+               the 600px container, a 100vw-wide bar lands exactly on the
+               viewport: previously the multiplier sat at x=439-477, invisible. */
+            max-width: min(600px, 100vw);
             display: flex;
             justify-content: space-between;
             align-items: center;
