@@ -1182,6 +1182,16 @@
             letter-spacing: 0.04em;
         }
         .menu-hint b { color: var(--cyan-soft); font-weight: 700; }
+        /* The menu hint named a key no phone has. Touch already works here —
+           each option takes click (launch) and pointerdown (hold to charge the
+           spring harder) — only the label was desktop-only. Swap on pointer
+           type rather than viewport width: a small window on a mouse machine
+           still wants the keyboard hint. */
+        .menu-hint .hint-touch { display: none; }
+        @media (pointer: coarse) {
+            .menu-hint .hint-keys { display: none; }
+            .menu-hint .hint-touch { display: inline; }
+        }
         @media (max-width: 520px) {
             #menu-rig { grid-template-columns: minmax(0, 1fr) 52px; }
             .menu-hint { font-size: 11px; }
@@ -2272,7 +2282,7 @@
                             <path id="menu-aim-path"></path>
                         </svg>
                         <div class="menu-ball" id="menu-ball" aria-hidden="true"></div>
-                        <p class="menu-hint" id="menu-hint">↑↓ aim · hold <b>SPACE</b> to pull the plunger · release to launch</p>
+                        <p class="menu-hint" id="menu-hint"><span class="hint-keys">↑↓ aim · hold <b>SPACE</b> to pull the plunger · release to launch</span><span class="hint-touch">tap an option to launch · <b>hold</b> to pull the plunger harder</span></p>
                     </div>
                 </div>
             </div>
