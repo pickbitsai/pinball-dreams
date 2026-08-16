@@ -125,8 +125,8 @@
     </section>
 </div>
 
-<script src="src/pinball-layout.js?v=20260729a"></script>
-<script src="src/pinball-templates.js?v=20260729a"></script>
+<script src="src/pinball-layout.js?v=20260816a"></script>
+<script src="src/pinball-templates.js?v=20260816a"></script>
 <script>
 // The editor speaks the same 400x700 grid the templates do, and renders through
 // the real 600x1720 board so what you drag is what you get. It never builds
@@ -168,14 +168,22 @@ function loadTable(name) {
         lower: clone((saved && saved.lower) || base.lower),
         parts: clone((saved && saved.parts) || base.parts)
     };
-    // A preview saved before the outlane wall became its own spline has no
-    // outlaneWall, which would leave it underivable and undraggable. Backfill it
-    // from the offset the builder would have used, so old saves gain handles.
+    // Backfill anything an older saved preview predates, so it gains handles
+    // rather than crashing or silently losing shape. lowerAssembly already
+    // reads the legacy spellings, so ask it where things ended up.
+    const asm = PinballLayout.lowerAssembly(template.lower, REAL_W, REAL_H, 0);
+    const toGridPoint = p => [
+        Math.round(p.x / sx * 100) / 100, Math.round(p.y / sy * 100) / 100
+    ];
+    // Saved before the outlane wall became its own spline.
     if (!template.lower.outlaneWall) {
-        const asm = PinballLayout.lowerAssembly(template.lower, REAL_W, REAL_H, 0);
-        template.lower.outlaneWall = asm.leftOutlaneWall.map(p => [
-            Math.round(p.x / sx * 100) / 100, Math.round(p.y / sy * 100) / 100
-        ]);
+        template.lower.outlaneWall = asm.leftOutlaneWall.map(toGridPoint);
+    }
+    // Saved when `flipper` was the blade's centre and the pivot was implied.
+    if (!template.lower.flipperPivot) {
+        const [x, y] = toGridPoint({ x: asm.left.pivotX, y: asm.left.pivotY });
+        template.lower.flipperPivot = { x, y };
+        delete template.lower.flipper;
     }
     selection = null;
     baseline = snapshot();
@@ -307,16 +315,20 @@ function poly(gx, gy, sides, radius, angle, color, dim) {
 
 // The flipper hangs off a pivot at its OUTER end and sits at the rest angle, so
 // drawing it as a centred horizontal bar put it in the wrong place entirely.
-function flipperShape(bodyGridX, isLeft, gridY, dim) {
-    const pivotX = bodyGridX + (isLeft ? -25 : 25) / sx;
-    const c = toCanvas(pivotX, gridY);
-    const rest = isLeft ? 0.5 : -0.5;
+// The blade is not authored in the template — PinballLayout scales it off the
+// board width — so read it from there rather than hard-coding 60x12, or the
+// editor shows a flipper that is a different size from the one you play.
+function flipperShape(pivotGridX, isLeft, gridY, dim) {
+    const geo = PinballLayout.flipperGeometry(REAL_W);
+    const c = toCanvas(pivotGridX, gridY);
+    const rest = isLeft ? PinballLayout.FLIPPER_REST_ANGLE : -PinballLayout.FLIPPER_REST_ANGLE;
     ctx.save();
     ctx.translate(c.x, c.y);
     ctx.rotate(rest);
     ctx.fillStyle = COLORS.flipper; ctx.globalAlpha = dim ? 0.35 : 0.9;
-    const len = 60 * view(), thick = 12 * view();
-    ctx.fillRect(isLeft ? 0 : -len, -thick / 2, len, thick);
+    const len = (geo.reach / sx) * view(), thick = (geo.thickness / sx) * view();
+    const back = (geo.backOverhang / sx) * view();
+    ctx.fillRect(isLeft ? -back : -len, -thick / 2, len + back, thick);
     ctx.globalAlpha = 1;
     ctx.restore();
     // the pivot itself, so you can see what the flipper swings around
@@ -344,8 +356,8 @@ function lowerPreview() {
     poly(asm.rightSling.x / sx, asm.rightSling.y / sy, 3, 30, 0, COLORS.sling, true);
     poly(lower.sling.x, lower.sling.y, 3, 30, Math.PI, COLORS.sling, false);
 
-    flipperShape(asm.right.bodyX / sx, false, asm.right.bodyY / sy, true);
-    flipperShape(lower.flipper.x, true, lower.flipper.y, false);
+    flipperShape(asm.right.pivotX / sx, false, asm.right.pivotY / sy, true);
+    flipperShape(lower.flipperPivot.x, true, lower.flipperPivot.y, false);
 
     // handles for the editable left-hand points
     lower.returnGuide.forEach((p, i) => handle(p[0], p[1], isSel('lower', 'returnGuide', i)));
@@ -353,7 +365,7 @@ function lowerPreview() {
         lower.outlaneWall.forEach((p, i) => handle(p[0], p[1], isSel('lower', 'outlaneWall', i)));
     }
     handle(lower.sling.x, lower.sling.y, isSel('lower', 'sling'));
-    handle(lower.flipper.x, lower.flipper.y, isSel('lower', 'flipper'));
+    handle(lower.flipperPivot.x, lower.flipperPivot.y, isSel('lower', 'flipperPivot'));
 }
 
 function handle(gx, gy, on) {
@@ -434,7 +446,7 @@ function pick(g) {
         path.forEach((p, i) => consider(p[0], p[1], 0, { kind: 'lower', field, pointIndex: i }));
     }
     consider(lower.sling.x, lower.sling.y, 0, { kind: 'lower', field: 'sling' });
-    consider(lower.flipper.x, lower.flipper.y, 0, { kind: 'lower', field: 'flipper' });
+    consider(lower.flipperPivot.x, lower.flipperPivot.y, 0, { kind: 'lower', field: 'flipperPivot' });
 
     template.parts.forEach((part, i) => {
         if (part.type === 'wall') {

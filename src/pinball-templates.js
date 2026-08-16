@@ -61,11 +61,16 @@
     // outlane, and check-board-boundaries.mjs fails if an edit closes it. Delete
     // outlaneWall to go back to one auto-offset from the guide at outlaneWidth.
     // A table can override the whole block with its own `lower`.
+    //
+    // flipperPivot is the pivot the blade hangs off, in grid units. The blade
+    // itself is not authored here — PinballLayout scales it off the board width
+    // and grows it inboard from this point, so moving the pivot moves the feed
+    // and the outlane together while the centre drain stays the right size.
     const LOWER = {
       outlaneWidth: 20,
       guideThickness: 12,
       railThickness: 14,
-      flipper: { x: 135, y: 635 },
+      flipperPivot: { x: 119, y: 635 },
       sling: { x: 95.33, y: 520 },
       returnGuide: [[48.67, 468], [53.67, 541], [69.67, 590], [107.33, 625]],
       outlaneWall: [[20, 468.71], [25.82, 542.79], [43.58, 596.21], [83.93, 634.38]]

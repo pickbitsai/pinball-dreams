@@ -81,14 +81,29 @@ for (let i = 1; i < assembly.leftGuide.length; i++) {
 }
 
 // The inlane has to hand the ball to the flipper, not past it. The flipper is
-// pivoted at its outer end, so the opening between the guide tip and that end
-// must be narrower than the ball or the feed drops straight into the drain.
-const flipperCapRadius = 6;
-const tipGap = assembly.left.pivotX - assembly.leftGuide.at(-1).x
-    - assembly.guideThickness / 2 - flipperCapRadius;
+// pivoted near its outer end and overhangs a little behind that pivot, so the
+// opening between the guide tip and the back of the blade must be narrower than
+// the ball or the feed drops straight into the drain.
+const geometry = layout.flipperGeometry(width);
+const bladeBack = x => x - geometry.backOverhang;
+const tipGap = bladeBack(assembly.left.pivotX) - assembly.leftGuide.at(-1).x
+    - assembly.guideThickness / 2;
 assert.ok(
     tipGap > 0 && tipGap < ballRadius * 2,
     `guide tip leaves a ${tipGap.toFixed(1)}px opening beside the flipper — must be positive and under one ball`
+);
+
+// The blade is drawn in base-grid pixels and has to be scaled onto the real
+// board like everything else. Leaving it at a fixed pixel size while the pivots
+// moved out with the board opened the centre drain to over five ball widths,
+// which is what made almost every ball drain straight down the middle.
+assert.ok(
+    geometry.length > layout.FLIPPER.length,
+    'the flipper blade must scale with the board, not stay at its base-grid size'
+);
+assert.equal(
+    geometry.reach, geometry.length / 2 + geometry.pivotOffset,
+    'the flipper reaches from its pivot to the far tip'
 );
 
 // The slingshot has to leave an inlane between itself and the return guide.
@@ -311,10 +326,21 @@ for (const name of Object.keys(templates.TEMPLATES)) {
         clear >= ballRadius * 2 * 1.1,
         `${name}: the outlane closes to ${clear.toFixed(1)}px — the ball can no longer drain down the side`
     );
-    const gap = built.left.pivotX - built.leftGuide.at(-1).x - built.guideThickness / 2 - flipperCapRadius;
+    const gap = bladeBack(built.left.pivotX) - built.leftGuide.at(-1).x - built.guideThickness / 2;
     assert.ok(
         gap > 0 && gap < ballRadius * 2,
         `${name}: the guide tip leaves a ${gap.toFixed(1)}px opening beside the flipper`
+    );
+
+    // The hole between the resting flipper tips is the drain the player cannot
+    // defend. A real machine leaves about two ball widths there; much wider and
+    // the table plays itself into the gutter, much narrower and a ball coming
+    // down the middle can never get through at all.
+    const centre = built.centerDrain / (ballRadius * 2);
+    assert.ok(
+        centre >= 2 && centre <= 3.2,
+        `${name}: the centre drain is ${centre.toFixed(1)} ball widths between the flipper tips — ` +
+        'keep it between 2 and 3.2 or the board drains down the middle'
     );
     assert.equal(
         built.leftGuide[0].x + built.rightGuide[0].x,

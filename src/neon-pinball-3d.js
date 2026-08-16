@@ -517,17 +517,21 @@
 
         createFlipper(body, theme) {
             const group = new THREE.Group();
+            // The blade scales with the board, so the model has to follow it —
+            // the kit is authored against a 60px blade.
+            const length = body.plugin?.flipper?.length || 60;
+            const fit = length / 60;
             const asset = this.cloneAsset('Flipper', body.render?.fillStyle || theme.accent, theme.wall);
             if (asset) {
-                asset.position.x = -0.08;
-                asset.scale.setScalar(0.7);
+                asset.position.x = -0.08 * fit;
+                asset.scale.setScalar(0.7 * fit);
                 if ((body.label || '').includes('right')) {
                     asset.rotation.y = Math.PI;
                 }
                 group.add(asset);
             } else {
                 const bodyMesh = new THREE.Mesh(
-                    new THREE.BoxGeometry(1.22, 0.28, 0.28),
+                    new THREE.BoxGeometry(1.22 * fit, 0.28 * fit, 0.28 * fit),
                     this.neonMaterial(theme.accent, 2.8)
                 );
                 bodyMesh.position.y = 0.24;

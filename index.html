@@ -2389,18 +2389,28 @@
     <script src="src/pinball-progress.js"></script>
     <script src="src/pickbits.js?v=20260725b"></script>
     <script src="src/pinball-board-reference.js"></script>
-    <script src="src/pinball-layout.js?v=20260729a"></script>
-    <script src="src/pinball-templates.js?v=20260729a"></script>
+    <script src="src/pinball-layout.js?v=20260816a"></script>
+    <script src="src/pinball-templates.js?v=20260816a"></script>
 
     <script>
         const { Engine, Bodies, Body, Composite, Constraint, Events } = Matter;
 
         const CONFIG = {
             width: 600, height: 1720,
-            ball: { radius: 10, restitution: 0.5, friction: 0.001, frictionAir: 0.0005, density: 0.0015 },
-            flipper: { restAngle: 0.5, activeAngle: -0.5 },
+            // The ball needs real friction against the flipper rubber: at 0.001
+            // it slid down the resting blade and straight off the tip, so it
+            // could never be held or aimed, only swatted.
+            ball: { radius: 10, restitution: 0.5, friction: 0.12, frictionAir: 0.0005, density: 0.0015 },
+            flipper: {
+                restAngle: PinballLayout.FLIPPER_REST_ANGLE,
+                activeAngle: PinballLayout.FLIPPER_ACTIVE_ANGLE
+            },
             totalBalls: 3
         };
+        // Blade dimensions for this board size. Every flipper — table, climb
+        // checkpoint and hand-placed — is built from this, so none of them can
+        // fall out of proportion with the playfield again.
+        const FLIPPER_GEOMETRY = PinballLayout.flipperGeometry(CONFIG.width);
         const BASE_BOARD_WIDTH = 400;
         const BASE_BOARD_HEIGHT = 700;
         const boardX = (value) => value * (CONFIG.width / BASE_BOARD_WIDTH);
@@ -3716,17 +3726,19 @@
             const y = placement.bodyY;
             const pivotX = placement.pivotX;
             const fillColor = color || LEVELS[6].theme.accent;
+            const geo = FLIPPER_GEOMETRY;
 
-            const flipper = Bodies.rectangle(x, y, 60, 12, {
+            const flipper = Bodies.rectangle(x, y, geo.length, geo.thickness, {
                 label: `climb-flipper-${side}`, density: 0.03, friction: 0.9, restitution: 0.1,
-                chamfer: { radius: 6 },
+                chamfer: { radius: geo.chamfer },
                 collisionFilter: { category: CATEGORY.FLIPPER },
-                render: { fillStyle: fillColor }
+                render: { fillStyle: fillColor },
+                plugin: { flipper: geo }
             });
 
             const pivot = Bodies.circle(pivotX, y, 5, { isStatic: true, render: { fillStyle: fillColor } });
             const constraint = Constraint.create({
-                bodyA: flipper, pointA: { x: isLeft ? -25 : 25, y: 0 },
+                bodyA: flipper, pointA: { x: isLeft ? -geo.pivotOffset : geo.pivotOffset, y: 0 },
                 bodyB: pivot, pointB: { x: 0, y: 0 }, stiffness: 1, length: 0
             });
 
@@ -3780,16 +3792,21 @@
         function createCustomFlipper(x, y, side) {
             const isLeft = side === 'left';
             const level = LEVELS[currentLevel];
-            const pivotX = isLeft ? x - 20 : x + 20;
-            const flipper = Bodies.rectangle(x, y, 50, 10, {
+            // Hand-placed flippers are a little shorter than the built-in pair,
+            // but they scale with the board the same way.
+            const s = FLIPPER_GEOMETRY.scale;
+            const geo = { length: 50 * s, thickness: 10 * s, pivotOffset: 20 * s, chamfer: 5 * s };
+            const pivotX = isLeft ? x - geo.pivotOffset : x + geo.pivotOffset;
+            const flipper = Bodies.rectangle(x, y, geo.length, geo.thickness, {
                 label: `custom-flipper-${side}`, density: 0.03, friction: 0.9, restitution: 0.1,
-                chamfer: { radius: 5 },
+                chamfer: { radius: geo.chamfer },
                 collisionFilter: { category: CATEGORY.FLIPPER },
-                render: { fillStyle: level.theme.accent }
+                render: { fillStyle: level.theme.accent },
+                plugin: { flipper: geo }
             });
             const pivot = Bodies.circle(pivotX, y, 4, { isStatic: true, render: { fillStyle: level.theme.accent } });
             const constraint = Constraint.create({
-                bodyA: flipper, pointA: { x: isLeft ? -20 : 20, y: 0 },
+                bodyA: flipper, pointA: { x: isLeft ? -geo.pivotOffset : geo.pivotOffset, y: 0 },
                 bodyB: pivot, pointB: { x: 0, y: 0 }, stiffness: 1, length: 0
             });
             Composite.add(world, [flipper, pivot, constraint]);
@@ -3961,15 +3978,17 @@
             const y = placement.bodyY;
             const pivotX = placement.pivotX;
             const level = LEVELS[currentLevel];
-            const flipper = Bodies.rectangle(x, y, 60, 12, {
+            const geo = FLIPPER_GEOMETRY;
+            const flipper = Bodies.rectangle(x, y, geo.length, geo.thickness, {
                 label: `flipper-${side}`, density: 0.03, friction: 0.9, restitution: 0.1,
-                chamfer: { radius: 6 },
+                chamfer: { radius: geo.chamfer },
                 collisionFilter: { category: CATEGORY.FLIPPER },
-                render: { fillStyle: level.theme.accent }
+                render: { fillStyle: level.theme.accent },
+                plugin: { flipper: geo }
             });
             const pivot = Bodies.circle(pivotX, y, 5, { isStatic: true, render: { fillStyle: level.theme.accent } });
             const constraint = Constraint.create({
-                bodyA: flipper, pointA: { x: isLeft ? -25 : 25, y: 0 },
+                bodyA: flipper, pointA: { x: isLeft ? -geo.pivotOffset : geo.pivotOffset, y: 0 },
                 bodyB: pivot, pointB: { x: 0, y: 0 }, stiffness: 1, length: 0
             });
             Composite.add(world, [flipper, pivot, constraint]);
