@@ -4254,30 +4254,58 @@
             }
         }
 
+        // Flipper sound is edge-triggered, so it belongs on the frame, not on
+        // every physics step — driveFlippers() below does the moving.
         function updateFlippers() {
             if (!leftFlipper || !rightFlipper) return;
             if (keys.left && !prevKeysLeft) sfxFlipper();
             if (keys.right && !prevKeysRight) sfxFlipper();
             prevKeysLeft = keys.left; prevKeysRight = keys.right;
-            const lTarget = keys.left ? CONFIG.flipper.activeAngle : CONFIG.flipper.restAngle;
-            const rTarget = keys.right ? -CONFIG.flipper.activeAngle : -CONFIG.flipper.restAngle;
-            Body.setAngularVelocity(leftFlipper.flipper, (lTarget - leftFlipper.flipper.angle) * 0.35);
-            Body.setAngularVelocity(rightFlipper.flipper, (rTarget - rightFlipper.flipper.angle) * 0.35);
+        }
 
-            // Update custom flippers
+        // Swing one blade toward its target and hold it between its stops.
+        //
+        // This runs once per PHYSICS step, not once per frame. The step loop
+        // runs up to MAX_PHYSICS_STEPS times per frame, and holding a single
+        // frame's angular velocity across all of them moved the blade N * 0.35
+        // of the way to its target: fine at one step, overshooting at three,
+        // oscillating at six. On a phone dropping frames the blades swung to
+        // ±80° instead of ±29°, hanging almost straight down and opening the
+        // centre drain to eight ball widths — the ball went between them.
+        //
+        // The clamp is the mechanical stop a real flipper swings against. It
+        // also keeps a fast ball from knocking the blade past its arc, which is
+        // what makes the centre drain reliably the width the geometry promises.
+        function driveFlipper(assembly, target, boundA, boundB) {
+            const body = assembly.flipper;
+            const low = Math.min(boundA, boundB), high = Math.max(boundA, boundB);
+            if (body.angle < low || body.angle > high) {
+                const clamped = Math.max(low, Math.min(high, body.angle));
+                // Rotate about the pivot, not the blade's centre, or the
+                // constraint snaps it back and the flipper jitters.
+                Body.rotate(body, clamped - body.angle, assembly.pivot.position);
+            }
+            // Always drive afterwards. Returning early here left a blade that
+            // had sagged onto its stop pinned there, unable to swing at all.
+            Body.setAngularVelocity(body, (target - body.angle) * 0.35);
+        }
+
+        function driveFlippers() {
+            const rest = CONFIG.flipper.restAngle;
+            const active = CONFIG.flipper.activeAngle;
+            if (leftFlipper && rightFlipper) {
+                driveFlipper(leftFlipper, keys.left ? active : rest, active, rest);
+                driveFlipper(rightFlipper, keys.right ? -active : -rest, -active, -rest);
+            }
             customFlipperBodies.forEach(cf => {
                 const isLeft = cf.side === 'left';
                 const target = isLeft ? (keys.left ? -0.4 : 0.4) : (keys.right ? 0.4 : -0.4);
-                Body.setAngularVelocity(cf.flipper, (target - cf.flipper.angle) * 0.35);
+                driveFlipper(cf, target, -0.4, 0.4);
             });
-
-            // Update climb mode checkpoint flippers
             if (climbMode.active) {
                 climbMode.checkpointFlippers.forEach(cp => {
-                    const lT = keys.left ? CONFIG.flipper.activeAngle : CONFIG.flipper.restAngle;
-                    const rT = keys.right ? -CONFIG.flipper.activeAngle : -CONFIG.flipper.restAngle;
-                    Body.setAngularVelocity(cp.left.flipper, (lT - cp.left.flipper.angle) * 0.35);
-                    Body.setAngularVelocity(cp.right.flipper, (rT - cp.right.flipper.angle) * 0.35);
+                    driveFlipper(cp.left, keys.left ? active : rest, active, rest);
+                    driveFlipper(cp.right, keys.right ? -active : -rest, -active, -rest);
                 });
             }
         }
@@ -5345,6 +5373,12 @@
                 while (physicsAccumulator >= PHYSICS_STEP_MS - 0.001 && physicsSteps < MAX_PHYSICS_STEPS) {
                     applyElementalEffects();
                     Engine.update(engine, PHYSICS_STEP_MS);
+                    // Per step, so the blades reach their stops at the same rate
+                    // however many steps a frame has to catch up on, and so the
+                    // clamp lands on the angle the step actually produced —
+                    // clamping beforehand let the blade sag past its stop again
+                    // inside the step, and that is the angle everything reads.
+                    driveFlippers();
                     // Resolve rails and floor transitions after every fixed step,
                     // including catch-up steps on a device that missed a frame.
                     constrainBallToSideRails();

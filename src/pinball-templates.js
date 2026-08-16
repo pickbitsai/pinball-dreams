@@ -72,8 +72,12 @@
       railThickness: 14,
       flipperPivot: { x: 119, y: 635 },
       sling: { x: 95.33, y: 520 },
-      returnGuide: [[48.67, 468], [53.67, 541], [69.67, 590], [107.33, 625]],
-      outlaneWall: [[20, 468.71], [25.82, 542.79], [43.58, 596.21], [83.93, 634.38]]
+      // The guide has to run all the way down to the flipper. Ending it short
+      // of the pivot left a 22px diagonal hole between its tip and the back of
+      // the blade — wider than the ball — so an inlane feed slipped straight
+      // back out around the outside of the flipper and drained.
+      returnGuide: [[48.67, 468], [53.67, 541], [69.67, 590], [113, 628]],
+      outlaneWall: [[20, 468.71], [25.82, 542.79], [43.58, 596.21], [89.47, 638]]
     };
 
     const TEMPLATES = {

@@ -93,6 +93,71 @@
         };
     }
 
+    // ---- clearance maths, so the feed can be checked without a physics engine.
+    // Both the guide and the blade are built as flat-ended rectangles, so model
+    // them as their four corners. Anything capsule-shaped reads ~12px tighter
+    // than the bodies really are and would push the guide too far off the blade.
+    function pointToSegment(p, s, e) {
+        const dx = e.x - s.x, dy = e.y - s.y;
+        const lengthSq = dx * dx + dy * dy;
+        const t = lengthSq
+            ? clamp(((p.x - s.x) * dx + (p.y - s.y) * dy) / lengthSq, 0, 1)
+            : 0;
+        return Math.hypot(p.x - (s.x + t * dx), p.y - (s.y + t * dy));
+    }
+
+    // Corners of a rectangle laid along `from`->`to` with the given thickness,
+    // which is exactly how createCurvedWall and the flipper build their bodies.
+    function rectCorners(from, to, thickness) {
+        const dx = to.x - from.x, dy = to.y - from.y;
+        const length = Math.hypot(dx, dy) || 1;
+        const nx = (-dy / length) * (thickness / 2), ny = (dx / length) * (thickness / 2);
+        return [
+            { x: from.x + nx, y: from.y + ny }, { x: to.x + nx, y: to.y + ny },
+            { x: to.x - nx, y: to.y - ny }, { x: from.x - nx, y: from.y - ny }
+        ];
+    }
+
+    function polygonDistance(a, b) {
+        let best = Infinity;
+        const sweep = (p, q) => p.forEach(point => q.forEach((corner, i) => {
+            best = Math.min(best, pointToSegment(point, corner, q[(i + 1) % q.length]));
+        }));
+        sweep(a, b);
+        sweep(b, a);
+        return best;
+    }
+
+    // The clear opening between the end of the return guide and the flipper,
+    // taken at the tightest point of the blade's whole swing. This is the hole
+    // an inlane feed escapes through, and measuring it horizontally badly
+    // understates it — the guide tip sits above the pivot, not beside it, so
+    // the real opening runs diagonally and was five times the horizontal gap.
+    function feedClearance(lower, width, height) {
+        const assembly = lowerAssembly(lower, width, height, 0);
+        const geometry = assembly.flipper;
+        const guide = rectCorners(
+            assembly.leftGuide[assembly.leftGuide.length - 2],
+            assembly.leftGuide[assembly.leftGuide.length - 1],
+            assembly.guideThickness
+        );
+        const pivot = { x: assembly.left.pivotX, y: assembly.left.pivotY };
+        let tightest = Infinity;
+        const steps = 20;
+        for (let i = 0; i <= steps; i++) {
+            const angle = FLIPPER_REST_ANGLE
+                + (i / steps) * (FLIPPER_ACTIVE_ANGLE - FLIPPER_REST_ANGLE);
+            const ux = Math.cos(angle), uy = Math.sin(angle);
+            const blade = rectCorners(
+                { x: pivot.x - geometry.backOverhang * ux, y: pivot.y - geometry.backOverhang * uy },
+                { x: pivot.x + geometry.reach * ux, y: pivot.y + geometry.reach * uy },
+                geometry.thickness
+            );
+            tightest = Math.min(tightest, polygonDistance(guide, blade));
+        }
+        return tightest;
+    }
+
     function flipperPlacement(width, height, side, baseY = 0) {
         const { x, y } = scales(width, height);
         const field = playfield(width, height);
@@ -206,7 +271,7 @@
         railThickness: RAIL_THICKNESS,
         flipperPivot: { x: 119, y: 635 },
         sling: { x: 95.33, y: 520 },
-        returnGuide: [[48.67, 468], [53.67, 541], [69.67, 590], [107.33, 625]]
+        returnGuide: [[48.67, 468], [53.67, 541], [69.67, 590], [113, 628]]
     };
 
     function flipperAssembly(width, height, baseY = 0, lower = DEFAULT_LOWER) {
@@ -354,6 +419,7 @@
         playfield,
         offsetPath,
         flipperGeometry,
+        feedClearance,
         flipperPlacement,
         flipperAssembly,
         lowerAssembly,
