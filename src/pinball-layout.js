@@ -10,6 +10,20 @@
     const RAIL_THICKNESS = 14;
     const GUIDE_THICKNESS = 12;
 
+    // The flipper, in base-grid pixels — the same units the templates are drawn
+    // in. It has to be scaled onto the real board like every other dimension:
+    // the pivots come from scaled template coordinates, so a blade left at a
+    // fixed pixel size shrinks relative to the board and the drain between the
+    // tips opens up. At 600px wide that was a 103px hole, over five balls
+    // across, and it is why almost everything drained straight down the middle.
+    const FLIPPER = { length: 60, thickness: 12, pivotOffset: 25, chamfer: 6 };
+
+    // Rest is how far the blade droops below horizontal; active is the top of
+    // the swing. Both are needed here because the centre drain is measured at
+    // rest, and CONFIG.flipper in index.html reads them from this module.
+    const FLIPPER_REST_ANGLE = 0.5;
+    const FLIPPER_ACTIVE_ANGLE = -0.5;
+
     // Playfield rails in base units. The plunger lane occupies the strip to the
     // right of the right rail, so the playfield is NOT centred on the canvas.
     // Everything in the lower third mirrors about the rails, never about
@@ -60,14 +74,99 @@
         });
     }
 
+    // Every flipper dimension in one place, scaled off the board width so the
+    // blade keeps its proportion to the playfield. `reach` is how far the tip
+    // sits from the pivot; `backOverhang` is how far the blade sticks out
+    // behind it, which is what the inlane feed has to clear.
+    function flipperGeometry(width) {
+        const scale = width / BASE_WIDTH;
+        const length = FLIPPER.length * scale;
+        const pivotOffset = FLIPPER.pivotOffset * scale;
+        return {
+            scale,
+            length,
+            thickness: FLIPPER.thickness * scale,
+            pivotOffset,
+            chamfer: FLIPPER.chamfer * scale,
+            reach: length / 2 + pivotOffset,
+            backOverhang: length / 2 - pivotOffset
+        };
+    }
+
+    // ---- clearance maths, so the feed can be checked without a physics engine.
+    // Both the guide and the blade are built as flat-ended rectangles, so model
+    // them as their four corners. Anything capsule-shaped reads ~12px tighter
+    // than the bodies really are and would push the guide too far off the blade.
+    function pointToSegment(p, s, e) {
+        const dx = e.x - s.x, dy = e.y - s.y;
+        const lengthSq = dx * dx + dy * dy;
+        const t = lengthSq
+            ? clamp(((p.x - s.x) * dx + (p.y - s.y) * dy) / lengthSq, 0, 1)
+            : 0;
+        return Math.hypot(p.x - (s.x + t * dx), p.y - (s.y + t * dy));
+    }
+
+    // Corners of a rectangle laid along `from`->`to` with the given thickness,
+    // which is exactly how createCurvedWall and the flipper build their bodies.
+    function rectCorners(from, to, thickness) {
+        const dx = to.x - from.x, dy = to.y - from.y;
+        const length = Math.hypot(dx, dy) || 1;
+        const nx = (-dy / length) * (thickness / 2), ny = (dx / length) * (thickness / 2);
+        return [
+            { x: from.x + nx, y: from.y + ny }, { x: to.x + nx, y: to.y + ny },
+            { x: to.x - nx, y: to.y - ny }, { x: from.x - nx, y: from.y - ny }
+        ];
+    }
+
+    function polygonDistance(a, b) {
+        let best = Infinity;
+        const sweep = (p, q) => p.forEach(point => q.forEach((corner, i) => {
+            best = Math.min(best, pointToSegment(point, corner, q[(i + 1) % q.length]));
+        }));
+        sweep(a, b);
+        sweep(b, a);
+        return best;
+    }
+
+    // The clear opening between the end of the return guide and the flipper,
+    // taken at the tightest point of the blade's whole swing. This is the hole
+    // an inlane feed escapes through, and measuring it horizontally badly
+    // understates it — the guide tip sits above the pivot, not beside it, so
+    // the real opening runs diagonally and was five times the horizontal gap.
+    function feedClearance(lower, width, height) {
+        const assembly = lowerAssembly(lower, width, height, 0);
+        const geometry = assembly.flipper;
+        const guide = rectCorners(
+            assembly.leftGuide[assembly.leftGuide.length - 2],
+            assembly.leftGuide[assembly.leftGuide.length - 1],
+            assembly.guideThickness
+        );
+        const pivot = { x: assembly.left.pivotX, y: assembly.left.pivotY };
+        let tightest = Infinity;
+        const steps = 20;
+        for (let i = 0; i <= steps; i++) {
+            const angle = FLIPPER_REST_ANGLE
+                + (i / steps) * (FLIPPER_ACTIVE_ANGLE - FLIPPER_REST_ANGLE);
+            const ux = Math.cos(angle), uy = Math.sin(angle);
+            const blade = rectCorners(
+                { x: pivot.x - geometry.backOverhang * ux, y: pivot.y - geometry.backOverhang * uy },
+                { x: pivot.x + geometry.reach * ux, y: pivot.y + geometry.reach * uy },
+                geometry.thickness
+            );
+            tightest = Math.min(tightest, polygonDistance(guide, blade));
+        }
+        return tightest;
+    }
+
     function flipperPlacement(width, height, side, baseY = 0) {
         const { x, y } = scales(width, height);
         const field = playfield(width, height);
+        const geometry = flipperGeometry(width);
         const isLeft = side === 'left';
-        const bodyOffset = x(50);
-        const bodyX = field.centerX + (isLeft ? -bodyOffset : bodyOffset);
+        const pivotOffset = x(50);
+        const pivotX = field.centerX + (isLeft ? -pivotOffset : pivotOffset);
         const bodyY = baseY + height - y(65);
-        const pivotX = bodyX + (isLeft ? -25 : 25);
+        const bodyX = pivotX + (isLeft ? geometry.pivotOffset : -geometry.pivotOffset);
         return { side, bodyX, bodyY, pivotX, pivotY: bodyY };
     }
 
@@ -94,20 +193,32 @@
     function lowerAssembly(lower, width, height, baseY = 0) {
         const { x, y } = scales(width, height);
         const field = playfield(width, height);
+        const geometry = flipperGeometry(width);
         const guideThickness = lower.guideThickness || GUIDE_THICKNESS;
         const railThickness = lower.railThickness || RAIL_THICKNESS;
         const toWorld = point => ({ x: x(point[0]), y: baseY + y(point[1]) });
         const mirror = point => ({ x: 2 * field.centerX - point.x, y: point.y });
 
-        const bodyX = x(lower.flipper.x);
-        const bodyY = baseY + y(lower.flipper.y);
-        const left = { side: 'left', bodyX, bodyY, pivotX: bodyX - 25, pivotY: bodyY };
+        // The flipper end is anchored on the PIVOT, not the blade centre: the
+        // pivot is what the return guide feeds and what the outlane is measured
+        // against, so the blade has to grow inboard from it rather than drag it
+        // around. `flipper` is the old spelling, where the template stored the
+        // blade centre and the pivot sat a fixed 25px outboard — still read so
+        // a template downloaded from the editor before the blade started
+        // scaling puts its flippers back in the same place.
+        const pivotSource = lower.flipperPivot || lower.flipper;
+        const pivotX = lower.flipperPivot
+            ? x(pivotSource.x)
+            : x(pivotSource.x) - FLIPPER.pivotOffset;
+        const pivotY = baseY + y(pivotSource.y);
+        const bodyX = pivotX + geometry.pivotOffset;
+        const left = { side: 'left', bodyX, bodyY: pivotY, pivotX, pivotY };
         const right = {
             side: 'right',
             bodyX: 2 * field.centerX - bodyX,
-            bodyY,
-            pivotX: 2 * field.centerX - left.pivotX,
-            pivotY: bodyY
+            bodyY: pivotY,
+            pivotX: 2 * field.centerX - pivotX,
+            pivotY
         };
 
         const leftGuide = lower.returnGuide.map(toWorld);
@@ -139,6 +250,12 @@
             outlaneWidth,
             guideThickness,
             railThickness,
+            // Blade dimensions, so every caller builds the same flipper.
+            flipper: geometry,
+            // Clear width of the centre drain with both flippers at rest — the
+            // hole the ball falls through when neither flipper catches it.
+            centerDrain: (right.pivotX - geometry.reach * Math.cos(FLIPPER_REST_ANGLE))
+                - (pivotX + geometry.reach * Math.cos(FLIPPER_REST_ANGLE)),
             // Where the outlane wall branches off the rail.
             railEndY: leftOutlaneWall[0].y,
             playfield: field
@@ -152,9 +269,9 @@
         outlaneWidth: 20,
         guideThickness: GUIDE_THICKNESS,
         railThickness: RAIL_THICKNESS,
-        flipper: { x: 135, y: 635 },
+        flipperPivot: { x: 119, y: 635 },
         sling: { x: 95.33, y: 520 },
-        returnGuide: [[48.67, 468], [53.67, 541], [69.67, 590], [107.33, 625]]
+        returnGuide: [[48.67, 468], [53.67, 541], [69.67, 590], [113, 628]]
     };
 
     function flipperAssembly(width, height, baseY = 0, lower = DEFAULT_LOWER) {
@@ -295,9 +412,14 @@
         BASE_HEIGHT,
         RAIL_THICKNESS,
         GUIDE_THICKNESS,
+        FLIPPER,
+        FLIPPER_REST_ANGLE,
+        FLIPPER_ACTIVE_ANGLE,
         scales,
         playfield,
         offsetPath,
+        flipperGeometry,
+        feedClearance,
         flipperPlacement,
         flipperAssembly,
         lowerAssembly,

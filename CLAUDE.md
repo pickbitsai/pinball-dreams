@@ -40,10 +40,16 @@ Board layout is **data, not code**. To move a bumper, a wall or a target, edit
   lane eats the right edge of the canvas.
 - `buildTemplate()` in `index.html` is the **only** place a part becomes a body.
   Adding a part type is one `case` there plus one line in the template.
-- `lower` (the flipper end: return guide, slingshot, flipper, outlane width) is
-  authored **left-side only** and mirrored by `PinballLayout.lowerAssembly()`, so
+- `lower` (the flipper end: return guide, slingshot, flipper pivot, outlane width)
+  is authored **left-side only** and mirrored by `PinballLayout.lowerAssembly()`, so
   the two sides can't drift apart. The outlane's outer wall is *derived* from
   `returnGuide`, so moving the guide keeps the outlane the right width.
+- The **flipper blade is not template data.** `lower.flipperPivot` places the
+  pivot; `PinballLayout.flipperGeometry()` sizes the blade off the board width and
+  grows it inboard from there. Leaving the blade at a fixed pixel size while the
+  scaled pivots moved apart is what opened the centre drain to five ball widths
+  and sent almost every ball down the middle — `check-board-boundaries.mjs` now
+  fails if that gap leaves the 2–3.2 ball range.
 - `editor.html` edits the same data visually. **Save preview** writes
   `pinballDreamsTemplateOverrides` in localStorage, which `resolveTemplate()`
   layers over the file — so a saved edit silently wins over your source changes
