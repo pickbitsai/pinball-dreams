@@ -85,6 +85,7 @@ const PickBitsClient = (() => {
                 window.PickBits.init({ gameSlug: GAME_SLUG });
                 if (window.PickBits.onAuthChange) window.PickBits.onAuthChange(onAuth);
                 ready = true;
+                window.dispatchEvent(new Event('pickbits:ready'));
                 installWriteIntercept();
                 // An existing session may already be resolved.
                 const u = window.PickBits.getUser ? window.PickBits.getUser() : null;
