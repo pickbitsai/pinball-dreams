@@ -2491,6 +2491,15 @@
             builtinCount: CLIMB_TARGET_FLOORS, bridge: PickBitsClient, templates: PinballTemplates });
         const climbLevelFor = floor => levelSource.levelFor(floor);
         const climbFloorLimit = () => levelSource.length;
+        const membershipCard=PinballLevels.createMembershipCard({source:levelSource,unit:'Floor'});
+        let infiniteRun=0;
+        levelSource.onMembershipRequired(()=>{
+            const toast=document.getElementById('infinite-membership-toast')||document.createElement('div');
+            toast.id='infinite-membership-toast';toast.setAttribute('role','status');
+            toast.style.cssText='position:fixed;z-index:10000;bottom:20px;left:16px;right:16px;padding:16px;background:#10242b;color:#fff2d6;text-align:center;font:16px system-ui;pointer-events:none';
+            toast.textContent=PinballLevels.MEMBERSHIP_TOAST;document.body.append(toast);
+            clearTimeout(toast.dismissTimer);toast.dismissTimer=setTimeout(()=>toast.remove(),4500);
+        });
 
         let climbMode = {
             active: false,
@@ -4436,8 +4445,11 @@
                     // The last ceiling is the player's frontier, in zero-based indices.
                     if (levelSource.isActive()) {
                         const edge = document.getElementById('floor-board-name');
-                        edge.textContent = 'Forging the edge…';
-                        void levelSource.complete(panel.plugin.floor);
+                        if(levelSource.canPlayInfinite())edge.textContent = 'Forging the edge…';
+                        const run=infiniteRun;
+                        void levelSource.complete(panel.plugin.floor).then(()=>{
+                            if(run===infiniteRun&&document.getElementById('game-over').style.display!=='none')membershipCard.show(()=>{});
+                        });
                     }
                     completeClimbRun(panel.position);
                     return { ok: true, completed: true, floor: panel.plugin.floor };
@@ -5458,6 +5470,7 @@
         }
 
         function startGame() {
+            membershipCard.close();infiniteRun++;
             void levelSource.refresh();
             document.body.classList.add('game-active');
             handleResize();
@@ -5525,6 +5538,7 @@
         }
 
         function endGame() {
+            membershipCard.close();
             const isNewHS = gameState.score > gameState.highScore;
             gameState.isPlaying = false; paused = false;
             updateHighScore();
@@ -5588,6 +5602,7 @@
         }
 
         function showLevelSelect() {
+            membershipCard.close();infiniteRun++;
             gameState.isPlaying = false; paused = false;
             boardExtended = false; cameraY = 0;
             climbMode.active = false; engine.gravity.y = 0.8;
@@ -5755,6 +5770,7 @@
         }
 
         function showTitleScreen() {
+            membershipCard.close();infiniteRun++;
             document.body.classList.remove('game-active');
             handleResize();
             document.getElementById('title-screen').style.display = 'block';
