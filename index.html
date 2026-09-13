@@ -2391,6 +2391,7 @@
     <script src="src/pinball-board-reference.js"></script>
     <script src="src/pinball-layout.js?v=20260816a"></script>
     <script src="src/pinball-templates.js?v=20260816a"></script>
+    <script src="src/levels.js"></script>
 
     <script>
         const { Engine, Bodies, Body, Composite, Constraint, Events } = Matter;
@@ -2485,6 +2486,20 @@
         // Board types that rotate in climb mode (indices into LEVELS)
         const CLIMB_BOARDS = [0, 1, 2, 3, 4]; // Classic, Vortex, Diamond, Castle, Wave
         const CLIMB_TARGET_FLOORS = 20;
+        // INFINITE CLIMB: seed floors keep their layouts; remote floors append.
+        const levelSource = PinballLevels.create({ levels: LEVELS, boards: CLIMB_BOARDS,
+            builtinCount: CLIMB_TARGET_FLOORS, bridge: PickBitsClient, templates: PinballTemplates });
+        const climbLevelFor = floor => levelSource.levelFor(floor);
+        const climbFloorLimit = () => levelSource.length;
+        const membershipCard=PinballLevels.createMembershipCard({source:levelSource,unit:'Floor'});
+        let infiniteRun=0;
+        levelSource.onMembershipRequired(()=>{
+            const toast=document.getElementById('infinite-membership-toast')||document.createElement('div');
+            toast.id='infinite-membership-toast';toast.setAttribute('role','status');
+            toast.style.cssText='position:fixed;z-index:10000;bottom:20px;left:16px;right:16px;padding:16px;background:#10242b;color:#fff2d6;text-align:center;font:16px system-ui;pointer-events:none';
+            toast.textContent=PinballLevels.MEMBERSHIP_TOAST;document.body.append(toast);
+            clearTimeout(toast.dismissTimer);toast.dismissTimer=setTimeout(()=>toast.remove(),4500);
+        });
 
         let climbMode = {
             active: false,
@@ -2891,11 +2906,12 @@
             let gate = climbMode.floorGates[floor];
             if (gate) return gate;
             const boardLevel = CLIMB_BOARDS[floor % CLIMB_BOARDS.length];
-            const level = LEVELS[boardLevel];
+            const level = climbLevelFor(floor);
             const mission = level.mission;
             // Board missions are tuned for a whole table, so halve them for a
             // single floor, then add a step each time the rotation comes round.
-            const goal = Math.max(3, Math.round(mission.goal * 0.5) + Math.floor(floor / CLIMB_BOARDS.length));
+            const goal = floor >= CLIMB_TARGET_FLOORS ? levelSource.levels[floor].spec.gate.goal
+                : Math.max(3, Math.round(mission.goal * 0.5) + Math.floor(floor / CLIMB_BOARDS.length));
             // Phrase the task from the gate's OWN goal — the board's mission
             // instruction quotes the full-table number and would contradict it.
             const verbs = {
@@ -2911,7 +2927,7 @@
                 goal, progress: 0,
                 unsealed: false, breached: false, mastered: false
             };
-            if (climbBoardMastered(boardLevel)) {
+            if (floor < CLIMB_TARGET_FLOORS && climbBoardMastered(boardLevel)) {
                 gate.progress = goal;
                 gate.unsealed = true;
                 gate.mastered = true;
@@ -2980,7 +2996,7 @@
             const gate = climbMode.floorGates[floor];
             if (!gate || !gate.unsealed || gate.breached || gate.capsule) return;
             const baseY = floorY(floor);
-            const theme = LEVELS[gate.boardLevel].theme;
+            const theme = climbLevelFor(floor).theme;
             const orb = Bodies.circle(CONFIG.width / 2 + (Math.random() - 0.5) * 140, baseY + boardY(250), 13, {
                 isStatic: true, isSensor: true, label: 'power-capsule',
                 render: { fillStyle: POWER_TYPES[gate.element].color },
@@ -3116,7 +3132,7 @@
             const remaining = powerSystem.active === 'normal' ? 0 : Math.max(0, Math.ceil((powerSystem.expiresAt - Date.now()) / 1000));
             const zoneText = powerSystem.zoneUntil > Date.now() ? ` · ${powerSystem.zone.toUpperCase()} ZONE` : '';
             const activeLevel = climbMode.active
-                ? LEVELS[CLIMB_BOARDS[climbMode.currentBallFloor % CLIMB_BOARDS.length]]
+                ? climbLevelFor(climbMode.currentBallFloor)
                 : LEVELS[currentLevel];
             document.getElementById('power-rule').textContent = powerSystem.active === 'normal'
                 ? `Normal ball · ${activeLevel.zone.toUpperCase()} zone favors ${activeLevel.zone}`
@@ -3289,7 +3305,7 @@
         }
 
         function buildTemplate(name, baseY, level, wallOpts, walls, options = {}) {
-            const template = resolveTemplate(name);
+            const template = options.template || resolveTemplate(name);
             const theme = level.theme;
             const floor = Number.isFinite(options.floor) ? options.floor : -1;
             const at = (x, y) => ({ x: boardX(x), y: baseY + boardY(y) });
@@ -3593,7 +3609,7 @@
         // Spawn a new board at the given floor, using rotating level layouts
         function spawnClimbBoard(floor) {
             const cm = climbMode;
-            if (floor < 0 || floor >= CLIMB_TARGET_FLOORS) return;
+            if (floor < 0 || floor >= climbFloorLimit()) return;
             if (cm.spawnedFloors.has(floor)) return;
             cm.spawnedFloors.add(floor);
 
@@ -3602,9 +3618,10 @@
             const Y = boardY;
             const boardIdx = floor % CLIMB_BOARDS.length;
             const boardLevel = CLIMB_BOARDS[boardIdx];
-            const theme = LEVELS[boardLevel].theme;
+            const floorLevel = climbLevelFor(floor);
+            const theme = floorLevel.theme;
             const baseY = floorY(floor);
-            cm.boardNames[floor] = LEVELS[boardLevel].name;
+            cm.boardNames[floor] = floorLevel.name;
 
             const wallOpts = {
                 isStatic: true, restitution: 0.3, friction: 0.0,
@@ -3663,7 +3680,7 @@
 
             // Board furniture is the same template the standalone table uses,
             // rebased onto this floor.
-            buildTemplate(LEVELS[boardLevel].name, baseY, LEVELS[boardLevel], wallOpts, walls, { floor });
+            buildTemplate(floorLevel.name, baseY, floorLevel, wallOpts, walls, { floor, template: levelSource.templateFor(floor) });
 
             // Drop targets - 3 per floor
             const dtY = baseY + Y(390);
@@ -4386,8 +4403,8 @@
         function completeClimbRun(origin) {
             if (!climbMode.active || climbMode.completed) return;
             climbMode.completed = true;
-            climbMode.highestFloor = CLIMB_TARGET_FLOORS - 1;
-            climbMode.currentBallFloor = CLIMB_TARGET_FLOORS - 1;
+            climbMode.highestFloor = climbFloorLimit() - 1;
+            climbMode.currentBallFloor = climbFloorLimit() - 1;
             gameState.score += 50000;
             updateScoreDisplay();
             if (origin) createScorePopup(origin.x, origin.y, 'CLIMB COMPLETE');
@@ -4424,7 +4441,16 @@
             Composite.remove(world, panel);
 
             if (climbMode.active) {
-                if (panel.plugin.floor + 1 >= CLIMB_TARGET_FLOORS) {
+                if (panel.plugin.floor + 1 >= climbFloorLimit()) {
+                    // The last ceiling is the player's frontier, in zero-based indices.
+                    if (levelSource.isActive()) {
+                        const edge = document.getElementById('floor-board-name');
+                        if(levelSource.canPlayInfinite())edge.textContent = 'Forging the edge…';
+                        const run=infiniteRun;
+                        void levelSource.complete(panel.plugin.floor).then(()=>{
+                            if(run===infiniteRun&&document.getElementById('game-over').style.display!=='none')membershipCard.show(()=>{});
+                        });
+                    }
                     completeClimbRun(panel.position);
                     return { ok: true, completed: true, floor: panel.plugin.floor };
                 }
@@ -4786,7 +4812,7 @@
             const floor = climbMode.currentBallFloor;
             document.getElementById('floor-num').textContent = floor + 1;
             const boardName = climbMode.boardNames[floor] || LEVELS[CLIMB_BOARDS[floor % CLIMB_BOARDS.length]].name;
-            document.getElementById('floor-board-name').textContent = boardName;
+            document.getElementById('floor-board-name').textContent = [boardName, levelSource.credit(floor)].filter(Boolean).join(' · ');
             const elem = powerSystem.active;
             const elemInfo = ELEMENT_COLORS[elem];
             let elemHtml;
@@ -4950,12 +4976,12 @@
             ctx.fillStyle = level.theme.bg;
             if (climbMode.active) {
                 // Draw backgrounds for all spawned floors with per-board themes
-                const maxFloor = Math.min(CLIMB_TARGET_FLOORS - 1, climbMode.highestFloor + 1);
+                const maxFloor = Math.min(climbFloorLimit() - 1, climbMode.highestFloor + 1);
                 for (let f = maxFloor; f >= 0; f--) {
                     const fy = floorY(f);
                     const boardIdx = f % CLIMB_BOARDS.length;
-                    const floorTheme = LEVELS[CLIMB_BOARDS[boardIdx]].theme;
-                    drawPlayfieldSurface(floorTheme, fy, W, H, LEVELS[CLIMB_BOARDS[boardIdx]].name);
+                    const floorTheme = climbLevelFor(f).theme;
+                    drawPlayfieldSurface(floorTheme, fy, W, H, climbLevelFor(f).name);
                     // Floor divider line and label
                     if (f > 0) {
                         ctx.strokeStyle = floorTheme.wall + '40';
@@ -4973,7 +4999,7 @@
                         ctx.fillText(f + 1, W / 2 - 15, fy + H / 2 + 20);
                         ctx.font = 'bold 16px Arial';
                         ctx.fillStyle = floorTheme.wall + '50';
-                        ctx.fillText(LEVELS[CLIMB_BOARDS[boardIdx]].name, W / 2 - 15, fy + H / 2 + 50);
+                        ctx.fillText(climbLevelFor(f).name, W / 2 - 15, fy + H / 2 + 50);
                     }
                 }
             } else if (boardExtended) {
@@ -5430,12 +5456,12 @@
                     },
                     floorThemes: climbMode.active
                         ? Array.from(
-                            { length: Math.min(CLIMB_TARGET_FLOORS, Math.max(2, climbMode.highestFloor + 2)) },
-                            (_, floor) => LEVELS[CLIMB_BOARDS[floor % CLIMB_BOARDS.length]].theme
+                            { length: Math.min(climbFloorLimit(), Math.max(2, climbMode.highestFloor + 2)) },
+                            (_, floor) => climbLevelFor(floor).theme
                         )
                         : [LEVELS[currentLevel].theme],
                     floorCount: climbMode.active
-                        ? Math.min(CLIMB_TARGET_FLOORS, Math.max(2, climbMode.highestFloor + 2))
+                        ? Math.min(climbFloorLimit(), Math.max(2, climbMode.highestFloor + 2))
                         : (boardExtended ? 2 : 1)
                 }, renderDeltaSeconds);
                 performanceDiagnostics.sample3DFrames++;
@@ -5444,6 +5470,8 @@
         }
 
         function startGame() {
+            membershipCard.close();infiniteRun++;
+            void levelSource.refresh();
             document.body.classList.add('game-active');
             handleResize();
             physicsAccumulator = 0;
@@ -5510,6 +5538,7 @@
         }
 
         function endGame() {
+            membershipCard.close();
             const isNewHS = gameState.score > gameState.highScore;
             gameState.isPlaying = false; paused = false;
             updateHighScore();
@@ -5573,6 +5602,7 @@
         }
 
         function showLevelSelect() {
+            membershipCard.close();infiniteRun++;
             gameState.isPlaying = false; paused = false;
             boardExtended = false; cameraY = 0;
             climbMode.active = false; engine.gravity.y = 0.8;
@@ -5740,6 +5770,7 @@
         }
 
         function showTitleScreen() {
+            membershipCard.close();infiniteRun++;
             document.body.classList.remove('game-active');
             handleResize();
             document.getElementById('title-screen').style.display = 'block';
